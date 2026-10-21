@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Informasi Agenda Surat | SMA YWKA Bandung</title>
+  <meta name="description" content="Aplikasi Agenda Surat Keluar & Surat Masuk SMA YWKA Bandung dengan generator nomor agenda otomatis, template surat lengkap, upload berkas ke Google Drive, dan sinkronisasi Google Spreadsheet.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-box">
+          <i class="fa-solid fa-graduation-cap logo-icon"></i>
+          <div>
+            <h1 class="school-name">SMA YWKA</h1>
+            <span class="app-title">Agenda Surat Digital</span>
+          </div>
+        </div>
+        <button class="mobile-close-btn" id="closeSidebarBtn" aria-label="Tutup Menu">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="sheet-status-card" id="statusCard">
+        <div class="status-indicator">
+          <span class="status-dot connected" id="statusDot"></span>
+          <span class="status-text" id="statusText">Terhubung ke Spreadsheet</span>
+        </div>
+        <div class="status-meta">
+          <span id="lastSyncTime">Sync: Memuat...</span>
+          <button class="sync-refresh-btn" id="btnRefreshData" title="Sinkronkan data sekarang">
+            <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i>
+          </button>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">MENU UTAMA</div>
+        <button class="nav-item active" data-tab="tab-surat-keluar">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>Surat Keluar 2026</span>
+          <span class="badge" id="countKeluarBadge">0</span>
+        </button>
+        <button class="nav-item" data-tab="tab-surat-masuk">
+          <i class="fa-solid fa-inbox"></i>
+          <span>Surat Masuk 2026</span>
+          <span class="badge" id="countMasukBadge">0</span>
+        </button>
+        <button class="nav-item" data-tab="tab-generator">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Generator & Template</span>
+          <span class="badge-tag">No. Agenda</span>
+        </button>
+        <button class="nav-item" data-tab="tab-statistik">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Statistik & Laporan</span>
+        </button>
+
+        <div class="nav-section-title">INTEGRASI & CLOUD</div>
+        <button class="nav-item" data-tab="tab-koneksi">
+          <i class="fa-solid fa-table"></i>
+          <span>Koneksi Spreadsheet</span>
+        </button>
+        <button class="nav-item" data-tab="tab-vercel">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>Deploy ke Vercel</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-chip">
+          <i class="fa-solid fa-school"></i>
+          <div class="user-info">
+            <strong>Tata Usaha SMA YWKA</strong>
+            <small>Jl. Elang II No. 3, Bandung</small>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-wrapper">
+      <!-- Top Navbar -->
+      <header class="top-navbar">
+        <div class="top-nav-left">
+          <button class="mobile-menu-btn" id="openSidebarBtn" aria-label="Buka Menu">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="breadcrumb">
+            <span class="breadcrumb-root">Aplikasi Tata Usaha</span>
+            <i class="fa-solid fa-chevron-right breadcrumb-separator"></i>
+            <span class="breadcrumb-current" id="currentSectionTitle">Agenda Surat Keluar 2026</span>
+          </div>
+        </div>
+
+        <div class="top-nav-right">
+          <div class="quick-stats-pill">
+            <i class="fa-solid fa-bookmark text-primary"></i>
+            <span>Agenda Terakhir: <strong id="topLastNumber">-</strong></span>
+          </div>
+          <button class="btn btn-primary" id="btnQuickCreateKeluar">
+            <i class="fa-solid fa-plus"></i>
+            <span>+ Buat Surat Keluar</span>
+          </button>
+          <button class="btn btn-secondary" id="btnQuickCreateMasuk">
+            <i class="fa-solid fa-inbox"></i>
+            <span>+ Catat Surat Masuk</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Body -->
+      <div class="content-body">
+        
+        <!-- ================= TAB 1: SURAT KELUAR ================= -->
+        <section class="tab-pane active" id="tab-surat-keluar">
+          <!-- Stat Cards -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon bg-blue-subtle text-blue">
+                <i class="fa-solid fa-paper-plane"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Total Surat Keluar 2026</span>
+                <h3 class="stat-value" id="statKeluarTotal">0</h3>
+                <span class="stat-sub">Terdata di Buku Agenda</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-emerald-subtle text-emerald">
+                <i class="fa-solid fa-calendar-check"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Surat Bulan Ini</span>
+                <h3 class="stat-value" id="statKeluarBulanIni">0</h3>
+                <span class="stat-sub" id="statKeluarBulanLabel">Tahun 2026</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-amber-subtle text-amber">
+                <i class="fa-solid fa-bookmark"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">No. Agenda Terakhir Terisi</span>
+                <h3 class="stat-value stat-mono" id="statKeluarLastNumber">607</h3>
+                <span class="stat-sub">Agenda siap lanjut: <strong id="statNextBadge">608</strong></span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-purple-subtle text-purple">
+                <i class="fa-solid fa-tags"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Klasifikasi Terbanyak</span>
+                <h3 class="stat-value" id="statKeluarTopKlas">421.3</h3>
+                <span class="stat-sub">Surat Umum</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table Controls / Filter Box -->
+          <div class="panel-card">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-title"><i class="fa-solid fa-list-check"></i> Buku Agenda Surat Keluar (2026)</h2>
+                <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT KELUAR 2026</code> (gid: 381566345) & Google Drive</p>
+              </div>
+              <div class="panel-actions">
+                <button class="btn btn-outline btn-sm" id="btnExportKeluarCsv">
+                  <i class="fa-solid fa-file-csv"></i> Unduh CSV
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="window.print()">
+                  <i class="fa-solid fa-print"></i> Cetak Agenda
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-toolbar">
+              <div class="search-input-box">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchKeluarInput" placeholder="Cari no agenda, nomor lengkap, perihal, tujuan, petugas..." aria-label="Pencarian Surat Keluar">
+                <button class="search-clear-btn" id="btnClearSearchKeluar" title="Hapus pencarian"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+
+              <div class="filter-controls">
+                <div class="select-wrapper">
+                  <select id="filterKeluarKlasifikasi" aria-label="Filter Klasifikasi">
+                    <option value="">Semua Kode Klasifikasi (12 Kategori)</option>
+                    <option value="421.3">421.3 - Surat Umum</option>
+                    <option value="421.6">421.6 - Surat Pelepasan / Wisuda</option>
+                    <option value="421.7">421.7 - Kegiatan Siswa</option>
+                    <option value="421.71">421.71 - Kegiatan Reuni / Karya Wisata</option>
+                    <option value="422.1">422.1 - Kegiatan PPDB dan MPLS</option>
+                    <option value="422.3">422.3 - Pengumuman Hari Libur</option>
+                    <option value="422.5">422.5 - Beasiswa / Pelajar Teladan</option>
+                    <option value="423.5">423.5 - Kegiatan Kurikulum</option>
+                    <option value="423.7">423.7 - Kegiatan PAT, PAS, UTS, UJIAN</option>
+                    <option value="425.11">425.11 - Sarpras & Gedung Sekolah</option>
+                    <option value="425.2">425.2 - Sarpras Buku / Bahan Ajar</option>
+                    <option value="425.3">425.3 - Sarpras Perlengkapan Sekolah</option>
+                  </select>
+                </div>
+
+                <div class="select-wrapper">
+                  <select id="filterKeluarBulan" aria-label="Filter Bulan">
+                    <option value="">Semua Bulan (2026)</option>
+                    <option value="1">Januari (I)</option>
+                    <option value="2">Februari (II)</option>
+                    <option value="3">Maret (III)</option>
+                    <option value="4">April (IV)</option>
+                    <option value="5">Mei (V)</option>
+                    <option value="6">Juni (VI)</option>
+                    <option value="7">Juli (VII)</option>
+                    <option value="8">Agustus (VIII)</option>
+                    <option value="9">September (IX)</option>
+                    <option value="10">Oktober (X)</option>
+                    <option value="11">November (XI)</option>
+                    <option value="12">Desember (XII)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Responsive -->
+            <div class="table-container">
+              <table class="data-table" id="tableSuratKeluar">
+                <thead>
+                  <tr>
+                    <th style="width: 50px;">No.</th>
+                    <th style="width: 90px;">No. Agenda</th>
+                    <th style="width: 220px;">Nomor Lengkap Surat</th>
+                    <th style="width: 100px;">Tanggal</th>
+                    <th>Prihal / Isi Ringkasan Surat</th>
+                    <th style="width: 160px;">Tujuan / Kepada</th>
+                    <th style="width: 110px;">Petugas / PIC</th>
+                    <th style="width: 110px; text-align: center;">Berkas Drive</th>
+                    <th style="width: 90px; text-align: center;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodySuratKeluar">
+                  <tr>
+                    <td colspan="9" class="loading-state">
+                      <div class="spinner"></div>
+                      <p>Memuat buku agenda surat keluar SMA YWKA...</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div class="pagination-footer">
+              <span class="pagination-info" id="keluarPaginationInfo">Menampilkan 0 dari 0 surat</span>
+              <div class="pagination-buttons" id="keluarPaginationBtns"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 2: SURAT MASUK ================= -->
+        <section class="tab-pane" id="tab-surat-masuk">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon bg-emerald-subtle text-emerald">
+                <i class="fa-solid fa-inbox"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Total Surat Masuk 2026</span>
+                <h3 class="stat-value" id="statMasukTotal">0</h3>
+                <span class="stat-sub">Terdata di Buku Agenda Masuk</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-blue-subtle text-blue">
+                <i class="fa-solid fa-building-columns"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Pengirim Terbanyak</span>
+                <h3 class="stat-value" id="statMasukTopPengirim">Cadisdik VII</h3>
+                <span class="stat-sub">Cabang Dinas Wilayah VII</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-purple-subtle text-purple">
+                <i class="fa-solid fa-train"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Surat Yayasan</span>
+                <h3 class="stat-value" id="statMasukYayasanCount">0</h3>
+                <span class="stat-sub">Yayasan Wanita Kereta Api</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon bg-amber-subtle text-amber">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Surat Masuk Terakhir</span>
+                <h3 class="stat-value stat-mono" id="statMasukLastNumber">-</h3>
+                <span class="stat-sub" id="statMasukLastDate">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2 class="panel-title"><i class="fa-solid fa-envelopes-bulk"></i> Buku Agenda Surat Masuk (2026)</h2>
+                <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT MASUK 2026</code> (gid: 1925080880) & Google Drive</p>
+              </div>
+              <div class="panel-actions">
+                <button class="btn btn-outline btn-sm" id="btnExportMasukCsv">
+                  <i class="fa-solid fa-file-csv"></i> Unduh CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-toolbar">
+              <div class="search-input-box">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="searchMasukInput" placeholder="Cari no surat masuk / no asal, pengirim, perihal..." aria-label="Pencarian Surat Masuk">
+                <button class="search-clear-btn" id="btnClearSearchMasuk" title="Hapus pencarian"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+
+              <div class="filter-controls">
+                <div class="select-wrapper">
+                  <select id="filterMasukPengirim" aria-label="Filter Pengirim">
+                    <option value="">Semua Kategori Pengirim</option>
+                    <option value="CADISDIK">Cabang Dinas (Cadisdik Wil. VII)</option>
+                    <option value="YAYASAN">Yayasan Wanita Kereta Api (YWKA)</option>
+                    <option value="DINAS PENDIDIKAN">Dinas Pendidikan Provinsi</option>
+                    <option value="UNIVERSITAS">Universitas / Institut</option>
+                    <option value="SMP">SMPN / SMPS</option>
+                    <option value="LEMBAGA">Lembaga Eksternal</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Responsive -->
+            <div class="table-container">
+              <table class="data-table" id="tableSuratMasuk">
+                <thead>
+                  <tr>
+                    <th style="width: 50px;">No.</th>
+                    <th style="width: 220px;">No. Agenda / Asal</th>
+                    <th style="width: 95px;">Tgl Surat</th>
+                    <th style="width: 95px;">Diterima</th>
+                    <th>Prihal / Ringkasan Surat</th>
+                    <th style="width: 180px;">Dari (Pengirim)</th>
+                    <th style="width: 110px;">Keterangan</th>
+                    <th style="width: 110px; text-align: center;">Berkas Drive</th>
+                    <th style="width: 80px; text-align: center;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodySuratMasuk">
+                  <tr>
+                    <td colspan="9" class="loading-state">
+                      <div class="spinner"></div>
+                      <p>Memuat agenda surat masuk...</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination-footer">
+              <span class="pagination-info" id="masukPaginationInfo">Menampilkan 0 dari 0 surat</span>
+              <div class="pagination-buttons" id="masukPaginationBtns"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 3: GENERATOR & TEMPLATE ================= -->
+        <section class="tab-pane" id="tab-generator">
+          <div class="generator-container">
+            <!-- Left Column: Template Selector & Generator Form -->
+            <div class="panel-card">
+              <div class="panel-header">
+                <div>
+                  <h2 class="panel-title"><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Generator Nomor Agenda Surat</h2>
+                  <p class="panel-desc">Nomor dihitung otomatis mengikuti <strong>No. Agenda Surat</strong> terakhir. Pilih template dari Drive di bawah ini agar Anda tidak perlu mengetik ulang!</p>
+                </div>
+              </div>
+
+              <!-- Filter Kategori Template -->
+              <div class="template-selector-section">
+                <div class="template-header-bar">
+                  <label class="form-label font-bold"><i class="fa-solid fa-layer-group"></i> Filter Kategori Template (Berdasarkan Kode Surat):</label>
+                  <span class="badge-filter-count" id="tplFilteredCount">Menampilkan semua template</span>
+                </div>
+                
+                <div class="category-pills-bar" id="categoryPillsBar">
+                  <button type="button" class="category-pill active" data-cat="all">Semua Kode</button>
+                  <button type="button" class="category-pill" data-cat="421.3">421.3 Umum</button>
+                  <button type="button" class="category-pill" data-cat="421.6">421.6 Wisuda</button>
+                  <button type="button" class="category-pill" data-cat="421.7">421.7 Siswa</button>
+                  <button type="button" class="category-pill" data-cat="421.71">421.71 Wisata</button>
+                  <button type="button" class="category-pill" data-cat="422.1">422.1 PPDB/MPLS</button>
+                  <button type="button" class="category-pill" data-cat="422.3">422.3 Libur</button>
+                  <button type="button" class="category-pill" data-cat="422.5">422.5 Beasiswa</button>
+                  <button type="button" class="category-pill" data-cat="423.5">423.5 Kurikulum</button>
+                  <button type="button" class="category-pill" data-cat="423.7">423.7 Ujian</button>
+                  <button type="button" class="category-pill" data-cat="425.11">425.11 Gedung</button>
+                  <button type="button" class="category-pill" data-cat="425.2">425.2 Buku</button>
+                  <button type="button" class="category-pill" data-cat="425.3">425.3 Sarpras</button>
+                </div>
+
+                <!-- Template Chips Grid -->
+                <div class="template-chips-grid" id="templateChipsGrid">
+                  <!-- Diisi secara dinamis oleh JavaScript -->
+                </div>
+              </div>
+
+              <!-- Generator Form -->
+              <form id="formGeneratorSurat" class="generator-form">
+                <div class="form-row">
+                  <!-- Kode Klasifikasi (12 Kategori Lengkap) -->
+                  <div class="form-group flex-2">
+                    <label for="genKodeKlasifikasi" class="form-label">Kode Klasifikasi Surat <span class="text-danger">*</span></label>
+                    <select id="genKodeKlasifikasi" class="form-control" required>
+                      <option value="421.3">421.3 - untuk surat umum</option>
+                      <option value="421.6">421.6 - untuk surat pelepasan / Wisuda</option>
+                      <option value="421.7">421.7 - Untuk kegiatan siswa</option>
+                      <option value="421.71">421.71 - untuk Kegiatan Reuni, atau Karya Wisata</option>
+                      <option value="422.1">422.1 - untuk kegiatan PPDB dan MPLS</option>
+                      <option value="422.3">422.3 - Untuk Pengumuman Hari Libur</option>
+                      <option value="422.5">422.5 - Untuk Beasiswa / Pelajar Teladan</option>
+                      <option value="423.5">423.5 - Untuk kegiatan Kurikulum</option>
+                      <option value="423.7">423.7 - Untuk Kegiatan PAT, PAS, UTS, atau UJIAN</option>
+                      <option value="425.11">425.11 - untuk kegiatan Sarana dan Prasarana, dan gedung sekolah</option>
+                      <option value="425.2">425.2 - untuk kegiatan Sarana dan Prasarana Buku / Bahan Ajar</option>
+                      <option value="425.3">425.3 - untuk sarana dan prasarana perlengkapan sekolah dan lainnya</option>
+                      <option value="custom">Kode Kustom Lainnya...</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group flex-1" id="customKodeGroup" style="display: none;">
+                    <label for="genCustomKode" class="form-label">Tulis Kode Manual</label>
+                    <input type="text" id="genCustomKode" class="form-control" placeholder="Contoh: 421.9">
+                  </div>
+
+                  <!-- No Agenda Mengikuti Kolom D Spreadsheet -->
+                  <div class="form-group flex-1">
+                    <label for="genNomorUrut" class="form-label">No. Agenda Surat <span class="text-danger">*</span></label>
+                    <div class="input-with-button">
+                      <input type="text" id="genNomorUrut" class="form-control stat-mono font-bold" required placeholder="608">
+                      <button type="button" class="btn btn-secondary btn-icon" id="btnAutoIncrement" title="Ambil No. Agenda berikutnya otomatis">
+                        <i class="fa-solid fa-wand-magic"></i>
+                      </button>
+                    </div>
+                    <small class="helper-text">Agenda berikutnya: <strong id="nextNumberPreview">608</strong> (Bisa diedit bila ada sub-nomor misal: 608.a)</small>
+                  </div>
+
+                  <div class="form-group flex-1">
+                    <label for="genTanggalSurat" class="form-label">Tanggal Surat <span class="text-danger">*</span></label>
+                    <input type="date" id="genTanggalSurat" class="form-control" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="genPerihal" class="form-label">Prihal / Isi Ringkasan Surat <span class="text-danger">*</span></label>
+                  <input type="text" id="genPerihal" class="form-control" placeholder="Contoh: Surat Tugas MOU SPMB SMPN 23 Bandung" required>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="genKepada" class="form-label">Tujuan / Kepada <span class="text-danger">*</span></label>
+                    <input type="text" id="genKepada" class="form-control" placeholder="Contoh: SMPN 23 Bandung / Orang Tua / Yayasan" required>
+                  </div>
+
+                  <div class="form-group flex-1">
+                    <label for="genDari" class="form-label">Dari (Pengirim / Penandatangan)</label>
+                    <input type="text" id="genDari" class="form-control" value="Syarif Hasanudin, S.Pd., Gr., M.M.">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="genPetugas" class="form-label">Petugas / PIC / Pengelola</label>
+                    <input type="text" id="genPetugas" class="form-control" placeholder="Contoh: BU ADE / BU ELVIRA / MIRA / Ayah Irwin">
+                  </div>
+
+                  <div class="form-group flex-1">
+                    <label for="genKeterangan" class="form-label">Keterangan Tambahan</label>
+                    <input type="text" id="genKeterangan" class="form-control" placeholder="Contoh: Arsip Surat Keluar">
+                  </div>
+                </div>
+
+                <!-- FITUR UPLOAD KE GOOGLE DRIVE -->
+                <div class="form-group drive-upload-group">
+                  <label class="form-label font-bold">
+                    <i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas / Scan Surat ke Google Drive (Opsional)
+                  </label>
+                  <div class="upload-dropzone" id="keluarDropzone">
+                    <input type="file" id="genUploadDriveFile" class="file-hidden-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                    <div class="dropzone-content" id="dropzoneContentKeluar">
+                      <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+                      <p><strong>Pilih Berkas</strong> atau tarik & letakkan scan surat (PDF / Gambar) di sini</p>
+                      <small>Otomatis tersimpan ke folder <em>"Arsip Surat SMA YWKA/Surat Keluar 2026"</em> di Google Drive</small>
+                    </div>
+                    <!-- File Preview Chip -->
+                    <div class="file-preview-chip" id="filePreviewKeluar" style="display: none;">
+                      <i class="fa-solid fa-file-pdf file-chip-icon" id="fileChipIconKeluar"></i>
+                      <div class="file-chip-info">
+                        <strong id="fileChipNameKeluar">-</strong>
+                        <span id="fileChipSizeKeluar">-</span>
+                      </div>
+                      <button type="button" class="btn-remove-file" id="btnRemoveFileKeluar" title="Batalkan berkas">&times;</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Live Result Box -->
+                <div class="live-result-box">
+                  <div class="result-header">
+                    <span class="result-badge"><i class="fa-solid fa-check-circle"></i> HASIL NOMOR SURAT SIAP PAKAI</span>
+                    <span class="result-format">Format: [Kode]/[No. Agenda]/SMA YWKA/TU/[Bulan]/[Tahun]</span>
+                  </div>
+                  <div class="result-content">
+                    <div class="result-number" id="previewFullNumber">421.3/608/SMA YWKA/TU/X/2026</div>
+                    <div class="result-actions">
+                      <button type="button" class="btn btn-outline" id="btnCopyGeneratedNumber">
+                        <i class="fa-solid fa-copy"></i> Salin Nomor
+                      </button>
+                      <button type="button" class="btn btn-outline" id="btnPrintDisposisiMini">
+                        <i class="fa-solid fa-print"></i> Lembar Disposisi
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-actions-bar">
+                  <button type="reset" class="btn btn-secondary">
+                    <i class="fa-solid fa-rotate-left"></i> Reset Form
+                  </button>
+                  <button type="submit" class="btn btn-success" id="btnSubmitToSheets">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Simpan ke Google Sheets & Drive</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Right Column: Panduan 12 Kode Resmi SMA YWKA -->
+            <div class="generator-side-info">
+              <div class="panel-card info-card">
+                <h3 class="side-card-title"><i class="fa-solid fa-book-bookmark text-primary"></i> 12 Kode Klasifikasi Surat SMA YWKA</h3>
+                <ul class="code-guide-list">
+                  <li>
+                    <span class="code-pill">421.3</span>
+                    <div>
+                      <strong>Surat Umum</strong>
+                      <p>Surat keterangan umum, undangan rapat dinas, mutasi, perjanjian SPP, MBG.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">421.6</span>
+                    <div>
+                      <strong>Surat Pelepasan / Wisuda</strong>
+                      <p>Undangan wisuda kelas XII, SK panitia pelepasan, pencairan dana wisuda.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">421.7</span>
+                    <div>
+                      <strong>Kegiatan Siswa</strong>
+                      <p>Dispensasi lomba, LDKS, Paskibra, O2SN, FLS2N, pemanggilan ortu, home visit.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">421.71</span>
+                    <div>
+                      <strong>Reuni / Karya Wisata</strong>
+                      <p>Field trip PT KAI, izin bus sekolah, koordinasi reuni alumni YWKA.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">422.1</span>
+                    <div>
+                      <strong>PPDB & MPLS</strong>
+                      <p>MOU SPMB SMP, sosialisasi ke SMPN/MTs, dispensasi tim promosi, SK MPLS.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">422.3</span>
+                    <div>
+                      <strong>Pengumuman Hari Libur</strong>
+                      <p>Libur Ramadhan, Idul Fitri, libur semester, libur hari besar nasional.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">422.5</span>
+                    <div>
+                      <strong>Beasiswa / Pelajar Teladan</strong>
+                      <p>Siswa eligible SNBP, beasiswa nilai tertinggi, sertifikat pelajar teladan.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">423.5</span>
+                    <div>
+                      <strong>Kegiatan Kurikulum</strong>
+                      <p>SKL sementara, SK supervisi guru/tendik, KBM PJJ, ujian riset/penelitian.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">423.7</span>
+                    <div>
+                      <strong>PAT, PAS, UTS / UJIAN</strong>
+                      <p>Edaran ASTS (UTS), ASAT (PAT/PAS), POS ujian sekolah, pembagian rapor.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">425.11</span>
+                    <div>
+                      <strong>Sarpras & Gedung Sekolah</strong>
+                      <p>Perbaikan kusen jendela, renovasi kelas, laporan kerusakan gedung.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">425.2</span>
+                    <div>
+                      <strong>Sarpras Buku / Bahan Ajar</strong>
+                      <p>Pengadaan buku ajar kurikulum, bahan modul, arsip perpustakaan.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span class="code-pill">425.3</span>
+                    <div>
+                      <strong>Sarpras Perlengkapan Sekolah</strong>
+                      <p>Alat olahraga, alat ruang UKS, peminjaman barang, perlengkapan ATK.</p>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="panel-card info-card bg-highlight">
+                <h3 class="side-card-title"><i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Integrasi Google Drive</h3>
+                <p>Ketika Anda memilih berkas (PDF / Gambar) pada form:</p>
+                <ul class="check-list">
+                  <li><i class="fa-solid fa-check text-success"></i> Berkas otomatis ter-upload ke folder <strong>Arsip Surat SMA YWKA</strong> di Google Drive Anda.</li>
+                  <li><i class="fa-solid fa-check text-success"></i> Link Drive tersimpan langsung di kolom <em>Lampiran Fisik</em> spreadsheet.</li>
+                  <li><i class="fa-solid fa-check text-success"></i> Tombol <strong>"Lihat Berkas"</strong> akan muncul di tabel agenda web ini.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 4: STATISTIK ================= -->
+        <section class="tab-pane" id="tab-statistik">
+          <div class="panel-card">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title"><i class="fa-solid fa-chart-column text-primary"></i> Ringkasan & Statistik Surat 2026</h2>
+                <p class="panel-desc">Visualisasi persebaran surat masuk dan keluar SMA YWKA Bandung</p>
+              </div>
+            </div>
+
+            <div class="stats-overview-grid">
+              <div class="chart-box">
+                <h3 class="chart-title"><i class="fa-solid fa-pie-chart text-blue"></i> Distribusi Surat Keluar Berdasarkan 12 Kode</h3>
+                <div class="chart-bars-list" id="statKlasifikasiBars"></div>
+              </div>
+
+              <div class="chart-box">
+                <h3 class="chart-title"><i class="fa-solid fa-chart-pie text-emerald"></i> Asal Surat Masuk Terbanyak</h3>
+                <div class="chart-bars-list" id="statPengirimBars"></div>
+              </div>
+            </div>
+
+            <div class="stat-summary-table-section">
+              <h3 class="chart-title" style="margin-top: 24px;"><i class="fa-solid fa-calendar-days"></i> Rekapitulasi Surat per Bulan (2026)</h3>
+              <div class="table-container">
+                <table class="data-table" id="tableMonthlyRecap">
+                  <thead>
+                    <tr>
+                      <th>Bulan</th>
+                      <th>Romawi</th>
+                      <th>Jumlah Surat Keluar</th>
+                      <th>Jumlah Surat Masuk</th>
+                      <th>Total Surat</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyMonthlyRecap"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 5: KONEKSI SPREADSHEET ================= -->
+        <section class="tab-pane" id="tab-koneksi">
+          <div class="connection-layout">
+            <div class="panel-card">
+              <div class="panel-header">
+                <div>
+                  <h2 class="panel-title"><i class="fa-solid fa-link text-primary"></i> Pengaturan Koneksi Google Spreadsheet & Drive</h2>
+                  <p class="panel-desc">Menyambungkan website langsung ke file Google Spreadsheet & Folder Drive Anda</p>
+                </div>
+              </div>
+
+              <div class="connection-config-form">
+                <div class="form-group">
+                  <label class="form-label font-bold">1. File Google Spreadsheet Target:</label>
+                  <div class="input-readonly-box">
+                    <i class="fa-solid fa-file-excel text-emerald"></i>
+                    <a href="https://docs.google.com/spreadsheets/d/1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k/edit?gid=381566345#gid=381566345" target="_blank" rel="noopener noreferrer" class="sheet-link">
+                      Surat Masuk Surat Keluar SMA YWKA
+                    </a>
+                    <span class="badge badge-success">Terbaca Live</span>
+                  </div>
+                  <small class="helper-text">ID: <code>1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k</code> | Sheet: <code>SURAT KELUAR 2026</code> & <code>SURAT MASUK 2026</code></small>
+                </div>
+
+                <div class="form-group">
+                  <label for="inputAppsScriptUrl" class="form-label font-bold">2. URL Web App Google Apps Script (Untuk Auto-Save & Drive Upload):</label>
+                  <input type="url" id="inputAppsScriptUrl" class="form-control" placeholder="https://script.google.com/macros/s/AKfycbx.../exec">
+                  <small class="helper-text">URL ini didapat setelah menyalin skrip v2 di bawah ke Apps Script Google Sheets Anda.</small>
+                </div>
+
+                <div class="form-actions-bar">
+                  <button type="button" class="btn btn-secondary" id="btnTestConnection">
+                    <i class="fa-solid fa-plug-circle-check"></i> Uji Koneksi
+                  </button>
+                  <button type="button" class="btn btn-primary" id="btnSaveConnectionSettings">
+                    <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan
+                  </button>
+                </div>
+              </div>
+
+              <div class="script-instruction-box">
+                <div class="script-header">
+                  <span><i class="fa-solid fa-code"></i> Kode Google Apps Script v2.0 (Mendukung Auto-Save & Drive Upload)</span>
+                  <button class="btn btn-outline btn-sm" id="btnCopyScriptCode">
+                    <i class="fa-solid fa-copy"></i> Salin Skrip
+                  </button>
+                </div>
+                <textarea id="appsScriptCodeArea" class="script-code-area" readonly rows="12"></textarea>
+              </div>
+            </div>
+
+            <!-- Right: Step-by-step tutorial -->
+            <div class="panel-card tutorial-card">
+              <h3 class="side-card-title"><i class="fa-solid fa-list-ol text-blue"></i> Cara Mengaktifkan Auto-Save & Drive:</h3>
+              <ol class="step-guide-list">
+                <li>
+                  <div class="step-num">1</div>
+                  <div>
+                    <strong>Buka Spreadsheet SMA YWKA</strong>
+                    <p>Buka menu <strong>Ekstensi (Extensions)</strong> &gt; <strong>Apps Script</strong>.</p>
+                  </div>
+                </li>
+                <li>
+                  <div class="step-num">2</div>
+                  <div>
+                    <strong>Ganti Skrip dengan Kode v2.0</strong>
+                    <p>Klik tombol <em>"Salin Skrip"</em> di sebelah kiri, lalu tempel di editor Apps Script dan klik Simpan.</p>
+                  </div>
+                </li>
+                <li>
+                  <div class="step-num">3</div>
+                  <div>
+                    <strong>Deploy as Web App</strong>
+                    <p>Klik <strong>Deploy</strong> &gt; <strong>New deployment</strong> &gt; Pilih <strong>Web app</strong>. Atur <em>Execute as: Me</em> dan <em>Who has access: Anyone</em>. Salin URL dan tempelkan di kotak pengaturan.</p>
+                  </div>
+                </li>
+              </ol>
+
+              <div class="security-note">
+                <i class="fa-solid fa-shield-halved text-emerald"></i>
+                <p>Otomatis membuat folder <strong>"Arsip Surat SMA YWKA"</strong> di Google Drive Anda secara aman & gratis.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 6: VERCEL DEPLOY ================= -->
+        <section class="tab-pane" id="tab-vercel">
+          <div class="panel-card">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title"><i class="fa-solid fa-cloud-arrow-up text-primary"></i> Status Deploy Vercel</h2>
+                <p class="panel-desc">Aplikasi Anda sudah live di Vercel: <a href="https://sistem-informasi-agenda-surat-ywka.vercel.app/" target="_blank" rel="noopener noreferrer" style="font-weight: 700; color: var(--primary);">sistem-informasi-agenda-surat-ywka.vercel.app</a></p>
+              </div>
+            </div>
+
+            <div class="vercel-steps-grid">
+              <div class="vercel-step-box">
+                <div class="vercel-step-header">
+                  <span class="step-pill">Update Kode</span>
+                  <h3>Cara Memperbarui Web di Vercel</h3>
+                </div>
+                <ol class="step-guide-sub">
+                  <li>Jika Anda menggunakan <strong>GitHub</strong>, cukup <code>git push</code> perubahan berkas ini ke repo Anda, Vercel otomatis rebuild & deploy!</li>
+                  <li>Jika deploy via <strong>Drag & Drop</strong>, cukup unggah folder <code>Project</code> yang telah diperbarui ke Vercel project Anda.</li>
+                </ol>
+              </div>
+
+              <div class="vercel-step-box">
+                <div class="vercel-step-header">
+                  <span class="step-pill">Fitur Lengkap</span>
+                  <h3>Pembaruan Terbaru:</h3>
+                </div>
+                <ul class="check-list">
+                  <li><i class="fa-solid fa-check text-success"></i> No. Agenda mengikuti urutan agenda surat di spreadsheet.</li>
+                  <li><i class="fa-solid fa-check text-success"></i> 12 Kode Klasifikasi Resmi SMA YWKA.</li>
+                  <li><i class="fa-solid fa-check text-success"></i> Template surat lengkap dari Drive.</li>
+                  <li><i class="fa-solid fa-check text-success"></i> Fitur upload berkas scan surat ke Google Drive.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= MODAL: CATAT SURAT MASUK DENGAN UPLOAD DRIVE ================= -->
+  <div class="modal-backdrop" id="modalSuratMasuk">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-inbox text-emerald"></i> Catat Surat Masuk Baru</h3>
+        <button class="modal-close-btn" id="btnCloseModalMasuk" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="formInputSuratMasuk">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="inMasukNoAgenda" class="form-label">No. Surat Asal / No. Agenda <span class="text-danger">*</span></label>
+              <input type="text" id="inMasukNoAgenda" class="form-control" placeholder="Contoh: 129/PK.03.03.01-Cadisdikwil.VII" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="inMasukTglSurat" class="form-label">Tanggal Surat <span class="text-danger">*</span></label>
+              <input type="date" id="inMasukTglSurat" class="form-control" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="inMasukTglDiterima" class="form-label">Tanggal Diterima <span class="text-danger">*</span></label>
+              <input type="date" id="inMasukTglDiterima" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="inMasukPerihal" class="form-label">Prihal / Isi Ringkasan Surat <span class="text-danger">*</span></label>
+            <textarea id="inMasukPerihal" class="form-control" rows="2" placeholder="Contoh: Undangan Rapat Koordinasi ARKAS BOSP Tahun 2026" required></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="inMasukDari" class="form-label">Dari (Instansi Pengirim) <span class="text-danger">*</span></label>
+              <input type="text" id="inMasukDari" class="form-control" list="listPengirimUmum" placeholder="Pilih atau ketik pengirim" required>
+              <datalist id="listPengirimUmum">
+                <option value="CABANG DINAS WIL.VII">
+                <option value="YAYASAN WANITA KERETA API">
+                <option value="DINAS PENDIDIKAN PROVINSI JAWA BARAT">
+                <option value="BBPMP Provinsi Jawa Barat">
+                <option value="KEMENTERIAN PENDIDIKAN">
+                <option value="INSTANSI PEMERINTAHAN WILAYAH">
+                <option value="UNIVERSITAS / INSTITUT">
+                <option value="SMPN / SMPS">
+                <option value="LEMBAGA EKSTERNAL">
+              </datalist>
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="inMasukKepada" class="form-label">Kepada (Penerima di Sekolah)</label>
+              <input type="text" id="inMasukKepada" class="form-control" value="SMA YWKA">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="inMasukDisposisi" class="form-label">Disposisi / Keterangan</label>
+              <input type="text" id="inMasukDisposisi" class="form-control" placeholder="Contoh: Kurikulum / Kesiswaan / Keuangan">
+            </div>
+            <div class="form-group flex-1">
+              <label for="inMasukKodeKlasifikasi" class="form-label">Kode Klasifikasi (Jika Ada)</label>
+              <select id="inMasukKodeKlasifikasi" class="form-control">
+                <option value="">-- Tanpa Kode --</option>
+                <option value="421.3">421.3 - Surat Umum</option>
+                <option value="421.7">421.7 - Kegiatan Siswa</option>
+                <option value="422.1">422.1 - PPDB / MPLS</option>
+                <option value="423.5">423.5 - Kurikulum</option>
+                <option value="423.7">423.7 - Ujian / Asesmen</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Upload Drive Surat Masuk -->
+          <div class="form-group drive-upload-group">
+            <label class="form-label font-bold">
+              <i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas Scan Surat Masuk ke Google Drive (Opsional)
+            </label>
+            <div class="upload-dropzone" id="masukDropzone">
+              <input type="file" id="inMasukUploadDrive" class="file-hidden-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+              <div class="dropzone-content" id="dropzoneContentMasuk">
+                <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+                <p><strong>Pilih Berkas Scan Surat Masuk</strong> (PDF / Gambar)</p>
+                <small>Tersimpan ke folder <em>"Arsip Surat SMA YWKA/Surat Masuk 2026"</em> di Drive</small>
+              </div>
+              <div class="file-preview-chip" id="filePreviewMasuk" style="display: none;">
+                <i class="fa-solid fa-file-pdf file-chip-icon" id="fileChipIconMasuk"></i>
+                <div class="file-chip-info">
+                  <strong id="fileChipNameMasuk">-</strong>
+                  <span id="fileChipSizeMasuk">-</span>
+                </div>
+                <button type="button" class="btn-remove-file" id="btnRemoveFileMasuk" title="Batalkan berkas">&times;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelModalMasuk">Batal</button>
+          <button type="submit" class="btn btn-emerald">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Simpan ke Google Sheets & Drive
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: DETAIL / LEMBAR DISPOSISI PRINT ================= -->
+  <div class="modal-backdrop" id="modalDisposisi">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-file-invoice text-blue"></i> Lembar Agenda & Disposisi Surat</h3>
+        <button class="modal-close-btn" id="btnCloseModalDisposisi" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" id="disposisiPrintArea">
+        <div class="disposisi-card">
+          <div class="disposisi-header">
+            <div class="disposisi-school">
+              <h2>SMA YWKA BANDUNG</h2>
+              <p>Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat</p>
+              <small>Akreditasi: A | NSS: 302026002008 | NPSN: 20219736</small>
+            </div>
+          </div>
+          <div class="disposisi-divider"></div>
+          <h3 class="disposisi-title">LEMBAR AGENDA SURAT</h3>
+
+          <table class="disposisi-table">
+            <tr>
+              <td class="dt-label">Tipe Surat</td>
+              <td class="dt-val" id="dispTipeSurat">-</td>
+              <td class="dt-label">No. Agenda</td>
+              <td class="dt-val font-bold stat-mono" id="dispNoUrut">-</td>
+            </tr>
+            <tr>
+              <td class="dt-label">Nomor Surat Lengkap</td>
+              <td class="dt-val font-bold stat-mono" colspan="3" id="dispNoLengkap">-</td>
+            </tr>
+            <tr>
+              <td class="dt-label">Tanggal Surat</td>
+              <td class="dt-val" id="dispTglSurat">-</td>
+              <td class="dt-label">Petugas / PIC</td>
+              <td class="dt-val" id="dispPetugas">-</td>
+            </tr>
+            <tr>
+              <td class="dt-label">Dari</td>
+              <td class="dt-val" colspan="3" id="dispDari">-</td>
+            </tr>
+            <tr>
+              <td class="dt-label">Kepada / Ditujukan</td>
+              <td class="dt-val" colspan="3" id="dispKepada">-</td>
+            </tr>
+            <tr>
+              <td class="dt-label">Prihal / Isi Ringkasan</td>
+              <td class="dt-val font-bold" colspan="3" id="dispPerihal">-</td>
+            </tr>
+            <tr>
+              <td class="dt-label">Instruksi / Catatan Disposisi</td>
+              <td class="dt-val dt-notes" colspan="3">
+                <div class="checkbox-row">
+                  <span>[ ] Tindak Lanjuti Segera</span>
+                  <span>[ ] Hadiri / Wakili</span>
+                  <span>[ ] Buatkan Balasan</span>
+                  <span>[ ] Arsipkan di Drive</span>
+                </div>
+                <div class="signature-space">
+                  <span>Catatan: _________________________________________________</span>
+                  <div class="sig-box">
+                    <p>Kepala SMA YWKA Bandung,</p>
+                    <div style="height: 45px;"></div>
+                    <strong>Syarif Hasanudin, S.Pd., Gr., M.M.</strong>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCloseDisposisi">Tutup</button>
+        <button type="button" class="btn btn-primary" id="btnPrintDisposisiDoc">
+          <i class="fa-solid fa-print"></i> Cetak Lembar Ini
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
