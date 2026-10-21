@@ -58,6 +58,11 @@
           <span>Surat Masuk 2026</span>
           <span class="badge" id="countMasukBadge">0</span>
         </button>
+        <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="nav-item nav-item-drive-link" title="Buka Folder Drive Surat SMA YWKA">
+          <i class="fa-brands fa-google-drive text-emerald"></i>
+          <span>Drive Surat YWKA</span>
+          <i class="fa-solid fa-arrow-up-right-from-square external-pill"></i>
+        </a>
         <button class="nav-item" data-tab="tab-generator">
           <i class="fa-solid fa-wand-magic-sparkles"></i>
           <span>Generator & Template</span>
@@ -106,6 +111,10 @@
         </div>
 
         <div class="top-nav-right">
+          <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-nav" title="Buka Folder Google Drive Surat SMA YWKA">
+            <i class="fa-brands fa-google-drive"></i>
+            <span>Folder Drive Surat</span>
+          </a>
           <div class="quick-stats-pill">
             <i class="fa-solid fa-bookmark text-primary"></i>
             <span>Agenda Terakhir: <strong id="topLastNumber">-</strong></span>
@@ -178,6 +187,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT KELUAR 2026</code> (gid: 381566345) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" title="Buka Folder Google Drive Arsip Surat">
+                  <i class="fa-brands fa-google-drive"></i> Folder Drive Surat
+                </a>
                 <button class="btn btn-outline btn-sm" id="btnExportKeluarCsv">
                   <i class="fa-solid fa-file-csv"></i> Unduh CSV
                 </button>
@@ -320,6 +332,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT MASUK 2026</code> (gid: 1925080880) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" title="Buka Folder Google Drive Arsip Surat">
+                  <i class="fa-brands fa-google-drive"></i> Folder Drive Surat
+                </a>
                 <button class="btn btn-outline btn-sm" id="btnExportMasukCsv">
                   <i class="fa-solid fa-file-csv"></i> Unduh CSV
                 </button>
@@ -500,15 +515,20 @@
 
                 <!-- FITUR UPLOAD KE GOOGLE DRIVE -->
                 <div class="form-group drive-upload-group">
-                  <label class="form-label font-bold">
-                    <i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas / Scan Surat ke Google Drive (Opsional)
-                  </label>
+                  <div class="drive-label-bar">
+                    <label class="form-label font-bold" style="margin-bottom: 0;">
+                      <i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas / Scan Surat ke Google Drive (Opsional)
+                    </label>
+                    <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="drive-link-badge">
+                      <i class="fa-brands fa-google-drive"></i> Buka Folder Arsip Drive ↗
+                    </a>
+                  </div>
                   <div class="upload-dropzone" id="keluarDropzone">
                     <input type="file" id="genUploadDriveFile" class="file-hidden-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
                     <div class="dropzone-content" id="dropzoneContentKeluar">
                       <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
                       <p><strong>Pilih Berkas</strong> atau tarik & letakkan scan surat (PDF / Gambar) di sini</p>
-                      <small>Otomatis tersimpan ke folder <em>"Arsip Surat SMA YWKA/Surat Keluar 2026"</em> di Google Drive</small>
+                      <small>Otomatis tersimpan langsung ke folder Drive: <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer">Folder Arsip Surat SMA YWKA</a></small>
                     </div>
                     <!-- File Preview Chip -->
                     <div class="file-preview-chip" id="filePreviewKeluar" style="display: none;">
@@ -725,7 +745,19 @@
                 </div>
 
                 <div class="form-group">
-                  <label for="inputAppsScriptUrl" class="form-label font-bold">2. URL Web App Google Apps Script (Untuk Auto-Save & Drive Upload):</label>
+                  <label class="form-label font-bold">2. Folder Google Drive Berkas Surat Target:</label>
+                  <div class="input-readonly-box">
+                    <i class="fa-brands fa-google-drive text-emerald"></i>
+                    <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="sheet-link">
+                      Folder Arsip Surat SMA YWKA
+                    </a>
+                    <span class="badge badge-success">Folder Siap</span>
+                  </div>
+                  <small class="helper-text">ID Folder: <code>1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A</code></small>
+                </div>
+
+                <div class="form-group">
+                  <label for="inputAppsScriptUrl" class="form-label font-bold">3. URL Web App Google Apps Script (Untuk Auto-Save & Drive Upload):</label>
                   <input type="url" id="inputAppsScriptUrl" class="form-control" placeholder="https://script.google.com/macros/s/AKfycbx.../exec">
                   <small class="helper-text">URL ini didapat setelah menyalin skrip v2 di bawah ke Apps Script Google Sheets Anda.</small>
                 </div>

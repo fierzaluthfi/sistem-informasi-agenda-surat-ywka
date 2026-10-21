@@ -24,6 +24,7 @@
 // Konstanta Nama Sheet sesuai berkas asli
 const SHEET_SURAT_KELUAR = "SURAT KELUAR 2026";
 const SHEET_SURAT_MASUK = "SURAT MASUK 2026";
+const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Resmi SMA YWKA
 const FOLDER_DRIVE_UTAMA = "Arsip Surat SMA YWKA";
 
 /**
@@ -260,16 +261,20 @@ function doPost(e) {
  */
 function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) {
   try {
-    // 1. Cari atau buat folder utama "Arsip Surat SMA YWKA"
+    // 1. Ambil folder Google Drive resmi SMA YWKA berdasarkan ID
     let mainFolder;
-    const folderIter = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
-    if (folderIter.hasNext()) {
-      mainFolder = folderIter.next();
-    } else {
-      mainFolder = DriveApp.createFolder(FOLDER_DRIVE_UTAMA);
+    try {
+      mainFolder = DriveApp.getFolderById(FOLDER_DRIVE_ID);
+    } catch (e) {
+      const folderIter = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
+      if (folderIter.hasNext()) {
+        mainFolder = folderIter.next();
+      } else {
+        mainFolder = DriveApp.createFolder(FOLDER_DRIVE_UTAMA);
+      }
     }
 
-    // 2. Cari atau buat subfolder (Surat Keluar 2026 / Surat Masuk 2026)
+    // 2. Cari atau buat subfolder jika diinginkan (misal: Surat Keluar 2026), atau simpan langsung di folder utama
     let targetFolder = mainFolder;
     if (subfolderName) {
       const subIter = mainFolder.getFoldersByName(subfolderName);

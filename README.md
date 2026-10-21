@@ -17,9 +17,9 @@ Telah live di: **[sistem-informasi-agenda-surat-ywka.vercel.app](https://sistem-
 
 2. **Fitur Upload Berkas Scan Surat ke Google Drive**:
    - Tersedia area upload berkas (PDF / Gambar) pada form Surat Keluar dan form Surat Masuk.
-   - Berkas otomatis ter-upload ke folder **`Arsip Surat SMA YWKA`** di Google Drive Anda.
+   - Terhubung langsung ke folder resmi Google Drive: **[Folder Berkas Surat SMA YWKA](https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A)** (ID: `1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A`).
    - Tautan langsung Google Drive otomatis disimpan di kolom *Lampiran Fisik* Google Spreadsheet.
-   - Di tabel web, muncul tombol hijau **"📄 Berkas Drive"** untuk membuka langsung dokumen PDF/scan tersebut.
+   - Di tabel web dan header, terdapat tombol langsung **"Folder Drive Surat"** dan **"📄 Berkas Drive"** untuk membuka langsung dokumen PDF/scan tersebut.
 
 3. **12 Kode Klasifikasi Resmi Surat SMA YWKA**:
    - **421.3** = untuk surat umum

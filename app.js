@@ -828,6 +828,7 @@ function initAppsScriptInstructions() {
  */
 const SHEET_SURAT_KELUAR = "SURAT KELUAR 2026";
 const SHEET_SURAT_MASUK = "SURAT MASUK 2026";
+const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Resmi SMA YWKA
 const FOLDER_DRIVE_UTAMA = "Arsip Surat SMA YWKA";
 
 function doGet(e) {
@@ -907,10 +908,18 @@ function doPost(e) {
 }
 
 function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolder) {
-  const folders = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
-  const main = folders.hasNext() ? folders.next() : DriveApp.createFolder(FOLDER_DRIVE_UTAMA);
-  const subs = main.getFoldersByName(subfolder);
-  const target = subs.hasNext() ? subs.next() : main.createFolder(subfolder);
+  let main;
+  try {
+    main = DriveApp.getFolderById(FOLDER_DRIVE_ID);
+  } catch (e) {
+    const folders = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
+    main = folders.hasNext() ? folders.next() : DriveApp.createFolder(FOLDER_DRIVE_UTAMA);
+  }
+  let target = main;
+  if (subfolder) {
+    const subs = main.getFoldersByName(subfolder);
+    target = subs.hasNext() ? subs.next() : main.createFolder(subfolder);
+  }
   const decoded = Utilities.base64Decode(base64Data);
   const file = target.createFile(Utilities.newBlob(decoded, mimeType || "application/pdf", fileName));
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);

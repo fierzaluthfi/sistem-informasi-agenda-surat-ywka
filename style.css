@@ -284,6 +284,28 @@ body {
   text-transform: uppercase;
 }
 
+.nav-item-drive-link {
+  text-decoration: none;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px dashed rgba(16, 185, 129, 0.35);
+  margin-top: 4px;
+  margin-bottom: 4px;
+  color: #34d399 !important;
+  font-weight: 600;
+}
+
+.nav-item-drive-link:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #ffffff !important;
+}
+
+.nav-item-drive-link .external-pill {
+  margin-left: auto;
+  font-size: 10px;
+  color: #34d399;
+}
+
 .sidebar-footer {
   padding: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -477,6 +499,75 @@ body {
 
 .btn-icon {
   padding: 8px 10px;
+}
+
+/* Google Drive Action Buttons & Badges */
+.btn-drive-nav {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  border: none;
+}
+
+.btn-drive-nav:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-drive-header {
+  background-color: #ecfdf5;
+  color: #065f46 !important;
+  border: 1px solid #a7f3d0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.btn-drive-header:hover {
+  background-color: #d1fae5;
+  border-color: #6ee7b7;
+  color: #047857 !important;
+  transform: translateY(-1px);
+}
+
+.btn-drive-header i {
+  color: #059669;
+}
+
+.drive-label-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.drive-link-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.drive-link-badge:hover {
+  background-color: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
 }
 
 /* Content Body */
