@@ -10,9 +10,11 @@ const SPREADSHEET_ID = "1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k";
 const GID_SURAT_KELUAR = "381566345";
 const GID_SURAT_MASUK = "1925080880";
 
-// URL Endpoint Google Sheets GViz CSV
-const URL_CSV_KELUAR = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_SURAT_KELUAR}`;
-const URL_CSV_MASUK = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_SURAT_MASUK}`;
+// URL Endpoint Google Sheets (GViz Direct - Cepat & Tanpa Redirect vs Export Fallback)
+const URL_GVIZ_KELUAR = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID_SURAT_KELUAR}`;
+const URL_GVIZ_MASUK = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID_SURAT_MASUK}`;
+const URL_EXPORT_KELUAR = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_SURAT_KELUAR}`;
+const URL_EXPORT_MASUK = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_SURAT_MASUK}`;
 
 // State Global Aplikasi
 let state = {
@@ -575,8 +577,55 @@ document.addEventListener("DOMContentLoaded", () => {
   initAiSuratPerintah();
   updateDriveLinksInUI();
   checkConnectionBanners();
+
+  // 1. HIDRASI INSTAN (0 milidetik): Langsung tampilkan data dari cache lokal/bawaan
+  // Pengguna tidak perlu menunggu jaringan internet untuk melihat tabel dan statistik!
+  hydrateFromCacheOrBuiltin();
+
+  // 2. Sinkronisasi live di latar belakang (Background Revalidation)
   loadDataFromSpreadsheet();
 });
+
+/**
+ * Hidrasi Seketika (0 milidetik): Muat cache lokal atau data bawaan terlebih dahulu
+ */
+function hydrateFromCacheOrBuiltin() {
+  const cachedKeluar = localStorage.getItem("cache_surat_keluar_2026");
+  const cachedMasuk = localStorage.getItem("cache_surat_masuk_2026");
+
+  if (cachedKeluar && cachedMasuk) {
+    try {
+      const parsedKeluar = JSON.parse(cachedKeluar);
+      const parsedMasuk = JSON.parse(cachedMasuk);
+      if (Array.isArray(parsedKeluar) && parsedKeluar.length > 0) {
+        state.suratKeluar = parsedKeluar;
+      } else {
+        loadBuiltinSampleData();
+      }
+      if (Array.isArray(parsedMasuk) && parsedMasuk.length > 0) {
+        state.suratMasuk = parsedMasuk;
+      }
+    } catch (e) {
+      loadBuiltinSampleData();
+    }
+  } else {
+    loadBuiltinSampleData();
+  }
+
+  // Pertahankan surat lokal yang belum tersimpan
+  const unsyncedKeluar = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+  if (unsyncedKeluar.length > 0) {
+    unsyncedKeluar.forEach(uItem => {
+      const found = state.suratKeluar.some(k => k.noAgenda === uItem.noAgenda && k.perihal === uItem.perihal);
+      if (!found) state.suratKeluar.unshift(uItem);
+    });
+  }
+
+  calculateNextSequence();
+  updateDashboardUI();
+  filterSuratKeluarData();
+  filterSuratMasukData();
+}
 
 function initDateDefaults() {
   const today = new Date();
@@ -1602,24 +1651,69 @@ function updateGeneratedPreview() {
 }
 
 /**
- * Muat Data dari Google Spreadsheet
+ * Ambil data CSV dari Google Spreadsheet secara cepat & tangguh:
+ * Mengutamakan GViz Query (langsung HTTP 200, tanpa 307 redirect, ramah Brave Shields),
+ * dengan fallback ke endpoint export dan timeout AbortController agar tidak pernah freeze.
+ */
+async function fetchSpreadsheetCsv(gvizUrl, exportUrl, timeoutMs = 6000) {
+  // 1. Coba GViz query CSV langsung
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(gvizUrl, { signal: controller.signal, cache: "no-store" });
+    clearTimeout(timer);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 60) {
+        return text;
+      }
+    }
+  } catch (gvizErr) {
+    console.warn("GViz fetch gagal / timeout, mencoba endpoint export fallback:", gvizErr);
+  }
+
+  // 2. Fallback ke endpoint Export jika GViz gagal
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(exportUrl, { signal: controller.signal, credentials: "omit" });
+    clearTimeout(timer);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 60) {
+        return text;
+      }
+    }
+  } catch (exportErr) {
+    console.warn("Export CSV fetch gagal:", exportErr);
+  }
+
+  throw new Error("Gagal mengambil data dari Google Spreadsheet");
+}
+
+/**
+ * Muat Data dari Google Spreadsheet (Cepat & Paralel)
  */
 async function loadDataFromSpreadsheet() {
   setLoadingState(true);
-  updateConnectionStatus(false, "Menghubungkan ke Spreadsheet...");
+  updateConnectionStatus(false, "Menyinkronkan Spreadsheet...");
 
   try {
-    // 1. Ambil data Surat Keluar 2026
-    const resKeluar = await fetch(URL_CSV_KELUAR);
-    if (!resKeluar.ok) throw new Error("Gagal mengambil Surat Keluar");
-    const csvKeluarText = await resKeluar.text();
-    state.suratKeluar = parseCsvKeluar(csvKeluarText);
+    // Ambil data Surat Keluar & Surat Masuk secara PARALEL (Promise.all)
+    const [csvKeluarText, csvMasukText] = await Promise.all([
+      fetchSpreadsheetCsv(URL_GVIZ_KELUAR, URL_EXPORT_KELUAR, 6000),
+      fetchSpreadsheetCsv(URL_GVIZ_MASUK, URL_EXPORT_MASUK, 6000)
+    ]);
 
-    // 2. Ambil data Surat Masuk 2026
-    const resMasuk = await fetch(URL_CSV_MASUK);
-    if (!resMasuk.ok) throw new Error("Gagal mengambil Surat Masuk");
-    const csvMasukText = await resMasuk.text();
-    state.suratMasuk = parseCsvMasuk(csvMasukText);
+    const liveKeluar = parseCsvKeluar(csvKeluarText);
+    const liveMasuk = parseCsvMasuk(csvMasukText);
+
+    if (liveKeluar && liveKeluar.length > 0) {
+      state.suratKeluar = liveKeluar;
+    }
+    if (liveMasuk && liveMasuk.length > 0) {
+      state.suratMasuk = liveMasuk;
+    }
 
     // 3. Pertahankan surat lokal yang belum tersimpan ke Google Sheets agar TIDAK HILANG saat sinkron
     const unsyncedKeluar = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
@@ -1647,21 +1741,14 @@ async function loadDataFromSpreadsheet() {
     localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
     localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
 
-    updateConnectionStatus(true, "Terhubung ke Google Sheets & Drive");
-    showToast("Data agenda surat 2026 berhasil dimuat secara live!", "success");
+    updateConnectionStatus(true, "Terhubung ke Google Sheets (Live)");
   } catch (err) {
-    console.warn("Menggunakan data cache SMA YWKA:", err);
-    const cachedKeluar = localStorage.getItem("cache_surat_keluar_2026");
-    const cachedMasuk = localStorage.getItem("cache_surat_masuk_2026");
-
-    if (cachedKeluar && cachedMasuk) {
-      state.suratKeluar = JSON.parse(cachedKeluar);
-      state.suratMasuk = JSON.parse(cachedMasuk);
-    } else {
-      loadBuiltinSampleData();
+    console.warn("Sinkronisasi live lambat / offline, menggunakan cache:", err);
+    // Jika state kosong, pastikan data cache/bawaan tetap tampil
+    if (!state.suratKeluar || state.suratKeluar.length === 0) {
+      hydrateFromCacheOrBuiltin();
     }
-    calculateNextSequence();
-    updateConnectionStatus(true, "Mode Offline / Tersinkron Lokal");
+    updateConnectionStatus(true, "Mode Cepat (Data Tersimpan)");
   } finally {
     setLoadingState(false);
     updateDashboardUI();
