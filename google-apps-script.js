@@ -125,7 +125,7 @@ function doPost(e) {
       const kodePrefix = rawKode.endsWith("/") ? rawKode : rawKode + "/";
       const tahunSuffix = payload.tahun ? "/" + payload.tahun.replace("/", "").trim() : "/2026";
       
-      // Nomor Agenda yang digunakan (misal: 608, 609, dst)
+      // Nomor Agenda (misal: 609, 610, dst)
       const noAgendaStr = String(payload.no_agenda || payload.nomor_urut || "").trim();
       const bulanRomawi = payload.bulan_romawi || "X";
       const perihal = payload.perihal || "";
@@ -133,23 +133,24 @@ function doPost(e) {
       const kepada = payload.kepada || "";
       const petugas = payload.petugas || "";
       const keterangan = payload.keterangan || "";
-      const tglSurat = payload.tanggal_surat || "";
-
-      // Nilai lampiran: jika ada link file drive gunakan url tersebut
-      let lampiranVal = "Surat Keluar";
-      if (driveFileUrl) {
-        lampiranVal = driveFileUrl;
+      
+      // Format Tanggal: disesuaikan format spreadsheet DD/MM/YYYY atau D/M/YYYY
+      let tglSurat = payload.tanggal_surat || "";
+      if (tglSurat && tglSurat.includes("-")) {
+        const tglParts = tglSurat.split("-");
+        if (tglParts.length === 3) {
+          tglSurat = `${parseInt(tglParts[2], 10)}/${parseInt(tglParts[1], 10)}/${tglParts[0]}`;
+        }
       }
 
-      // 1.B. Nomor Urut mengikuti Nomor Agenda (608, 609, dan seterusnya)
-      const rowNoUrut = noAgendaStr || payload.no_urut || "609";
+      // Checkbox Kolom B: Diceklis (TRUE) HANYA jika file surat keluar sudah masuk ke Drive
+      const isChecked = Boolean(driveFileUrl);
 
-      // 1.C. Cek apakah nomor agenda ini sudah ada slot kosong di spreadsheet (misal baris 609-625)
+      // 1.B. Cek apakah nomor agenda ini sudah ada di baris template spreadsheet (misal baris 631-648)
       const lastRow = sheet.getLastRow();
       let targetRowIndex = -1;
 
       if (lastRow >= 4) {
-        // Cek baris mulai baris 4
         const totalScan = lastRow - 3;
         const agendaColValues = sheet.getRange(4, 4, totalScan, 1).getValues(); // Kolom D (Agenda)
         const perihalColValues = sheet.getRange(4, 9, totalScan, 1).getValues(); // Kolom I (Perihal)
@@ -158,72 +159,196 @@ function doPost(e) {
           const rowAgenda = String(agendaColValues[i][0]).trim();
           const rowPerihal = String(perihalColValues[i][0]).trim();
 
-          // Jika slot no agenda sama dan perihal masih kosong, gunakan baris tersebut
-          if (rowAgenda === noAgendaStr && (!rowPerihal || rowPerihal === "")) {
+          // Jika slot no agenda sama, targetkan baris tersebut
+          if (rowAgenda === noAgendaStr) {
             targetRowIndex = i + 4;
             break;
           }
         }
       }
 
-      // Format baris sesuai kolom asli spreadsheet:
-      // A: NO. URUT (mengikuti No. Agenda)
-      // B: Checkbox (TRUE)
-      // C: KODE KLASIFIKASI PREFIX (misal 421.7/)
-      // D: NO. AGENDA (misal 609)
-      // E: /SMA YWKA/TU/
-      // F: BULAN ROMAWI (misal X)
-      // G: TAHUN (misal /2026)
-      // H: TGL SURAT
-      // I: PRIHAL / ISI RINGKASAN SURAT
-      // J: DARI
-      // K: KEPADA
-      // L: KODE KLASIFIKASI / PETUGAS
-      // M: KETERANGAN
-      // N: Lampiran Fisik (URL Drive atau 'Surat Keluar')
-      const rowData = [
-        rowNoUrut,
-        true,
-        kodePrefix,
-        noAgendaStr,
-        "/SMA YWKA/TU/",
-        bulanRomawi,
-        tahunSuffix,
-        tglSurat,
-        perihal,
-        dari,
-        kepada,
-        petugas,
-        keterangan,
-        lampiranVal
-      ];
-
       if (targetRowIndex > 0) {
-        // Perbarui baris yang sudah disediakan di spreadsheet
+        // Ambil data yang sudah ada di baris template
+        const existingValues = sheet.getRange(targetRowIndex, 1, 1, 14).getValues()[0];
+        const existingNoUrut = existingValues[0] || (lastRow - 3);
+        const existingLampiran = existingValues[13] || "Surat Keluar";
+
+        // Kolom N (Lampiran Fisik): JANGAN MENIMPA link yang sudah ada jika belum ada file drive baru yang diupload
+        const finalLampiran = driveFileUrl ? driveFileUrl : existingLampiran;
+
+        // Susun data mengikuti bentuk & format asli spreadsheet:
+        // A: NO. URUT (pertahankan no urut template yang ada)
+        // B: Checkbox (TRUE jika file drive ada, FALSE jika belum)
+        // C: KODE KLASIFIKASI PREFIX (misal 421.7/)
+        // D: NO. AGENDA (misal 609)
+        // E: /SMA YWKA TU/ (format persis baris 630)
+        // F: BULAN ROMAWI (misal X)
+        // G: TAHUN (misal /2026)
+        // H: TGL SURAT (format DD/MM/YYYY)
+        // I: PRIHAL / ISI RINGKASAN SURAT
+        // J: DARI
+        // K: KEPADA
+        // L: KODE KLASIFIKASI / PETUGAS
+        // M: KETERANGAN
+        // N: Lampiran Fisik
+        const rowData = [
+          existingNoUrut,
+          isChecked,
+          kodePrefix,
+          noAgendaStr,
+          "/SMA YWKA TU/ ",
+          bulanRomawi,
+          tahunSuffix,
+          tglSurat,
+          perihal,
+          dari,
+          kepada,
+          petugas,
+          keterangan,
+          finalLampiran
+        ];
+
+        // Tulis data ke baris template tanpa mengubah border dan shading
         sheet.getRange(targetRowIndex, 1, 1, rowData.length).setValues([rowData]);
       } else {
-        // Tambahkan baris baru di paling bawah jika belum ada slot
+        // Baris baru jika nomor agenda belum ada di template
+        const prevNoUrut = lastRow >= 4 ? Number(sheet.getRange(lastRow, 1).getValue()) || (lastRow - 3) : 1;
+        const newNoUrut = prevNoUrut + 1;
+        const finalLampiran = driveFileUrl ? driveFileUrl : "Surat Keluar";
+
+        const rowData = [
+          newNoUrut,
+          isChecked,
+          kodePrefix,
+          noAgendaStr,
+          "/SMA YWKA TU/ ",
+          bulanRomawi,
+          tahunSuffix,
+          tglSurat,
+          perihal,
+          dari,
+          kepada,
+          petugas,
+          keterangan,
+          finalLampiran
+        ];
+
         sheet.appendRow(rowData);
         targetRowIndex = sheet.getLastRow();
       }
 
-      // Berikan style border tipis ke baris yang baru terisi
-      try {
-        sheet.getRange(targetRowIndex, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
-      } catch (e) {
-        // Abaikan jika permission border terbatas
-      }
+      // CATATAN: TIDAK membuat border and shading (mengikuti format asli yang sudah ada di spreadsheet)
 
       const fullGenerated = `${kodePrefix}${noAgendaStr}/SMA YWKA/TU/${bulanRomawi}${tahunSuffix}`.replace(/\/{2,}/g, "/");
 
       return createJsonResponse({
         status: "success",
-        message: "Surat Keluar berhasil disimpan ke Google Sheets & Google Drive!",
+        message: "Surat Keluar berhasil disimpan sesuai format Spreadsheet & Drive!",
         no_agenda: noAgendaStr,
-        no_urut: rowNoUrut,
+        is_checked: isChecked,
         nomor_lengkap: fullGenerated,
         target_row: targetRowIndex,
         drive_file_url: driveFileUrl
+      });
+    }
+
+    // ==========================================
+    // 2. UPLOAD BERKAS SURAT KELUAR LANGSUNG KE DRIVE PER AGENDA
+    // ==========================================
+    if (action === "upload_lampiran_keluar") {
+      const sheet = ss.getSheetByName(SHEET_SURAT_KELUAR);
+      if (!sheet) {
+        return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_KELUAR + " tidak ditemukan!" });
+      }
+
+      const noAgendaStr = String(payload.no_agenda || "").trim();
+      if (!noAgendaStr) {
+        return createJsonResponse({ status: "error", message: "Nomor agenda wajib disertakan!" });
+      }
+      if (!payload.fileBase64 || !payload.fileName) {
+        return createJsonResponse({ status: "error", message: "Berkas upload tidak ditemukan!" });
+      }
+
+      // Upload berkas langsung ke subfolder "Surat Keluar 2026"
+      const driveUrl = uploadFileToGoogleDrive(
+        payload.fileBase64,
+        payload.fileName,
+        payload.fileMime || "application/pdf",
+        "Surat Keluar 2026"
+      );
+
+      if (!driveUrl) {
+        return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
+      }
+
+      // Cari baris dengan Nomor Agenda tersebut di sheet
+      const lastRow = sheet.getLastRow();
+      let foundRow = -1;
+      if (lastRow >= 4) {
+        const agendaColValues = sheet.getRange(4, 4, lastRow - 3, 1).getValues();
+        for (let i = 0; i < agendaColValues.length; i++) {
+          if (String(agendaColValues[i][0]).trim() === noAgendaStr) {
+            foundRow = i + 4;
+            break;
+          }
+        }
+      }
+
+      if (foundRow > 0) {
+        // Ceklis kotak di Kolom B menjadi TRUE
+        sheet.getRange(foundRow, 2).setValue(true);
+        // Masukkan tautan Google Drive di Kolom N (Lampiran Fisik)
+        sheet.getRange(foundRow, 14).setValue(driveUrl);
+      }
+
+      return createJsonResponse({
+        status: "success",
+        message: "Berkas berhasil diupload ke Google Drive Surat Keluar!",
+        drive_file_url: driveUrl,
+        no_agenda: noAgendaStr,
+        target_row: foundRow
+      });
+    }
+
+    // ==========================================
+    // 3. HAPUS / RESET DATA SURAT KELUAR PER AGENDA
+    // ==========================================
+    if (action === "delete_surat_keluar") {
+      const sheet = ss.getSheetByName(SHEET_SURAT_KELUAR);
+      if (!sheet) {
+        return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_KELUAR + " tidak ditemukan!" });
+      }
+
+      const noAgendaStr = String(payload.no_agenda || "").trim();
+      if (!noAgendaStr) {
+        return createJsonResponse({ status: "error", message: "Nomor agenda wajib disertakan!" });
+      }
+
+      const lastRow = sheet.getLastRow();
+      let foundRow = -1;
+      if (lastRow >= 4) {
+        const agendaColValues = sheet.getRange(4, 4, lastRow - 3, 1).getValues();
+        for (let i = 0; i < agendaColValues.length; i++) {
+          if (String(agendaColValues[i][0]).trim() === noAgendaStr) {
+            foundRow = i + 4;
+            break;
+          }
+        }
+      }
+
+      if (foundRow > 0) {
+        // Reset baris: uncheck Kolom B, kosongkan kolom C (kode klasifikasi), dan kolom H sampai M
+        // Kolom A (No Urut), D (Agenda), E (Sekolah), F (Romawi), G (Tahun), N (Lampiran) tetap dijaga
+        sheet.getRange(foundRow, 2).setValue(false); // Uncheck
+        sheet.getRange(foundRow, 3).setValue("");    // Kosongkan kode
+        sheet.getRange(foundRow, 8, 1, 6).setValues([["", "", "", "", "", ""]]); // Kosongkan H s/d M
+      }
+
+      return createJsonResponse({
+        status: "success",
+        message: "Data surat agenda " + noAgendaStr + " berhasil dihapus dari Spreadsheet!",
+        no_agenda: noAgendaStr,
+        target_row: foundRow
       });
     }
 

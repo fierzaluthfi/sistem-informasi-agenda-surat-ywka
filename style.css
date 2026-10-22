@@ -914,6 +914,50 @@ body {
   border-color: var(--primary-border);
 }
 
+.btn-table-action.btn-upload-action {
+  color: #059669;
+}
+
+.btn-table-action.btn-upload-action:hover {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.btn-table-action.btn-danger-action {
+  color: #e11d48;
+}
+
+.btn-table-action.btn-danger-action:hover {
+  background: #fff1f2;
+  color: #be123c;
+  border-color: #fecdd3;
+}
+
+/* Tombol Upload Langsung di Kolom Berkas Drive */
+.btn-upload-direct {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px dashed #cbd5e1;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-upload-direct:hover {
+  background: #eff6ff;
+  color: var(--primary);
+  border-color: var(--primary-border);
+  border-style: solid;
+}
+
 .loading-state {
   text-align: center;
   padding: 50px 20px !important;

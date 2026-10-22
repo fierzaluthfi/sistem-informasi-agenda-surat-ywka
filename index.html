@@ -1096,6 +1096,78 @@
     </div>
   </div>
 
+  <!-- Modal: Upload Berkas Drive Langsung per Agenda -->
+  <div class="modal-backdrop" id="modalUploadRowDrive">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas ke Google Drive
+        </h3>
+        <button class="modal-close-btn" id="btnCloseUploadRowDrive" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="formUploadRowDrive">
+        <div class="modal-body">
+          <div class="info-callout" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+            <div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px;">SURAT KELUAR TARGET:</div>
+            <div style="font-weight: 700; color: #1e293b; font-size: 14px;" id="uploadModalNomorLengkap">-</div>
+            <div style="font-size: 12.5px; color: #475569; margin-top: 4px;" id="uploadModalPerihal">-</div>
+            <div style="font-size: 11.5px; color: #059669; margin-top: 6px;">
+              <i class="fa-solid fa-folder-tree"></i> Tersimpan otomatis ke folder: <strong>Surat Keluar 2026</strong> & checkbox spreadsheet otomatis diceklis (☑)
+            </div>
+          </div>
+
+          <input type="hidden" id="uploadModalTargetId" value="">
+          <input type="hidden" id="uploadModalTargetAgenda" value="">
+
+          <div class="form-group">
+            <label class="form-label font-bold">Pilih Berkas Lampiran Surat (PDF / DOCX / Gambar / Scan): <span class="text-danger">*</span></label>
+            <input type="file" id="inputUploadRowFile" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
+            <small class="helper-text">Maksimal ukuran 15 MB. File akan diunggah langsung ke Google Drive SMA YWKA.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelUploadRowDrive">Batal</button>
+          <button type="submit" class="btn btn-emerald" id="btnSubmitUploadRowDrive">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Unggah ke Google Drive
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Konfirmasi Hapus Data Surat Keluar -->
+  <div class="modal-backdrop" id="modalConfirmDelete">
+    <div class="modal-dialog">
+      <div class="modal-header" style="background: #fff1f2; border-bottom: 1px solid #fecdd3;">
+        <h3 class="modal-title" style="color: #9f1239;">
+          <i class="fa-solid fa-triangle-exclamation" style="color: #e11d48;"></i> Konfirmasi Hapus Surat Keluar
+        </h3>
+        <button class="modal-close-btn" id="btnCloseConfirmDelete" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 14px; color: #334155; margin-bottom: 12px; line-height: 1.6;">
+          Apakah Anda yakin ingin menghapus data surat keluar ini?
+        </p>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+          <div>No. Agenda: <strong id="deleteModalAgenda" style="color: #0f172a;">-</strong></div>
+          <div style="margin-top: 4px;">Nomor: <strong id="deleteModalNomor" style="color: #0284c7;">-</strong></div>
+          <div style="margin-top: 4px; font-size: 13px; color: #475569;" id="deleteModalPerihal">-</div>
+        </div>
+        <input type="hidden" id="deleteModalTargetId" value="">
+        <input type="hidden" id="deleteModalTargetAgenda" value="">
+        <p style="font-size: 12px; color: #64748b;">
+          <i class="fa-solid fa-circle-info"></i> Baris di Spreadsheet akan di-reset (uncheck kotak & kosongkan perihal), dan data lokal browser akan dibersihkan.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCancelConfirmDelete">Batal</button>
+        <button type="button" class="btn btn-danger" id="btnExecuteDeleteRow" style="background: #e11d48; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600;">
+          <i class="fa-solid fa-trash-can"></i> Ya, Hapus Surat Ini
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
