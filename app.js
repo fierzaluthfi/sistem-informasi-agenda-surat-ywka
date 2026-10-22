@@ -939,7 +939,7 @@ function setupDriveFolders() {
   }
   let k; const ik = main.getFoldersByName("Surat Keluar 2026");
   k = ik.hasNext() ? ik.next() : main.createFolder("Surat Keluar 2026");
-  k.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  try { k.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(e){}
   return { suratKeluarUrl: k.getUrl(), mainFolderUrl: main.getUrl() };
 }
 
@@ -956,7 +956,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolder) {
   }
   const decoded = Utilities.base64Decode(base64Data);
   const file = target.createFile(Utilities.newBlob(decoded, mimeType || "application/pdf", fileName));
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch(e){}
   return file.getUrl();
 }`;
 

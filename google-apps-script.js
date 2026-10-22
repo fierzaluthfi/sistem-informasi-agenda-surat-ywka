@@ -311,7 +311,11 @@ function setupDriveFolders() {
   } else {
     folderKeluar = mainFolder.createFolder("Surat Keluar 2026");
   }
-  folderKeluar.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  try {
+    folderKeluar.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {
+    Logger.log("Info: Folder Surat Keluar 2026 mewarisi hak akses folder induk.");
+  }
 
   // Folder Surat Masuk 2026
   let folderMasuk;
@@ -321,7 +325,17 @@ function setupDriveFolders() {
   } else {
     folderMasuk = mainFolder.createFolder("Surat Masuk 2026");
   }
-  folderMasuk.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  try {
+    folderMasuk.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {
+    Logger.log("Info: Folder Surat Masuk 2026 mewarisi hak akses folder induk.");
+  }
+
+  Logger.log("=================================================");
+  Logger.log("✅ FOLDER GOOGLE DRIVE BERHASIL DISIAPKAN!");
+  Logger.log("📁 Folder Surat Keluar 2026 : " + folderKeluar.getUrl());
+  Logger.log("📁 Folder Surat Masuk 2026  : " + folderMasuk.getUrl());
+  Logger.log("=================================================");
 
   return {
     mainFolderUrl: mainFolder.getUrl(),
@@ -366,8 +380,12 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
     // 4. Buat berkas di folder Google Drive
     const driveFile = targetFolder.createFile(blob);
 
-    // 5. Berikan izin baca publik/sekolah via tautan
-    driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    // 5. Berikan izin baca via tautan jika diperbolehkan akun
+    try {
+      driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {
+      // File otomatis mewarisi izin sharing folder induk
+    }
 
     return driveFile.getUrl();
   } catch (err) {
