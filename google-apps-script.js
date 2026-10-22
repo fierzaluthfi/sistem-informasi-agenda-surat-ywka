@@ -28,6 +28,14 @@ const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Utama Ars
 const FOLDER_DRIVE_UTAMA = "Arsip Surat SMA YWKA";
 
 /**
+ * Helper untuk response JSON (Diletakkan di paling atas agar selalu terdefinisi di runtime Apps Script)
+ */
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
  * Handle HTTP GET Request
  */
 function doGet(e) {
@@ -73,7 +81,8 @@ function doGet(e) {
 
     return createJsonResponse({ status: "error", message: "Aksi tidak dikenal: " + action });
   } catch (err) {
-    return createJsonResponse({ status: "error", message: err.toString() });
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -282,7 +291,8 @@ function doPost(e) {
 
     return createJsonResponse({ status: "error", message: "Aksi tidak dikenali: " + action });
   } catch (err) {
-    return createJsonResponse({ status: "error", message: err.toString() });
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -392,12 +402,4 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
     Logger.log("Gagal upload berkas ke Google Drive: " + err.toString());
     return "";
   }
-}
-
-/**
- * Helper untuk response JSON dengan CORS Header terbuka
- */
-function createJsonResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
 }
