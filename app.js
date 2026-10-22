@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ===================================================================
  * APLIKASI AGENDA SURAT SMA YWKA BANDUNG
  * app.js - Controller, Drive Upload, 12 Kode Surat & No. Agenda
@@ -1016,7 +1016,7 @@ function doPost(e) {
           const d = String(tglParts[2]).padStart(2, "0");
           const m = String(tglParts[1]).padStart(2, "0");
           const y = tglParts[0];
-          tglSurat = \`\${d}/\${m}/\${y}\`;
+          tglSurat = d + "/" + m + "/" + y;
         }
       }
 
@@ -1086,7 +1086,7 @@ function doPost(e) {
         targetRowIndex = sheet.getLastRow();
       }
 
-      const fullGenerated = \`\${kodePrefix}\${noAgendaStr}/SMA YWKA/TU/\${bulanRomawi}\${tahunSuffix}\`.replace(/\\/{2,}/g, "/");
+      const fullGenerated = (kodePrefix + noAgendaStr + "/SMA YWKA/TU/" + bulanRomawi + tahunSuffix).replace(/\/+/g, "/");
 
       return createJsonResponse({
         status: "success",
@@ -1220,12 +1220,16 @@ function doPost(e) {
       let tglSuratMasuk = payload.tanggal_surat || "";
       if (tglSuratMasuk && tglSuratMasuk.includes("-")) {
         const p = tglSuratMasuk.split("-");
-        if (p.length === 3) tglSuratMasuk = `${String(p[2]).padStart(2, "0")}/${String(p[1]).padStart(2, "0")}/${p[0]}`;
+        if (p.length === 3) {
+          tglSuratMasuk = String(p[2]).padStart(2, "0") + "/" + String(p[1]).padStart(2, "0") + "/" + p[0];
+        }
       }
       let tglDiterimaMasuk = payload.tanggal_diterima || "";
       if (tglDiterimaMasuk && tglDiterimaMasuk.includes("-")) {
         const p = tglDiterimaMasuk.split("-");
-        if (p.length === 3) tglDiterimaMasuk = `${String(p[2]).padStart(2, "0")}/${String(p[1]).padStart(2, "0")}/${p[0]}`;
+        if (p.length === 3) {
+          tglDiterimaMasuk = String(p[2]).padStart(2, "0") + "/" + String(p[1]).padStart(2, "0") + "/" + p[0];
+        }
       }
 
       const rowData = [
