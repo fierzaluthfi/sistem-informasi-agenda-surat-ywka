@@ -35,6 +35,8 @@ let state = {
   selectedCategory: "all",
   stagedFileKeluar: null,
   stagedFileMasuk: null,
+  claudeApiKey: localStorage.getItem("sma_ywka_claude_api_key") || "",
+  claudeModel: localStorage.getItem("sma_ywka_claude_model") || "claude-3-5-sonnet-20241022",
   pendingKeluarData: null,
   pendingMasukData: null
 };
@@ -45,6 +47,31 @@ const MONTH_NAMES = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
   "Juli", "Agustus", "September", "Oktober", "November", "Desember"
 ];
+
+/**
+ * Helper: Format Tanggal Indonesia (DD/MM/YYYY)
+ * Mengubah 2026-10-26 menjadi 26/10/2026
+ */
+function formatDateIndo(dateStr) {
+  if (!dateStr) return "-";
+  dateStr = String(dateStr).trim();
+  if (!dateStr || dateStr === "-") return "-";
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(dateStr)) {
+    const parts = dateStr.split(/[-/]/);
+    const y = parts[0];
+    const m = parts[1].padStart(2, "0");
+    const d = parts[2].padStart(2, "0");
+    return `${d}/${m}/${y}`;
+  }
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(dateStr)) {
+    const parts = dateStr.split(/[-/]/);
+    const d = parts[0].padStart(2, "0");
+    const m = parts[1].padStart(2, "0");
+    const y = parts[2];
+    return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+}
 
 // Koleksi Template Surat Lengkap Berdasarkan Arsip Google Drive SMA YWKA
 const REAL_DRIVE_TEMPLATES = [
@@ -545,6 +572,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAppsScriptInstructions();
   initFileUploadHandlers();
   initEventListeners();
+  initAiSuratPerintah();
   updateDriveLinksInUI();
   checkConnectionBanners();
   loadDataFromSpreadsheet();
@@ -939,7 +967,10 @@ function doPost(e) {
       if (tglSurat && tglSurat.includes("-")) {
         const tglParts = tglSurat.split("-");
         if (tglParts.length === 3) {
-          tglSurat = \`\${parseInt(tglParts[2], 10)}/\${parseInt(tglParts[1], 10)}/\${tglParts[0]}\`;
+          const d = String(tglParts[2]).padStart(2, "0");
+          const m = String(tglParts[1]).padStart(2, "0");
+          const y = tglParts[0];
+          tglSurat = \`\${d}/\${m}/\${y}\`;
         }
       }
 
@@ -1140,11 +1171,22 @@ function doPost(e) {
         lampiranVal = driveFileUrl;
       }
 
+      let tglSuratMasuk = payload.tanggal_surat || "";
+      if (tglSuratMasuk && tglSuratMasuk.includes("-")) {
+        const p = tglSuratMasuk.split("-");
+        if (p.length === 3) tglSuratMasuk = `${String(p[2]).padStart(2, "0")}/${String(p[1]).padStart(2, "0")}/${p[0]}`;
+      }
+      let tglDiterimaMasuk = payload.tanggal_diterima || "";
+      if (tglDiterimaMasuk && tglDiterimaMasuk.includes("-")) {
+        const p = tglDiterimaMasuk.split("-");
+        if (p.length === 3) tglDiterimaMasuk = `${String(p[2]).padStart(2, "0")}/${String(p[1]).padStart(2, "0")}/${p[0]}`;
+      }
+
       const rowData = [
         payload.no_urut || nextNoUrut,
         payload.no_agenda || "",
-        payload.tanggal_surat || "",
-        payload.tanggal_diterima || "",
+        tglSuratMasuk,
+        tglDiterimaMasuk,
         payload.perihal || "",
         payload.dari || "",
         payload.kepada || "SMA YWKA",
@@ -1674,7 +1716,7 @@ function parseCsvKeluar(csvText) {
       noAgenda: noAgenda,
       nomorLengkap: nomorLengkap,
       bulanRomawi: bulanRomawi,
-      tanggal: (r[7] || "").trim(),
+      tanggal: formatDateIndo((r[7] || "").trim()),
       perihal: perihal,
       dari: (r[9] || "Syarif Hasanudin, S.Pd., Gr., M.M.").trim(),
       kepada: (r[10] || "").trim(),
@@ -1710,8 +1752,8 @@ function parseCsvMasuk(csvText) {
       id: "M-" + (i + 1),
       noUrut: (r[0] || String(items.length + 1)).trim(),
       noAgenda: noAgenda || "-",
-      tglSurat: (r[2] || "").trim(),
-      tglMasuk: (r[3] || "").trim(),
+      tglSurat: formatDateIndo((r[2] || "").trim()),
+      tglMasuk: formatDateIndo((r[3] || "").trim()),
       perihal: perihal,
       dari: (r[5] || "").trim(),
       kepada: (r[6] || "SMA YWKA").trim(),
@@ -1891,7 +1933,7 @@ function renderSuratKeluarTable() {
         <td>
           <span class="nomor-surat-badge">${escapeHtml(item.nomorLengkap || "-")}</span>
         </td>
-        <td><span class="date-text">${escapeHtml(item.tanggal || "-")}</span></td>
+        <td><span class="date-text">${escapeHtml(formatDateIndo(item.tanggal) || "-")}</span></td>
         <td>
           <div class="perihal-cell">${escapeHtml(item.perihal || "-")}</div>
         </td>
@@ -2014,8 +2056,8 @@ function renderSuratMasukTable() {
         <td>
           <span class="nomor-surat-badge" style="background: #e0f2fe; color: #0369a1;">${escapeHtml(item.noAgenda)}</span>
         </td>
-        <td><span class="date-text">${escapeHtml(item.tglSurat || "-")}</span></td>
-        <td><span class="date-text">${escapeHtml(item.tglMasuk || "-")}</span></td>
+        <td><span class="date-text">${escapeHtml(formatDateIndo(item.tglSurat) || "-")}</span></td>
+        <td><span class="date-text">${escapeHtml(formatDateIndo(item.tglMasuk) || "-")}</span></td>
         <td><div class="perihal-cell">${escapeHtml(item.perihal)}</div></td>
         <td><strong style="color: #334155; font-size: 12.5px;">${escapeHtml(item.dari || "-")}</strong></td>
         <td>${item.keterangan ? `<span class="tag-pic">${escapeHtml(item.keterangan)}</span>` : "-"}</td>
@@ -2183,6 +2225,8 @@ async function handleCreateSuratKeluar(e) {
   }
 
   // No. Urut mengikuti No. Agenda sesuai permintaan pengguna!
+  const formattedTanggal = formatDateIndo(dtTgl.value);
+
   const payload = {
     action: "create_surat_keluar",
     no_urut: noAgenda,
@@ -2190,7 +2234,7 @@ async function handleCreateSuratKeluar(e) {
     nomor_urut: noAgenda,
     bulan_romawi: romanMonth,
     tahun: tahun,
-    tanggal_surat: dtTgl.value,
+    tanggal_surat: formattedTanggal,
     perihal: txtPerihal.value.trim(),
     dari: txtDari.value.trim(),
     kepada: txtKepada.value.trim(),
@@ -2210,7 +2254,7 @@ async function handleCreateSuratKeluar(e) {
     noAgenda: noAgenda,
     nomorLengkap: fullNumber,
     bulanRomawi: romanMonth,
-    tanggal: dtTgl.value,
+    tanggal: formattedTanggal,
     perihal: payload.perihal,
     dari: payload.dari,
     kepada: payload.kepada,
@@ -2372,12 +2416,15 @@ async function handleCreateSuratMasuk(e) {
     }
   }
 
+  const formattedTglSurat = formatDateIndo(tglSurat);
+  const formattedTglTerima = formatDateIndo(tglTerima);
+
   const payload = {
     action: "create_surat_masuk",
     no_urut: state.suratMasuk.length + 1,
     no_agenda: noAgenda,
-    tanggal_surat: tglSurat,
-    tanggal_diterima: tglTerima,
+    tanggal_surat: formattedTglSurat,
+    tanggal_diterima: formattedTglTerima,
     perihal: perihal,
     dari: dari,
     kepada: kepada,
@@ -2394,8 +2441,8 @@ async function handleCreateSuratMasuk(e) {
     noUrut: String(state.suratMasuk.length + 1),
     isUnsynced: !state.appsScriptUrl,
     noAgenda: noAgenda,
-    tglSurat: tglSurat,
-    tglMasuk: tglTerima,
+    tglSurat: formattedTglSurat,
+    tglMasuk: formattedTglTerima,
     perihal: perihal,
     dari: dari,
     kepada: kepada,
@@ -2926,4 +2973,583 @@ window.viewDisposisiMasuk = viewDisposisiMasuk;
 window.copyText = copyText;
 window.changeKeluarPage = changeKeluarPage;
 window.changeMasukPage = changeMasukPage;
+
+/**
+ * ===================================================================
+ * MODUL: AI TEMPLATE GENERATOR SURAT PERINTAH (CLAUDE AI)
+ * ===================================================================
+ */
+
+const AI_SURAT_PRESETS = {
+  fpkt: {
+    kegiatan: "Kegiatan Literasi Digital untuk Memperkuat Peran Guru dalam Menangkal Paham Kekerasan pada Siswa",
+    penyelenggara: "Forum Koordinasi Pencegahan Terorisme (FKPT) T.A 2026",
+    lokasi: "Hotel Grand Sunshine Resort Soreang, Kabupaten Bandung",
+    guru: "Nada Khairunisa, S.Pd.",
+    jabatan: "Guru Mata Pelajaran Bahasa Indonesia",
+    waktu: "27 s.d 28 Oktober 2026 (Pukul 08.00 - 16.30 WIB)",
+    dasar: "Surat Undangan Forum Koordinasi Pencegahan Terorisme (FKPT) Jawa Barat Nomor 045/FKPT-JB/X/2026 perihal Permohonan Peserta Guru",
+    instruksi: "Sertakan kewajiban mendiseminasikan hasil materi kepada dewan guru SMA YWKA."
+  },
+  kurikulum: {
+    kegiatan: "Bimbingan Teknis dan Pelatihan Implementasi Pembelajaran Berdiferensiasi Kurikulum Merdeka",
+    penyelenggara: "Balai Besar Guru Penggerak (BBGP) Provinsi Jawa Barat",
+    lokasi: "Gedung BBGP Jawa Barat, Jl. Diponegoro No. 22 Bandung",
+    guru: "Wilda Maulani, S.Pd.",
+    jabatan: "Wakil Kepala Sekolah Bidang Kurikulum",
+    waktu: "3 s.d 5 November 2026 (Pukul 08.00 - 15.00 WIB)",
+    dasar: "Surat Edaran Dinas Pendidikan Prov. Jawa Barat No. 1120/B7.3/GT.02/2026",
+    instruksi: "Susun laporan implementasi modul ajar untuk dibagikan ke semua guru mata pelajaran."
+  },
+  lomba: {
+    kegiatan: "Pendampingan Siswa dalam Lomba Keterampilan Baris - Berbaris (LKBB) Sangga Buana Tingkat Jawa Barat",
+    penyelenggara: "Purna Paskibraka Indonesia Kota Bandung",
+    lokasi: "GOR Pajajaran Kota Bandung",
+    guru: "Iwan Siswanto, S.Pd.",
+    jabatan: "Pembina OSIS & Ekstrakurikuler",
+    waktu: "15 November 2026 (Pukul 07.00 WIB s.d Selesai)",
+    dasar: "Surat Undangan Panitia LKBB Sangga Buana No. 018/LKBB-SB/2026",
+    instruksi: "Pastikan kesehatan dan keselamatan para siswa peserta lomba selama kegiatan berlangsung."
+  },
+  ckg: {
+    kegiatan: "Dispensasi dan Penugasan Siswa Petugas Pemeriksaan Cek Kesehatan Gigi dan Mulut (CKG)",
+    penyelenggara: "UPTD Puskesmas Garuda Kota Bandung",
+    lokasi: "UPTD Puskesmas Garuda, Jl. Dadali No. 4 Bandung",
+    guru: "Bunda Ayu / Tim Pembina UKS",
+    jabatan: "Koordinator Unit Kesehatan Sekolah (UKS)",
+    waktu: "21 Oktober 2026 (Pukul 08.00 - 12.00 WIB)",
+    dasar: "Surat Permohonan Tenaga Bantu CKG Puskesmas Garuda No. 440/128-PKM/2026",
+    instruksi: "Dampingi para siswa petugas dan rekap data hasil pemeriksaan kesehatan."
+  },
+  spmb: {
+    kegiatan: "Sosialisasi Penerimaan Murid Baru (SPMB) dan Penandatanganan Kerjasama MOU Pendidikan",
+    penyelenggara: "SMP Negeri 23 Bandung",
+    lokasi: "Kampus SMPN 23 Bandung",
+    guru: "Bunda Elvira / Tim SPMB",
+    jabatan: "Ketua Panitia Sosialisasi SPMB SMA YWKA",
+    waktu: "18 November 2026 (Pukul 09.00 - 12.00 WIB)",
+    dasar: "Program Kerja Tahunan Promosi dan SPMB SMA YWKA Bandung Tahun 2026",
+    instruksi: "Presentasikan program unggulan dan beasiswa SMA YWKA kepada siswa kelas IX."
+  }
+};
+
+let currentAiSuratData = {
+  perihal: "Surat Perintah Kegiatan Literasi Digital untuk Memperkuat Peran Guru dalam Menangkal Paham Kekerasan pada Siswa Melalui Forum Koordinasi Pencegahan Terorisme (FPKT) T.A 2026 (A.N Nada Khairunisa, S.Pd)",
+  nomorLengkap: "421.7/609/SMA YWKA/TU/X/2026",
+  guru: "Nada Khairunisa, S.Pd.",
+  penyelenggara: "Forum Koordinasi Pencegahan Terorisme (FKPT) T.A 2026",
+  tanggalSurat: "26/10/2026",
+  plainTextDoc: ""
+};
+
+function initAiSuratPerintah() {
+  const inputApiKey = document.getElementById("inputClaudeApiKey");
+  const selModel = document.getElementById("selectClaudeModel");
+  const btnToggleConfig = document.getElementById("btnToggleClaudeConfig");
+  const boxConfig = document.getElementById("claudeConfigBox");
+  const btnToggleKey = document.getElementById("btnToggleShowClaudeKey");
+  const btnSaveKey = document.getElementById("btnSaveClaudeSettings");
+  const btnTestConn = document.getElementById("btnTestClaudeConnection");
+  const selPreset = document.getElementById("selAiPreset");
+  const formAi = document.getElementById("formAiSuratPerintah");
+
+  const btnTopAi = document.getElementById("btnTopOpenAiSurat");
+  const btnGoToAi = document.getElementById("btnGoToAiTab");
+
+  if (inputApiKey && state.claudeApiKey) {
+    inputApiKey.value = state.claudeApiKey;
+  }
+  if (selModel && state.claudeModel) {
+    selModel.value = state.claudeModel;
+  }
+
+  // Set default tanggal surat di form AI ke hari ini
+  const aiTglInput = document.getElementById("aiTanggalSurat");
+  if (aiTglInput) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    aiTglInput.value = `${yyyy}-${mm}-${dd}`;
+  }
+
+  // Toggle Box Config
+  if (btnToggleConfig && boxConfig) {
+    btnToggleConfig.addEventListener("click", () => {
+      boxConfig.style.display = boxConfig.style.display === "none" ? "block" : "none";
+    });
+  }
+
+  // Toggle Visibility Password
+  if (btnToggleKey && inputApiKey) {
+    btnToggleKey.addEventListener("click", () => {
+      if (inputApiKey.type === "password") {
+        inputApiKey.type = "text";
+        btnToggleKey.innerHTML = `<i class="fa-solid fa-eye-slash"></i>`;
+      } else {
+        inputApiKey.type = "password";
+        btnToggleKey.innerHTML = `<i class="fa-solid fa-eye"></i>`;
+      }
+    });
+  }
+
+  // Simpan Pengaturan Claude API
+  if (btnSaveKey && inputApiKey) {
+    btnSaveKey.addEventListener("click", () => {
+      state.claudeApiKey = inputApiKey.value.trim();
+      if (selModel) state.claudeModel = selModel.value;
+      localStorage.setItem("sma_ywka_claude_api_key", state.claudeApiKey);
+      localStorage.setItem("sma_ywka_claude_model", state.claudeModel);
+      showToast("Kunci API Claude & Model berhasil disimpan!", "success");
+      if (boxConfig) boxConfig.style.display = "none";
+    });
+  }
+
+  // Uji Koneksi Claude
+  if (btnTestConn) {
+    btnTestConn.addEventListener("click", async () => {
+      const key = inputApiKey ? inputApiKey.value.trim() : state.claudeApiKey;
+      if (!key) {
+        showToast("Masukkan Kunci API Claude terlebih dahulu!", "warning");
+        return;
+      }
+      btnTestConn.disabled = true;
+      btnTestConn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menguji...`;
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+            "anthropic-dangerous-direct-browser-access": "true"
+          },
+          body: JSON.stringify({
+            model: "claude-3-haiku-20240307",
+            max_tokens: 10,
+            messages: [{ role: "user", content: "Halo" }]
+          })
+        });
+        const data = await res.json();
+        if (data.type === "message" || data.id) {
+          showToast("✅ Berhasil terhubung ke Claude AI API!", "success");
+        } else {
+          showToast(`⚠️ Respon API: ${data.error?.message || "Kunci API tidak valid"}`, "warning");
+        }
+      } catch (err) {
+        showToast("ℹ️ Uji koneksi dikirim. Kunci tersimpan di browser.", "info");
+      } finally {
+        btnTestConn.disabled = false;
+        btnTestConn.innerHTML = `<i class="fa-solid fa-bolt"></i> Uji Koneksi Claude`;
+      }
+    });
+  }
+
+  // Pintasan Tombol Navigasi ke Tab AI
+  const jumpToAiTab = () => {
+    const tabAiBtn = document.querySelector('[data-tab="tab-ai-surat"]');
+    if (tabAiBtn) tabAiBtn.click();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  if (btnTopAi) btnTopAi.addEventListener("click", jumpToAiTab);
+  if (btnGoToAi) btnGoToAi.addEventListener("click", jumpToAiTab);
+
+  // Preset Selector
+  if (selPreset) {
+    selPreset.addEventListener("change", () => {
+      const val = selPreset.value;
+      if (val && AI_SURAT_PRESETS[val]) {
+        applyPresetToForm(AI_SURAT_PRESETS[val]);
+      }
+    });
+  }
+
+  // Form AI Submit
+  if (formAi) {
+    formAi.addEventListener("submit", handleGenerateAiSurat);
+  }
+
+  // Action Buttons
+  const btnApplyToGen = document.getElementById("btnApplyAiToGenerator");
+  if (btnApplyToGen) {
+    btnApplyToGen.addEventListener("click", applyAiDataToGenerator);
+  }
+
+  const btnPrintDoc = document.getElementById("btnPrintAiDoc");
+  if (btnPrintDoc) {
+    btnPrintDoc.addEventListener("click", () => window.print());
+  }
+
+  const btnCopyDoc = document.getElementById("btnCopyFullAiDoc");
+  if (btnCopyDoc) {
+    btnCopyDoc.addEventListener("click", () => {
+      if (currentAiSuratData.plainTextDoc) {
+        navigator.clipboard.writeText(currentAiSuratData.plainTextDoc);
+        showToast("Naskah lengkap Surat Perintah berhasil disalin ke clipboard!", "success");
+      } else {
+        const text = document.getElementById("printableSuratSheet")?.innerText || "";
+        navigator.clipboard.writeText(text);
+        showToast("Naskah Surat Perintah berhasil disalin!", "success");
+      }
+    });
+  }
+
+  const btnCopyPerihal = document.getElementById("btnCopyAiPerihal");
+  if (btnCopyPerihal) {
+    btnCopyPerihal.addEventListener("click", () => {
+      if (currentAiSuratData.perihal) {
+        navigator.clipboard.writeText(currentAiSuratData.perihal);
+        showToast("Prihal agenda berhasil disalin!", "success");
+      }
+    });
+  }
+
+  // Tampilkan naskah bawaan awal (FPKT)
+  renderDefaultSuratPerintahPreview();
+}
+
+function applyPresetToForm(p) {
+  const elKegiatan = document.getElementById("aiNamaKegiatan");
+  const elPenyelenggara = document.getElementById("aiPenyelenggara");
+  const elLokasi = document.getElementById("aiLokasi");
+  const elGuru = document.getElementById("aiNamaGuru");
+  const elJabatan = document.getElementById("aiJabatanGuru");
+  const elWaktu = document.getElementById("aiWaktuKegiatan");
+  const elDasar = document.getElementById("aiDasarSurat");
+  const elInstruksi = document.getElementById("aiCustomInstruction");
+
+  if (elKegiatan) elKegiatan.value = p.kegiatan;
+  if (elPenyelenggara) elPenyelenggara.value = p.penyelenggara;
+  if (elLokasi) elLokasi.value = p.lokasi;
+  if (elGuru) elGuru.value = p.guru;
+  if (elJabatan) elJabatan.value = p.jabatan;
+  if (elWaktu) elWaktu.value = p.waktu;
+  if (elDasar) elDasar.value = p.dasar;
+  if (elInstruksi) elInstruksi.value = p.instruksi;
+
+  showToast(`Data contoh "${p.guru}" telah dimuat! Klik "Generate Surat Perintah" untuk memproses.`, "info");
+}
+
+async function handleGenerateAiSurat(e) {
+  e.preventDefault();
+
+  const btnSubmit = document.getElementById("btnSubmitAiGenerate");
+  const origBtnContent = btnSubmit.innerHTML;
+  btnSubmit.disabled = true;
+  btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Merancang dengan Claude AI...`;
+
+  const kegiatan = document.getElementById("aiNamaKegiatan")?.value.trim() || "";
+  const penyelenggara = document.getElementById("aiPenyelenggara")?.value.trim() || "";
+  const lokasi = document.getElementById("aiLokasi")?.value.trim() || "";
+  const guru = document.getElementById("aiNamaGuru")?.value.trim() || "";
+  const jabatan = document.getElementById("aiJabatanGuru")?.value.trim() || "Guru Mata Pelajaran";
+  const waktu = document.getElementById("aiWaktuKegiatan")?.value.trim() || "";
+  const rawTglSurat = document.getElementById("aiTanggalSurat")?.value || "";
+  const tglSuratFormatted = formatDateIndo(rawTglSurat) || "26/10/2026";
+  const dasar = document.getElementById("aiDasarSurat")?.value.trim() || "";
+  const instruksi = document.getElementById("aiCustomInstruction")?.value.trim() || "";
+
+  const targetAgenda = state.nextKeluarAgenda || "609";
+  const currentMonthIdx = new Date().getMonth() + 1;
+  const romanMonth = ROMAN_MONTHS[currentMonthIdx - 1] || "X";
+  const fullNomor = `421.7/${targetAgenda}/SMA YWKA/TU/${romanMonth}/2026`;
+
+  let aiResult = null;
+
+  // Jika kunci API Claude tersedia, panggil Anthropic Messages API
+  if (state.claudeApiKey && state.claudeApiKey.startsWith("sk-ant-")) {
+    try {
+      const promptText = `Anda adalah Sekretaris Tata Usaha resmi di SMA YWKA Bandung (Jl. Elang II No. 3, Bandung, Kepala Sekolah: Syarif Hasanudin, S.Pd., Gr., M.M.).
+Tolong buatkan draf resmi SURAT PERINTAH dinas sekolah SMA YWKA dan ringkasan perihal untuk buku agenda berdasarkan data berikut:
+- Nama Kegiatan: ${kegiatan}
+- Penyelenggara: ${penyelenggara}
+- Lokasi: ${lokasi}
+- Nama Guru/Petugas yang ditugaskan: ${guru}
+- Jabatan: ${jabatan}
+- Waktu Kegiatan: ${waktu}
+- Tanggal Surat: ${tglSuratFormatted}
+- Dasar Surat: ${dasar || "Program Kerja Tahunan Sekolah SMA YWKA Bandung Tahun Ajaran 2026/2027"}
+- Instruksi Khusus: ${instruksi || "Melaporkan hasil pelaksanaan tugas kepada Kepala Sekolah setelah kegiatan selesai."}
+- Nomor Surat: ${fullNomor}
+
+Harap keluarkan respon HANYA dalam format JSON valid berikut (tanpa tanda kutip markdown atau teks lain):
+{
+  "perihal": "Surat Perintah ${kegiatan} Melalui ${penyelenggara} (A.N ${guru})",
+  "menimbang": "bahwa dalam rangka memperkuat peran dan kompetensi guru dalam ${kegiatan}, dipandang perlu menugaskan guru yang bersangkutan untuk mewakili SMA YWKA Bandung;",
+  "dasar_list": [
+    "${dasar || 'Program Kerja Sekolah SMA YWKA Bandung Tahun Ajaran 2026/2027;'}",
+    "Kalender Pendidikan Dinas Pendidikan Provinsi Jawa Barat Tahun Ajaran 2026/2027;",
+    "Hasil Rapat Koordinasi Pimpinan dan Dewan Guru SMA YWKA Bandung."
+  ],
+  "tugas_list": [
+    "Menghadiri, mengikuti, dan melaksanakan secara aktif ${kegiatan} yang diselenggarakan oleh ${penyelenggara} bertempat di ${lokasi};",
+    "Melaksanakan tugas pada waktu yang telah ditetapkan: ${waktu};",
+    "Melaporkan hasil pelaksanaan kegiatan kepada Kepala Sekolah dan mendiseminasikan ilmu/materi kepada dewan guru SMA YWKA Bandung setelah kegiatan selesai."
+  ]
+}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": state.claudeApiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: state.claudeModel || "claude-3-5-sonnet-20241022",
+          max_tokens: 1500,
+          messages: [{ role: "user", content: promptText }]
+        })
+      });
+
+      const jsonRes = await res.json();
+      if (jsonRes.content && jsonRes.content[0] && jsonRes.content[0].text) {
+        const textContent = jsonRes.content[0].text.trim();
+        const cleaned = textContent.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+        aiResult = JSON.parse(cleaned);
+      }
+    } catch (err) {
+      console.warn("Claude API fallback to rule engine:", err);
+    }
+  }
+
+  // Jika tidak ada API key atau API error, gunakan Rule-Based Generator Resmi SMA YWKA
+  if (!aiResult) {
+    aiResult = {
+      perihal: `Surat Perintah ${kegiatan} Melalui ${penyelenggara} (A.N ${guru})`,
+      menimbang: `bahwa dalam rangka meningkatkan kapasitas, kompetensi, dan peran aktif tenaga pendidik dalam ${kegiatan}, maka dipandang perlu untuk menugaskan guru yang bersangkutan sebagai perwakilan resmi dari SMA YWKA Bandung;`,
+      dasar_list: [
+        dasar || "Surat Undangan dari " + penyelenggara + ";",
+        "Program Kerja dan Kalender Pendidikan SMA YWKA Bandung Tahun Ajaran 2026/2027;",
+        "Hasil Rapat Koordinasi Pimpinan dan Dewan Guru SMA YWKA Bandung."
+      ],
+      tugas_list: [
+        `Menghadiri dan mengikuti secara aktif ${kegiatan} yang diselenggarakan oleh ${penyelenggara} bertempat di ${lokasi};`,
+        `Pelaksanaan penugasan pada: ${waktu};`,
+        instruksi || "Melaporkan hasil pelaksanaan kegiatan kepada Kepala Sekolah dan mendiseminasikan hasil materi kepada dewan guru SMA YWKA."
+      ]
+    };
+  }
+
+  // Update Data Global
+  currentAiSuratData = {
+    perihal: aiResult.perihal,
+    nomorLengkap: fullNomor,
+    guru: guru,
+    penyelenggara: penyelenggara,
+    tanggalSurat: tglSuratFormatted,
+    plainTextDoc: ""
+  };
+
+  // Render Hasil ke UI
+  const outputPerihal = document.getElementById("aiOutputPerihal");
+  if (outputPerihal) outputPerihal.textContent = aiResult.perihal;
+
+  const docNo = document.getElementById("docNomorSurat");
+  if (docNo) docNo.textContent = fullNomor;
+
+  const docDate = document.getElementById("docSignatureDate");
+  if (docDate) docDate.textContent = `Bandung, ${tglSuratFormatted}`;
+
+  const docBody = document.getElementById("docContentBody");
+  if (docBody) {
+    let dasarLi = "";
+    (aiResult.dasar_list || []).forEach(d => { dasarLi += `<li>${escapeHtml(d)}</li>`; });
+
+    let tugasLi = "";
+    (aiResult.tugas_list || []).forEach(t => { tugasLi += `<li>${escapeHtml(t)}</li>`; });
+
+    docBody.innerHTML = `
+      <p style="margin-bottom: 8px;"><strong>Menimbang :</strong></p>
+      <p style="margin-left: 20px; margin-bottom: 12px; text-indent: -20px;">
+        ${escapeHtml(aiResult.menimbang)}
+      </p>
+
+      <p style="margin-bottom: 8px;"><strong>Dasar :</strong></p>
+      <ol style="margin-left: 24px; margin-bottom: 14px; padding-left: 0;">
+        ${dasarLi}
+      </ol>
+
+      <div style="text-align: center; font-weight: 800; letter-spacing: 1.5px; margin: 16px 0 12px; font-size: 14px;">
+        MEMERINTAHKAN:
+      </div>
+
+      <table class="letter-table-spec">
+        <tr>
+          <td style="width: 90px;"><strong>Kepada</strong></td>
+          <td style="width: 15px;">:</td>
+          <td><strong>${escapeHtml(guru)}</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Jabatan</strong></td>
+          <td>:</td>
+          <td>${escapeHtml(jabatan)}</td>
+        </tr>
+        <tr>
+          <td><strong>Unit Kerja</strong></td>
+          <td>:</td>
+          <td>SMA YWKA Bandung</td>
+        </tr>
+      </table>
+
+      <table class="letter-table-spec" style="margin-top: 10px;">
+        <tr>
+          <td style="width: 90px; vertical-align: top;"><strong>Untuk</strong></td>
+          <td style="width: 15px; vertical-align: top;">:</td>
+          <td style="vertical-align: top;">
+            <ol style="margin: 0; padding-left: 18px;">
+              ${tugasLi}
+            </ol>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin-top: 16px; line-height: 1.6;">
+        Demikian Surat Perintah ini diberikan kepada yang bersangkutan untuk dilaksanakan dengan penuh rasa tanggung jawab dan dedikasi yang tinggi.
+      </p>
+    `;
+  }
+
+  // Siapkan teks plain text untuk salin ke MS Word
+  currentAiSuratData.plainTextDoc = `YAYASAN WANITA KERETA API
+SEKOLAH MENENGAH ATAS (SMA) YWKA BANDUNG
+Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung
+
+SURAT PERINTAH
+Nomor: ${fullNomor}
+
+Menimbang:
+${aiResult.menimbang}
+
+Dasar:
+${(aiResult.dasar_list || []).map((d, i) => `${i + 1}. ${d}`).join("\n")}
+
+MEMERINTAHKAN:
+Kepada:
+Nama       : ${guru}
+Jabatan    : ${jabatan}
+Unit Kerja : SMA YWKA Bandung
+
+Untuk:
+${(aiResult.tugas_list || []).map((t, i) => `${i + 1}. ${t}`).join("\n")}
+
+Demikian Surat Perintah ini dibuat untuk dapat dilaksanakan dengan sebaik-baiknya.
+
+Bandung, ${tglSuratFormatted}
+Kepala SMA YWKA Bandung,
+
+Syarif Hasanudin, S.Pd., Gr., M.M.
+NUPTK. 8556763665200002`;
+
+  btnSubmit.disabled = false;
+  btnSubmit.innerHTML = origBtnContent;
+  showToast("✅ Surat Perintah & Perihal berhasil dibuat sesuai standar resmi SMA YWKA!", "success");
+}
+
+function applyAiDataToGenerator() {
+  if (!currentAiSuratData || !currentAiSuratData.perihal) {
+    showToast("Belum ada data surat perintah yang dibuat!", "warning");
+    return;
+  }
+
+  const selKode = document.getElementById("genKodeKlasifikasi");
+  const txtNoAgenda = document.getElementById("genNomorUrut");
+  const txtPerihal = document.getElementById("genPerihal");
+  const txtPetugas = document.getElementById("genPetugas");
+  const txtKepada = document.getElementById("genKepada");
+  const txtDari = document.getElementById("genDari");
+  const txtKet = document.getElementById("genKeterangan");
+
+  if (selKode) selKode.value = "421.7";
+  if (txtNoAgenda) txtNoAgenda.value = state.nextKeluarAgenda;
+  if (txtPerihal) txtPerihal.value = currentAiSuratData.perihal;
+  if (txtPetugas) txtPetugas.value = currentAiSuratData.guru;
+  if (txtKepada) txtKepada.value = currentAiSuratData.penyelenggara || "Guru yang Bersangkutan";
+  if (txtDari) txtDari.value = "Syarif Hasanudin, S.Pd., Gr., M.M.";
+  if (txtKet) txtKet.value = "Surat Perintah Dinas";
+
+  updateGeneratedPreview();
+
+  const tabGenBtn = document.querySelector('[data-tab="tab-generator"]');
+  if (tabGenBtn) tabGenBtn.click();
+
+  const formGen = document.getElementById("formGeneratorSurat");
+  if (formGen) {
+    formGen.scrollIntoView({ behavior: "smooth", block: "center" });
+    formGen.style.boxShadow = "0 0 0 3px #6366f1";
+    formGen.style.transition = "box-shadow 0.4s ease";
+    setTimeout(() => { formGen.style.boxShadow = "none"; }, 2500);
+  }
+
+  showToast(`✅ Data Surat Perintah telah diterapkan ke Form Generator (No. Agenda ${state.nextKeluarAgenda})!`, "success");
+}
+
+function renderDefaultSuratPerintahPreview() {
+  const p = AI_SURAT_PRESETS.fpkt;
+  const docBody = document.getElementById("docContentBody");
+  if (!docBody) return;
+
+  const targetAgenda = state.nextKeluarAgenda || "609";
+  const currentMonthIdx = new Date().getMonth() + 1;
+  const romanMonth = ROMAN_MONTHS[currentMonthIdx - 1] || "X";
+  const fullNomor = `421.7/${targetAgenda}/SMA YWKA/TU/${romanMonth}/2026`;
+
+  const docNo = document.getElementById("docNomorSurat");
+  if (docNo) docNo.textContent = fullNomor;
+
+  docBody.innerHTML = `
+    <p style="margin-bottom: 8px;"><strong>Menimbang :</strong></p>
+    <p style="margin-left: 20px; margin-bottom: 12px; text-indent: -20px;">
+      bahwa dalam rangka memperkuat kapasitas, kompetensi, dan peran guru dalam ${escapeHtml(p.kegiatan)}, dipandang perlu untuk menugaskan guru yang bersangkutan sebagai delegasi resmi SMA YWKA Bandung;
+    </p>
+
+    <p style="margin-bottom: 8px;"><strong>Dasar :</strong></p>
+    <ol style="margin-left: 24px; margin-bottom: 14px; padding-left: 0;">
+      <li>${escapeHtml(p.dasar)};</li>
+      <li>Program Kerja dan Kalender Pendidikan SMA YWKA Bandung Tahun Ajaran 2026/2027;</li>
+      <li>Hasil Rapat Koordinasi Pimpinan dan Dewan Guru SMA YWKA Bandung.</li>
+    </ol>
+
+    <div style="text-align: center; font-weight: 800; letter-spacing: 1.5px; margin: 16px 0 12px; font-size: 14px;">
+      MEMERINTAHKAN:
+    </div>
+
+    <table class="letter-table-spec">
+      <tr>
+        <td style="width: 90px;"><strong>Kepada</strong></td>
+        <td style="width: 15px;">:</td>
+        <td><strong>${escapeHtml(p.guru)}</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Jabatan</strong></td>
+        <td>:</td>
+        <td>${escapeHtml(p.jabatan)}</td>
+      </tr>
+      <tr>
+        <td><strong>Unit Kerja</strong></td>
+        <td>:</td>
+        <td>SMA YWKA Bandung</td>
+      </tr>
+    </table>
+
+    <table class="letter-table-spec" style="margin-top: 10px;">
+      <tr>
+        <td style="width: 90px; vertical-align: top;"><strong>Untuk</strong></td>
+        <td style="width: 15px; vertical-align: top;">:</td>
+        <td style="vertical-align: top;">
+          <ol style="margin: 0; padding-left: 18px;">
+            <li>Menghadiri dan mengikuti secara aktif ${escapeHtml(p.kegiatan)} bertempat di ${escapeHtml(p.lokasi)};</li>
+            <li>Waktu pelaksanaan: ${escapeHtml(p.waktu)};</li>
+            <li>Melaporkan hasil kegiatan kepada Kepala Sekolah dan mendiseminasikan materi kepada dewan guru setelah penugasan selesai.</li>
+          </ol>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin-top: 16px; line-height: 1.6;">
+      Demikian Surat Perintah ini diberikan kepada yang bersangkutan untuk dilaksanakan dengan penuh rasa tanggung jawab dan dedikasi yang tinggi.
+    </p>
+  `;
+}
 

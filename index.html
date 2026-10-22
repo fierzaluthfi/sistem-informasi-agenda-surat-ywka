@@ -68,6 +68,11 @@
           <span>Generator & Template</span>
           <span class="badge-tag">No. Agenda</span>
         </button>
+        <button class="nav-item" data-tab="tab-ai-surat">
+          <i class="fa-solid fa-robot" style="color: #818cf8;"></i>
+          <span>AI Surat Perintah</span>
+          <span class="badge-tag" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;">Claude AI</span>
+        </button>
         <button class="nav-item" data-tab="tab-statistik">
           <i class="fa-solid fa-chart-pie"></i>
           <span>Statistik & Laporan</span>
@@ -122,6 +127,10 @@
           <button class="btn btn-primary" id="btnQuickCreateKeluar">
             <i class="fa-solid fa-plus"></i>
             <span>+ Buat Surat Keluar</span>
+          </button>
+          <button class="btn btn-outline" id="btnTopOpenAiSurat" title="Buat Surat Perintah Otomatis dengan Claude AI" style="border-color: #818cf8; color: #4338ca; background: #eef2ff;">
+            <i class="fa-solid fa-wand-magic-sparkles" style="color: #6366f1;"></i>
+            <span>AI Surat Perintah</span>
           </button>
           <button class="btn btn-secondary" id="btnQuickCreateMasuk">
             <i class="fa-solid fa-inbox"></i>
@@ -423,6 +432,26 @@
                 </div>
               </div>
 
+              <!-- Callout: AI Surat Perintah Generator (Claude AI) -->
+              <div class="ai-generator-callout" style="background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%); border: 1.5px solid #c7d2fe; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; box-shadow: 0 3px 8px rgba(99, 102, 241, 0.3);">
+                    <i class="fa-solid fa-robot"></i>
+                  </div>
+                  <div>
+                    <h4 style="font-size: 13.5px; font-weight: 700; color: #1e1b4b; margin-bottom: 2px;">
+                      Butuh Buat Surat Perintah / Surat Tugas Cepat?
+                    </h4>
+                    <p style="font-size: 12px; color: #4338ca; margin: 0;">
+                      Gunakan <strong>AI Template Generator (Claude AI)</strong> untuk membuat naskah resmi ber-kop sekolah & perihal agenda otomatis.
+                    </p>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary" id="btnGoToAiTab" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; font-size: 13px; font-weight: 700; padding: 8px 14px; white-space: nowrap; flex-shrink: 0; box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> Buka AI Generator
+                </button>
+              </div>
+
               <!-- Filter Kategori Template -->
               <div class="template-selector-section">
                 <div class="template-header-bar">
@@ -687,6 +716,227 @@
                   <li><i class="fa-solid fa-check text-success"></i> Link Drive tersimpan langsung di kolom <em>Lampiran Fisik</em> spreadsheet.</li>
                   <li><i class="fa-solid fa-check text-success"></i> Tombol <strong>"Lihat Berkas"</strong> akan muncul di tabel agenda web ini.</li>
                 </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB: AI SURAT PERINTAH (CLAUDE AI) ================= -->
+        <section class="tab-pane" id="tab-ai-surat">
+          <div class="panel-card ai-generator-main-card">
+            <div class="panel-header" style="flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                  <span class="badge" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;">
+                    <i class="fa-solid fa-brain"></i> Powered by Claude AI
+                  </span>
+                  <span class="badge" style="background: #e0f2fe; color: #0284c7; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px;">
+                    Kode 421.7 / 421.3
+                  </span>
+                </div>
+                <h2 class="panel-title"><i class="fa-solid fa-wand-magic-sparkles" style="color: #6366f1;"></i> AI Template Generator Surat Perintah</h2>
+                <p class="panel-desc">Buat draf naskah resmi Surat Perintah SMA YWKA ber-kop surat dan hasilkan perihal agenda otomatis dengan kecerdasan Claude AI</p>
+              </div>
+              <div class="header-actions">
+                <button type="button" class="btn btn-outline" id="btnToggleClaudeConfig" style="border-color: #cbd5e1; font-size: 13px;">
+                  <i class="fa-solid fa-key" style="color: #6366f1;"></i> Pengaturan API Claude
+                </button>
+              </div>
+            </div>
+
+            <!-- Box Pengaturan API Claude (Collapsible) -->
+            <div class="ai-config-box" id="claudeConfigBox" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="font-size: 13.5px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-sliders text-primary"></i> Konfigurasi Anthropic Claude API
+                </h4>
+                <span style="font-size: 11px; color: #64748b;">Tersimpan aman di LocalStorage browser</span>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-2">
+                  <label class="form-label font-bold">Anthropic / Claude API Key:</label>
+                  <div class="input-with-button">
+                    <input type="password" id="inputClaudeApiKey" class="form-control stat-mono" placeholder="sk-ant-api03-..." autocomplete="off">
+                    <button type="button" class="btn btn-secondary btn-icon" id="btnToggleShowClaudeKey" title="Tampilkan/Sembunyikan">
+                      <i class="fa-solid fa-eye"></i>
+                    </button>
+                  </div>
+                  <small class="helper-text">Kunci API Claude Anda dari <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>. *Jika belum diisi, sistem otomatis memakai Intelligent Generator Bawaan SMA YWKA.</small>
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label font-bold">Model AI:</label>
+                  <select id="selectClaudeModel" class="form-control">
+                    <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Cerdas & Cepat)</option>
+                    <option value="claude-3-haiku-20240307">Claude 3 Haiku (Sangat Cepat)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="button" class="btn btn-primary btn-sm" id="btnSaveClaudeSettings">
+                  <i class="fa-solid fa-floppy-disk"></i> Simpan Kunci API
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnTestClaudeConnection">
+                  <i class="fa-solid fa-bolt"></i> Uji Koneksi Claude
+                </button>
+              </div>
+            </div>
+
+            <!-- Grid 2 Kolom: Form Input & Pratinjau Naskah -->
+            <div class="ai-workbench-grid">
+              <!-- Kolom Kiri: Input Data Surat Perintah -->
+              <div class="ai-input-column">
+                <div class="preset-selector-group" style="margin-bottom: 16px;">
+                  <label class="form-label font-bold" style="display: flex; align-items: center; justify-content: space-between;">
+                    <span><i class="fa-solid fa-bolt text-amber"></i> Pilih Contoh Kegiatan Cepat:</span>
+                    <span style="font-size: 11px; font-weight: 400; color: #64748b;">Isi data otomatis</span>
+                  </label>
+                  <select id="selAiPreset" class="form-control" style="background: #f1f5f9; font-weight: 600;">
+                    <option value="">-- Pilih Contoh Kasus Surat Perintah --</option>
+                    <option value="fpkt">1. Literasi Digital Forum Koordinasi Pencegahan Terorisme (FKPT)</option>
+                    <option value="kurikulum">2. Pelatihan & Bimbingan Teknis Kurikulum Merdeka (BBGP)</option>
+                    <option value="lomba">3. Pendampingan Siswa Lomba Baris-Berbaris Tingkat Kota</option>
+                    <option value="ckg">4. Dispensasi / Petugas CKG Bersama UPTD Puskesmas Garuda</option>
+                    <option value="spmb">5. Sosialisasi & Promosi MOU SPMB ke SMP Negeri</option>
+                  </select>
+                </div>
+
+                <form id="formAiSuratPerintah">
+                  <div class="form-group">
+                    <label class="form-label font-bold">Nama Kegiatan / Acara Penugasan <span class="text-danger">*</span></label>
+                    <input type="text" id="aiNamaKegiatan" class="form-control" placeholder="Contoh: Kegiatan Literasi Digital untuk Memperkuat Peran Guru dalam Menangkal Paham Kekerasan pada Siswa" required>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group flex-1">
+                      <label class="form-label font-bold">Lembaga Penyelenggara / Pengundang <span class="text-danger">*</span></label>
+                      <input type="text" id="aiPenyelenggara" class="form-control" placeholder="Contoh: Forum Koordinasi Pencegahan Terorisme (FKPT) Jawa Barat" required>
+                    </div>
+                    <div class="form-group flex-1">
+                      <label class="form-label font-bold">Lokasi / Tempat Pelaksanaan <span class="text-danger">*</span></label>
+                      <input type="text" id="aiLokasi" class="form-control" placeholder="Contoh: Hotel Grand Sunshine Soreang, Kab. Bandung" required>
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group flex-1">
+                      <label class="form-label font-bold">Nama Guru / Pegawai yang Ditugaskan (A.N) <span class="text-danger">*</span></label>
+                      <input type="text" id="aiNamaGuru" class="form-control" placeholder="Contoh: Nada Khairunisa, S.Pd." required>
+                    </div>
+                    <div class="form-group flex-1">
+                      <label class="form-label">Jabatan / Guru Mapel</label>
+                      <input type="text" id="aiJabatanGuru" class="form-control" placeholder="Contoh: Guru Mata Pelajaran Bahasa Indonesia">
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group flex-1">
+                      <label class="form-label font-bold">Tanggal Pelaksanaan Kegiatan <span class="text-danger">*</span></label>
+                      <input type="text" id="aiWaktuKegiatan" class="form-control" placeholder="Contoh: 27 - 28 Oktober 2026 (Pukul 08.00 s.d Selesai)" required>
+                    </div>
+                    <div class="form-group flex-1">
+                      <label class="form-label">Tanggal Surat Diterbitkan</label>
+                      <input type="date" id="aiTanggalSurat" class="form-control">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Dasar Surat / Nomor Surat Undangan (Konsiderans)</label>
+                    <input type="text" id="aiDasarSurat" class="form-control" placeholder="Contoh: Surat Undangan FKPT Jawa Barat No. 045/FKPT-JB/X/2026 perihal Permohonan Peserta Guru">
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Instruksi Khusus untuk Claude AI (Opsional)</label>
+                    <textarea id="aiCustomInstruction" class="form-control" rows="2" placeholder="Contoh: Tambahkan klausul bahwa guru wajib mendiseminasikan hasil materi kepada dewan guru lainnya setelah kegiatan."></textarea>
+                  </div>
+
+                  <div style="margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary" id="btnSubmitAiGenerate" style="width: 100%; padding: 12px 18px; font-size: 15px; font-weight: 700; background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                      <span>Generate Surat Perintah dengan Claude AI</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Kolom Kanan: Hasil Pratinjau Naskah & Prihal Agenda -->
+              <div class="ai-output-column">
+                <!-- Box Prihal yang siap masuk agenda -->
+                <div class="ai-perihal-card" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11.5px; font-weight: 700; color: #475569; text-transform: uppercase;">
+                      <i class="fa-solid fa-tag text-primary"></i> Prihal untuk Agenda Spreadsheet (Kolom I):
+                    </span>
+                    <button type="button" class="btn btn-outline btn-sm" id="btnCopyAiPerihal" title="Salin Prihal">
+                      <i class="fa-solid fa-copy"></i> Salin
+                    </button>
+                  </div>
+                  <div id="aiOutputPerihal" style="font-weight: 700; color: #0f172a; font-size: 13.5px; line-height: 1.5; background: #ffffff; padding: 10px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                    Surat Perintah Kegiatan Literasi Digital untuk Memperkuat Peran Guru dalam Menangkal Paham Kekerasan pada Siswa Melalui Forum Koordinasi Pencegahan Terorisme (FPKT) T.A 2026 (A.N Nada Khairunisa, S.Pd)
+                  </div>
+                  <div style="display: flex; gap: 8px; margin-top: 10px;">
+                    <button type="button" class="btn btn-emerald btn-sm" id="btnApplyAiToGenerator" style="font-weight: 700; font-size: 12.5px;">
+                      <i class="fa-solid fa-file-circle-check"></i> Terapkan ke Form Generator & Buku Agenda
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Preview Lembar Naskah Surat Perintah (Format Cetak A4 SMA YWKA) -->
+                <div class="ai-sheet-wrapper">
+                  <div class="ai-sheet-actions-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 12px; color: #64748b; font-weight: 600;">
+                      <i class="fa-solid fa-file-lines text-purple"></i> Pratinjau Naskah Cetak Resmi SMA YWKA
+                    </span>
+                    <div style="display: flex; gap: 6px;">
+                      <button type="button" class="btn btn-secondary btn-sm" id="btnCopyFullAiDoc">
+                        <i class="fa-solid fa-copy"></i> Salin Naskah
+                      </button>
+                      <button type="button" class="btn btn-primary btn-sm" id="btnPrintAiDoc">
+                        <i class="fa-solid fa-print"></i> Cetak / Simpan PDF
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="printable-letter-sheet" id="printableSuratSheet">
+                    <!-- Kop Surat Sekolah -->
+                    <div class="letterhead-container">
+                      <div class="letterhead-logo">
+                        <i class="fa-solid fa-graduation-cap" style="font-size: 42px; color: #0284c7;"></i>
+                      </div>
+                      <div class="letterhead-text">
+                        <h4 class="lh-yayasan">YAYASAN WANITA KERETA API</h4>
+                        <h2 class="lh-sekolah">SEKOLAH MENENGAH ATAS (SMA) YWKA BANDUNG</h2>
+                        <div class="lh-akreditasi">TERAKREDITASI &ldquo;A&rdquo; (UNGGUL)</div>
+                        <p class="lh-alamat">Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat 40184</p>
+                        <p class="lh-kontak">Telp: (022) 6011710 | Email: smaywka_bdg@yahoo.com | NPSN: 20219750</p>
+                      </div>
+                    </div>
+                    <div class="letterhead-divider"></div>
+
+                    <!-- Judul & Nomor Surat -->
+                    <div class="letter-title-section">
+                      <h3 class="letter-main-title">SURAT PERINTAH</h3>
+                      <div class="letter-number-line">
+                        Nomor: <span id="docNomorSurat">421.7 / 609 / SMA YWKA TU / X / 2026</span>
+                      </div>
+                    </div>
+
+                    <!-- Isi Surat -->
+                    <div class="letter-content-body" id="docContentBody">
+                      <!-- Diisi teks surat perintah dinamis -->
+                    </div>
+
+                    <!-- Tanda Tangan Kepala Sekolah -->
+                    <div class="letter-signature-section">
+                      <div class="signature-box">
+                        <div class="sig-date" id="docSignatureDate">Bandung, 26 Oktober 2026</div>
+                        <div class="sig-title">Kepala SMA YWKA Bandung,</div>
+                        <div class="sig-space" style="height: 60px;"></div>
+                        <div class="sig-name"><strong>Syarif Hasanudin, S.Pd., Gr., M.M.</strong></div>
+                        <div class="sig-nip">NUPTK. 8556763665200002</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -134,12 +134,15 @@ function doPost(e) {
       const petugas = payload.petugas || "";
       const keterangan = payload.keterangan || "";
       
-      // Format Tanggal: disesuaikan format spreadsheet DD/MM/YYYY atau D/M/YYYY
+      // Format Tanggal: disesuaikan format spreadsheet DD/MM/YYYY (contoh: 26/10/2026)
       let tglSurat = payload.tanggal_surat || "";
       if (tglSurat && tglSurat.includes("-")) {
         const tglParts = tglSurat.split("-");
         if (tglParts.length === 3) {
-          tglSurat = `${parseInt(tglParts[2], 10)}/${parseInt(tglParts[1], 10)}/${tglParts[0]}`;
+          const d = String(tglParts[2]).padStart(2, "0");
+          const m = String(tglParts[1]).padStart(2, "0");
+          const y = tglParts[0];
+          tglSurat = `${d}/${m}/${y}`;
         }
       }
 
@@ -386,11 +389,22 @@ function doPost(e) {
         lampiranVal = driveFileUrl;
       }
 
+      let tglSuratMasuk = payload.tanggal_surat || "";
+      if (tglSuratMasuk && tglSuratMasuk.includes("-")) {
+        const p = tglSuratMasuk.split("-");
+        if (p.length === 3) tglSuratMasuk = `${String(p[2]).padStart(2, "0")}/${String(p[1]).padStart(2, "0")}/${p[0]}`;
+      }
+      let tglDiterimaMasuk = payload.tanggal_diterima || "";
+      if (tglDiterimaMasuk && tglDiterimaMasuk.includes("-")) {
+        const p = tglDiterimaMasuk.split("-");
+        if (p.length === 3) tglDiterimaMasuk = `${String(p[2]).padStart(2, "0")}/${String(p[1]).padStart(2, "0")}/${p[0]}`;
+      }
+
       const rowData = [
         payload.no_urut || nextNoUrut,
         payload.no_agenda || "",
-        payload.tanggal_surat || "",
-        payload.tanggal_diterima || "",
+        tglSuratMasuk,
+        tglDiterimaMasuk,
         payload.perihal || "",
         payload.dari || "",
         payload.kepada || "SMA YWKA",
