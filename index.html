@@ -58,9 +58,9 @@
           <span>Surat Masuk 2026</span>
           <span class="badge" id="countMasukBadge">0</span>
         </button>
-        <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="nav-item nav-item-drive-link" title="Buka Folder Drive Surat SMA YWKA">
+        <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="nav-item nav-item-drive-link" id="navDriveMainLink" title="Buka Folder Drive Surat SMA YWKA">
           <i class="fa-brands fa-google-drive text-emerald"></i>
-          <span>Drive Surat YWKA</span>
+          <span>Folder Drive Surat</span>
           <i class="fa-solid fa-arrow-up-right-from-square external-pill"></i>
         </a>
         <button class="nav-item" data-tab="tab-generator">
@@ -111,13 +111,13 @@
         </div>
 
         <div class="top-nav-right">
-          <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-nav" title="Buka Folder Google Drive Surat SMA YWKA">
+          <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-nav" id="topNavDriveKeluarBtn" title="Buka Folder Google Drive Surat Keluar SMA YWKA">
             <i class="fa-brands fa-google-drive"></i>
-            <span>Folder Drive Surat</span>
+            <span>Drive Surat Keluar</span>
           </a>
           <div class="quick-stats-pill">
             <i class="fa-solid fa-bookmark text-primary"></i>
-            <span>Agenda Terakhir: <strong id="topLastNumber">-</strong></span>
+            <span>Agenda Terakhir: <strong id="topLastNumber">608</strong></span>
           </div>
           <button class="btn btn-primary" id="btnQuickCreateKeluar">
             <i class="fa-solid fa-plus"></i>
@@ -187,8 +187,8 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT KELUAR 2026</code> (gid: 381566345) & Google Drive</p>
               </div>
               <div class="panel-actions">
-                <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" title="Buka Folder Google Drive Arsip Surat">
-                  <i class="fa-brands fa-google-drive"></i> Folder Drive Surat
+                <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" id="btnHeaderDriveKeluar" title="Buka Folder Google Drive Surat Keluar">
+                  <i class="fa-brands fa-google-drive"></i> Folder Drive Surat Keluar
                 </a>
                 <button class="btn btn-outline btn-sm" id="btnExportKeluarCsv">
                   <i class="fa-solid fa-file-csv"></i> Unduh CSV
@@ -250,8 +250,8 @@
               <table class="data-table" id="tableSuratKeluar">
                 <thead>
                   <tr>
-                    <th style="width: 50px;">No.</th>
-                    <th style="width: 90px;">No. Agenda</th>
+                    <th style="width: 80px;">No. Agenda</th>
+                    <th style="width: 80px;">Status</th>
                     <th style="width: 220px;">Nomor Lengkap Surat</th>
                     <th style="width: 100px;">Tanggal</th>
                     <th>Prihal / Isi Ringkasan Surat</th>
@@ -332,8 +332,8 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT MASUK 2026</code> (gid: 1925080880) & Google Drive</p>
               </div>
               <div class="panel-actions">
-                <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" title="Buka Folder Google Drive Arsip Surat">
-                  <i class="fa-brands fa-google-drive"></i> Folder Drive Surat
+                <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" id="btnHeaderDriveMasuk" title="Buka Folder Google Drive Surat Masuk">
+                  <i class="fa-brands fa-google-drive"></i> Folder Drive Surat Masuk
                 </a>
                 <button class="btn btn-outline btn-sm" id="btnExportMasukCsv">
                   <i class="fa-solid fa-file-csv"></i> Unduh CSV
@@ -405,7 +405,21 @@
               <div class="panel-header">
                 <div>
                   <h2 class="panel-title"><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Generator Nomor Agenda Surat</h2>
-                  <p class="panel-desc">Nomor dihitung otomatis mengikuti <strong>No. Agenda Surat</strong> terakhir. Pilih template dari Drive di bawah ini agar Anda tidak perlu mengetik ulang!</p>
+                  <p class="panel-desc">Nomor dihitung otomatis mengikuti <strong>No. Agenda Surat</strong> terakhir (Agenda terakhir terisi: <strong>608</strong>). Nomor urut mengikuti nomor agenda.</p>
+                </div>
+              </div>
+
+              <!-- Status Banner Koneksi Google Apps Script -->
+              <div class="conn-alert-banner alert-warning" id="bannerConnWarning" style="display: none;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                  <strong>Google Apps Script Belum Terhubung:</strong> Pengisian surat saat ini baru disimpan di memori browser dan belum masuk ke file Google Spreadsheet. Silakan <a href="javascript:void(0)" class="alert-action-link" id="linkGoToKoneksi">Buka Pengaturan Koneksi</a> untuk menyambungkan Web App URL.
+                </div>
+              </div>
+              <div class="conn-alert-banner alert-success" id="bannerConnSuccess" style="display: none;">
+                <i class="fa-solid fa-circle-check"></i>
+                <div>
+                  <strong>Terhubung ke Google Spreadsheet & Drive:</strong> Setiap pembuatan nomor surat baru akan langsung tersimpan permanen ke baris Google Spreadsheet dan berkas otomatis terupload ke Drive!
                 </div>
               </div>
 
@@ -470,12 +484,12 @@
                   <div class="form-group flex-1">
                     <label for="genNomorUrut" class="form-label">No. Agenda Surat <span class="text-danger">*</span></label>
                     <div class="input-with-button">
-                      <input type="text" id="genNomorUrut" class="form-control stat-mono font-bold" required placeholder="608">
+                      <input type="text" id="genNomorUrut" class="form-control stat-mono font-bold" required placeholder="609">
                       <button type="button" class="btn btn-secondary btn-icon" id="btnAutoIncrement" title="Ambil No. Agenda berikutnya otomatis">
                         <i class="fa-solid fa-wand-magic"></i>
                       </button>
                     </div>
-                    <small class="helper-text">Agenda berikutnya: <strong id="nextNumberPreview">608</strong> (Bisa diedit bila ada sub-nomor misal: 608.a)</small>
+                    <small class="helper-text">Agenda terakhir: <strong>608</strong> (Surat Dispensasi Siswa Petugas CKG). Berikutnya: <strong id="nextNumberPreview">609</strong> (Bisa diedit bila ada sub-nomor misal: 609.a)</small>
                   </div>
 
                   <div class="form-group flex-1">
@@ -519,8 +533,8 @@
                     <label class="form-label font-bold" style="margin-bottom: 0;">
                       <i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas / Scan Surat ke Google Drive (Opsional)
                     </label>
-                    <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="drive-link-badge">
-                      <i class="fa-brands fa-google-drive"></i> Buka Folder Arsip Drive ↗
+                    <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="drive-link-badge" id="formDriveKeluarLink">
+                      <i class="fa-brands fa-google-drive"></i> Buka Folder Surat Keluar Drive ↗
                     </a>
                   </div>
                   <div class="upload-dropzone" id="keluarDropzone">
@@ -528,7 +542,7 @@
                     <div class="dropzone-content" id="dropzoneContentKeluar">
                       <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
                       <p><strong>Pilih Berkas</strong> atau tarik & letakkan scan surat (PDF / Gambar) di sini</p>
-                      <small>Otomatis tersimpan langsung ke folder Drive: <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer">Folder Arsip Surat SMA YWKA</a></small>
+                      <small>Otomatis tersimpan langsung ke folder Drive: <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" id="dropzoneDriveKeluarSubtext">Folder Surat Keluar SMA YWKA</a></small>
                     </div>
                     <!-- File Preview Chip -->
                     <div class="file-preview-chip" id="filePreviewKeluar" style="display: none;">
@@ -549,7 +563,7 @@
                     <span class="result-format">Format: [Kode]/[No. Agenda]/SMA YWKA/TU/[Bulan]/[Tahun]</span>
                   </div>
                   <div class="result-content">
-                    <div class="result-number" id="previewFullNumber">421.3/608/SMA YWKA/TU/X/2026</div>
+                    <div class="result-number" id="previewFullNumber">421.3/609/SMA YWKA/TU/X/2026</div>
                     <div class="result-actions">
                       <button type="button" class="btn btn-outline" id="btnCopyGeneratedNumber">
                         <i class="fa-solid fa-copy"></i> Salin Nomor
@@ -745,21 +759,31 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label font-bold">2. Folder Google Drive Berkas Surat Target:</label>
-                  <div class="input-readonly-box">
-                    <i class="fa-brands fa-google-drive text-emerald"></i>
-                    <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="sheet-link">
-                      Folder Arsip Surat SMA YWKA
+                  <label class="form-label font-bold">2. Folder Google Drive Surat Keluar:</label>
+                  <div class="input-with-button">
+                    <input type="url" id="inputDriveKeluarUrl" class="form-control" placeholder="https://drive.google.com/drive/folders/..." value="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A">
+                    <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-outline" id="btnTestOpenDriveKeluar" title="Buka Folder Drive Surat Keluar">
+                      <i class="fa-brands fa-google-drive"></i> Buka
                     </a>
-                    <span class="badge badge-success">Folder Siap</span>
                   </div>
-                  <small class="helper-text">ID Folder: <code>1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A</code></small>
+                  <small class="helper-text">Tautan Google Drive khusus folder Surat Keluar Anda.</small>
                 </div>
 
                 <div class="form-group">
-                  <label for="inputAppsScriptUrl" class="form-label font-bold">3. URL Web App Google Apps Script (Untuk Auto-Save & Drive Upload):</label>
+                  <label class="form-label font-bold">3. Folder Google Drive Surat Masuk:</label>
+                  <div class="input-with-button">
+                    <input type="url" id="inputDriveMasukUrl" class="form-control" placeholder="https://drive.google.com/drive/folders/..." value="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A">
+                    <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-outline" id="btnTestOpenDriveMasuk" title="Buka Folder Drive Surat Masuk">
+                      <i class="fa-brands fa-google-drive"></i> Buka
+                    </a>
+                  </div>
+                  <small class="helper-text">Tautan Google Drive khusus folder Surat Masuk Anda.</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="inputAppsScriptUrl" class="form-label font-bold">4. URL Web App Google Apps Script (Wajib untuk Simpan Langsung ke Spreadsheet):</label>
                   <input type="url" id="inputAppsScriptUrl" class="form-control" placeholder="https://script.google.com/macros/s/AKfycbx.../exec">
-                  <small class="helper-text">URL ini didapat setelah menyalin skrip v2 di bawah ke Apps Script Google Sheets Anda.</small>
+                  <small class="helper-text">URL ini didapat setelah menyalin skrip v2.5 di bawah ke Apps Script Google Sheets Anda lalu klik Deploy > Web App.</small>
                 </div>
 
                 <div class="form-actions-bar">
@@ -1037,6 +1061,36 @@
         <button type="button" class="btn btn-secondary" id="btnCloseDisposisi">Tutup</button>
         <button type="button" class="btn btn-primary" id="btnPrintDisposisiDoc">
           <i class="fa-solid fa-print"></i> Cetak Lembar Ini
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Hubungkan Google Apps Script (Muncul Jika User Submit Saat Belum Terhubung) -->
+  <div class="modal-backdrop" id="modalAppsScriptPrompt">
+    <div class="modal-dialog">
+      <div class="modal-header" style="background: #fffbeb; border-bottom: 1px solid #fde68a;">
+        <h3 class="modal-title" style="color: #92400e;">
+          <i class="fa-solid fa-triangle-exclamation" style="color: #d97706;"></i> Google Apps Script Belum Terhubung
+        </h3>
+        <button class="modal-close-btn" id="btnCloseModalPrompt" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 14px; margin-bottom: 12px; color: #334155; line-height: 1.6;">
+          Agar nomor surat ini <strong>langsung tersimpan permanen ke file Google Spreadsheet Anda</strong> dan berkas terupload ke Drive, silakan masukkan <strong>URL Web App Google Apps Script</strong> Anda di bawah ini:
+        </p>
+        <div class="form-group">
+          <label class="form-label font-bold">URL Web App Apps Script (akhiran /exec):</label>
+          <input type="url" id="promptAppsScriptUrlInput" class="form-control" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+          <small class="helper-text">Dapat diperoleh dari menu <em>Ekstensi > Apps Script > Deploy > Web app</em> di Spreadsheet SMA YWKA.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnSavePromptLocalOnly">
+          Simpan Sementara di Browser Saja
+        </button>
+        <button type="button" class="btn btn-success" id="btnSavePromptAndSync">
+          <i class="fa-solid fa-floppy-disk"></i> Simpan URL & Kirim ke Spreadsheet
         </button>
       </div>
     </div>

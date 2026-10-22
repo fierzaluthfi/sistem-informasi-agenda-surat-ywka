@@ -27,12 +27,16 @@ let state = {
     masukPerPage: 15
   },
   appsScriptUrl: localStorage.getItem("sma_ywka_apps_script_url") || "",
-  lastFilledAgendaNumber: "607",
-  nextKeluarAgenda: "608",
+  driveKeluarUrl: localStorage.getItem("sma_ywka_drive_keluar_url") || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A",
+  driveMasukUrl: localStorage.getItem("sma_ywka_drive_masuk_url") || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A",
+  lastFilledAgendaNumber: "608",
+  nextKeluarAgenda: "609",
   isSyncing: false,
   selectedCategory: "all",
   stagedFileKeluar: null,
-  stagedFileMasuk: null
+  stagedFileMasuk: null,
+  pendingKeluarData: null,
+  pendingMasukData: null
 };
 
 // Bulan Romawi Converter
@@ -541,6 +545,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initAppsScriptInstructions();
   initFileUploadHandlers();
   initEventListeners();
+  updateDriveLinksInUI();
+  checkConnectionBanners();
   loadDataFromSpreadsheet();
 });
 
@@ -817,24 +823,39 @@ function readFileAsBase64(file) {
 function initAppsScriptInstructions() {
   const codeArea = document.getElementById("appsScriptCodeArea");
   const inputUrl = document.getElementById("inputAppsScriptUrl");
+  const inputKeluar = document.getElementById("inputDriveKeluarUrl");
+  const inputMasuk = document.getElementById("inputDriveMasukUrl");
 
   if (inputUrl && state.appsScriptUrl) {
     inputUrl.value = state.appsScriptUrl;
   }
+  if (inputKeluar && state.driveKeluarUrl) {
+    inputKeluar.value = state.driveKeluarUrl;
+  }
+  if (inputMasuk && state.driveMasukUrl) {
+    inputMasuk.value = state.driveMasukUrl;
+  }
 
   const scriptCode = `/**
- * GOOGLE APPS SCRIPT - SMA YWKA AGENDA SURAT v2.0 (AUTO-SAVE & DRIVE UPLOAD)
+ * GOOGLE APPS SCRIPT - SMA YWKA AGENDA SURAT v2.5
  * Tempelkan kode ini di Extensions > Apps Script pada Spreadsheet Anda
  */
 const SHEET_SURAT_KELUAR = "SURAT KELUAR 2026";
 const SHEET_SURAT_MASUK = "SURAT MASUK 2026";
-const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Resmi SMA YWKA
+const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A";
 const FOLDER_DRIVE_UTAMA = "Arsip Surat SMA YWKA";
 
 function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) || "ping";
+  if (action === "get_drive_folders" || action === "setup_folders") {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      folders: setupDriveFolders()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
   return ContentService.createTextOutput(JSON.stringify({
     status: "success",
-    message: "Google Apps Script v2.0 SMA YWKA Aktif!"
+    message: "Google Apps Script v2.5 SMA YWKA Aktif!"
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -842,42 +863,44 @@ function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let driveFileUrl = "";
-
-    if (payload.fileBase64 && payload.fileName) {
-      driveFileUrl = uploadFileToGoogleDrive(payload.fileBase64, payload.fileName, payload.fileMime, "Surat Keluar 2026");
-    }
 
     if (payload.action === "create_surat_keluar") {
       const sheet = ss.getSheetByName(SHEET_SURAT_KELUAR);
-      const kodePrefix = payload.kode_klasifikasi.endsWith("/") ? payload.kode_klasifikasi : payload.kode_klasifikasi + "/";
-      const noAgendaStr = String(payload.nomor_urut).trim();
+      let driveFileUrl = "";
+      if (payload.fileBase64 && payload.fileName) {
+        driveFileUrl = uploadFileToGoogleDrive(payload.fileBase64, payload.fileName, payload.fileMime, "Surat Keluar 2026");
+      }
+
+      const rawKode = payload.kode_klasifikasi || "421.3";
+      const kodePrefix = rawKode.endsWith("/") ? rawKode : rawKode + "/";
+      const noAgendaStr = String(payload.no_agenda || payload.nomor_urut || "").trim();
+      const rowNoUrut = noAgendaStr || payload.no_urut || "609";
+      const bulanRomawi = payload.bulan_romawi || "X";
+      const tahunSuffix = payload.tahun ? "/" + payload.tahun.replace("/", "") : "/2026";
+
       const lastRow = sheet.getLastRow();
       let targetRowIndex = -1;
-      let nextNoUrut = 1;
 
-      if (lastRow >= 12) {
-        const agendaVals = sheet.getRange(12, 4, lastRow - 11, 1).getValues();
-        const perihalVals = sheet.getRange(12, 9, lastRow - 11, 1).getValues();
-        const noUrutVals = sheet.getRange(12, 1, lastRow - 11, 1).getValues();
+      if (lastRow >= 4) {
+        const totalScan = lastRow - 3;
+        const agendaVals = sheet.getRange(4, 4, totalScan, 1).getValues();
+        const perihalVals = sheet.getRange(4, 9, totalScan, 1).getValues();
         for (let i = 0; i < agendaVals.length; i++) {
-          const rowUrut = parseInt(noUrutVals[i][0], 10);
-          if (!isNaN(rowUrut) && rowUrut >= nextNoUrut) nextNoUrut = rowUrut + 1;
           if (String(agendaVals[i][0]).trim() === noAgendaStr && !String(perihalVals[i][0]).trim()) {
-            targetRowIndex = i + 12;
+            targetRowIndex = i + 4;
             break;
           }
         }
       }
 
       const rowData = [
-        payload.no_urut || nextNoUrut,
+        rowNoUrut,
         true,
         kodePrefix,
         noAgendaStr,
         "/SMA YWKA/TU/",
-        payload.bulan_romawi || "I",
-        payload.tahun ? "/" + payload.tahun.replace("/", "") : "/2026",
+        bulanRomawi,
+        tahunSuffix,
         payload.tanggal_surat || "",
         payload.perihal || "",
         payload.dari || "Syarif Hasanudin, S.Pd., Gr., M.M.",
@@ -893,12 +916,13 @@ function doPost(e) {
         sheet.appendRow(rowData);
         targetRowIndex = sheet.getLastRow();
       }
-      sheet.getRange(targetRowIndex, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
+      try { sheet.getRange(targetRowIndex, 1, 1, rowData.length).setBorder(true, true, true, true, true, true); } catch(e){}
 
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         drive_file_url: driveFileUrl,
-        no_agenda: noAgendaStr
+        no_agenda: noAgendaStr,
+        no_urut: rowNoUrut
       })).setMimeType(ContentService.MimeType.JSON);
     }
   } catch(err) {
@@ -907,11 +931,21 @@ function doPost(e) {
   }
 }
 
+function setupDriveFolders() {
+  let main;
+  try { main = DriveApp.getFolderById(FOLDER_DRIVE_ID); } catch(e) {
+    const f = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
+    main = f.hasNext() ? f.next() : DriveApp.createFolder(FOLDER_DRIVE_UTAMA);
+  }
+  let k; const ik = main.getFoldersByName("Surat Keluar 2026");
+  k = ik.hasNext() ? ik.next() : main.createFolder("Surat Keluar 2026");
+  k.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return { suratKeluarUrl: k.getUrl(), mainFolderUrl: main.getUrl() };
+}
+
 function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolder) {
   let main;
-  try {
-    main = DriveApp.getFolderById(FOLDER_DRIVE_ID);
-  } catch (e) {
+  try { main = DriveApp.getFolderById(FOLDER_DRIVE_ID); } catch (e) {
     const folders = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
     main = folders.hasNext() ? folders.next() : DriveApp.createFolder(FOLDER_DRIVE_UTAMA);
   }
@@ -932,7 +966,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolder) {
   if (btnCopyScript) {
     btnCopyScript.addEventListener("click", () => {
       navigator.clipboard.writeText(scriptCode);
-      showToast("Kode Google Apps Script v2.0 berhasil disalin!", "success");
+      showToast("Kode Google Apps Script v2.5 berhasil disalin!", "success");
     });
   }
 }
@@ -1086,12 +1120,27 @@ function initEventListeners() {
   // Koneksi Settings
   const btnSaveConn = document.getElementById("btnSaveConnectionSettings");
   const inputAppsScript = document.getElementById("inputAppsScriptUrl");
-  if (btnSaveConn && inputAppsScript) {
+  const inputDriveKeluar = document.getElementById("inputDriveKeluarUrl");
+  const inputDriveMasuk = document.getElementById("inputDriveMasukUrl");
+
+  if (btnSaveConn) {
     btnSaveConn.addEventListener("click", () => {
-      const val = inputAppsScript.value.trim();
-      state.appsScriptUrl = val;
-      localStorage.setItem("sma_ywka_apps_script_url", val);
-      showToast("URL Web App v2.0 berhasil disimpan!", "success");
+      if (inputAppsScript) {
+        state.appsScriptUrl = inputAppsScript.value.trim();
+        localStorage.setItem("sma_ywka_apps_script_url", state.appsScriptUrl);
+      }
+      if (inputDriveKeluar) {
+        state.driveKeluarUrl = inputDriveKeluar.value.trim() || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A";
+        localStorage.setItem("sma_ywka_drive_keluar_url", state.driveKeluarUrl);
+      }
+      if (inputDriveMasuk) {
+        state.driveMasukUrl = inputDriveMasuk.value.trim() || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A";
+        localStorage.setItem("sma_ywka_drive_masuk_url", state.driveMasukUrl);
+      }
+
+      updateDriveLinksInUI();
+      checkConnectionBanners();
+      showToast("Pengaturan koneksi berhasil disimpan!", "success");
       updateConnectionStatus(true, "Tersambung Google Sheets & Drive");
     });
   }
@@ -1108,12 +1157,65 @@ function initEventListeners() {
         btnTestConn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menguji...`;
         const res = await fetch(url + (url.includes("?") ? "&" : "?") + "action=ping");
         const json = await res.json();
-        showToast("Koneksi berhasil: " + (json.message || "OK"), "success");
+        showToast("✅ Koneksi Apps Script Sukses: " + (json.message || "OK"), "success");
       } catch (err) {
-        showToast("Uji koneksi terkirim ke Apps Script.", "info");
+        showToast("⚠️ Uji koneksi terkirim. Jika gagal, pastikan Apps Script dideploy sebagai Web app dengan akses 'Anyone'.", "info");
       } finally {
         btnTestConn.innerHTML = `<i class="fa-solid fa-plug-circle-check"></i> Uji Koneksi`;
       }
+    });
+  }
+
+  // Modal Prompt Apps Script Handlers
+  const modalPrompt = document.getElementById("modalAppsScriptPrompt");
+  const btnClosePrompt = document.getElementById("btnCloseModalPrompt");
+  const btnPromptLocal = document.getElementById("btnSavePromptLocalOnly");
+  const btnPromptSync = document.getElementById("btnSavePromptAndSync");
+  const promptInput = document.getElementById("promptAppsScriptUrlInput");
+
+  if (btnClosePrompt && modalPrompt) {
+    btnClosePrompt.addEventListener("click", () => modalPrompt.classList.remove("show"));
+  }
+
+  if (btnPromptLocal && modalPrompt) {
+    btnPromptLocal.addEventListener("click", () => {
+      modalPrompt.classList.remove("show");
+      if (state.pendingKeluarData) {
+        const { payload, newItem, origBtnContent } = state.pendingKeluarData;
+        executeSaveSuratKeluar(payload, newItem, origBtnContent);
+        state.pendingKeluarData = null;
+      }
+    });
+  }
+
+  if (btnPromptSync && modalPrompt && promptInput) {
+    btnPromptSync.addEventListener("click", () => {
+      const url = promptInput.value.trim();
+      if (!url) {
+        showToast("Harap masukkan URL Web App Google Apps Script Anda!", "warning");
+        return;
+      }
+      state.appsScriptUrl = url;
+      localStorage.setItem("sma_ywka_apps_script_url", url);
+      if (inputAppsScript) inputAppsScript.value = url;
+      updateConnectionStatus(true, "Tersambung Google Sheets & Drive");
+      checkConnectionBanners();
+      modalPrompt.classList.remove("show");
+
+      if (state.pendingKeluarData) {
+        const { payload, newItem, origBtnContent } = state.pendingKeluarData;
+        executeSaveSuratKeluar(payload, newItem, origBtnContent);
+        state.pendingKeluarData = null;
+      }
+    });
+  }
+
+  const linkGoToKoneksi = document.getElementById("linkGoToKoneksi");
+  if (linkGoToKoneksi) {
+    linkGoToKoneksi.addEventListener("click", () => {
+      const tabKoneksiBtn = document.querySelector('[data-tab="tab-koneksi"]');
+      if (tabKoneksiBtn) tabKoneksiBtn.click();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }
 }
@@ -1133,7 +1235,7 @@ function updateGeneratedPreview() {
     kode = customKode?.value.trim() || "421.x";
   }
 
-  let noAgenda = txtNoAgenda?.value.trim() || state.nextKeluarAgenda || "608";
+  let noAgenda = txtNoAgenda?.value.trim() || state.nextKeluarAgenda || "609";
 
   let romanMonth = "X";
   let tahun = "2026";
@@ -1149,7 +1251,7 @@ function updateGeneratedPreview() {
     }
   }
 
-  const fullGeneratedNumber = `${kode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${tahun}`;
+  const fullGeneratedNumber = `${kode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${tahun}`.replace(/\/{2,}/g, "/");
   if (previewBox) {
     previewBox.textContent = fullGeneratedNumber;
   }
@@ -1174,6 +1276,27 @@ async function loadDataFromSpreadsheet() {
     if (!resMasuk.ok) throw new Error("Gagal mengambil Surat Masuk");
     const csvMasukText = await resMasuk.text();
     state.suratMasuk = parseCsvMasuk(csvMasukText);
+
+    // 3. Pertahankan surat lokal yang belum tersimpan ke Google Sheets agar TIDAK HILANG saat sinkron
+    const unsyncedKeluar = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+    if (unsyncedKeluar.length > 0) {
+      unsyncedKeluar.forEach(uItem => {
+        const found = state.suratKeluar.some(k => k.noAgenda === uItem.noAgenda && k.perihal === uItem.perihal);
+        if (!found) {
+          state.suratKeluar.unshift(uItem);
+        }
+      });
+    }
+
+    const unsyncedMasuk = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+    if (unsyncedMasuk.length > 0) {
+      unsyncedMasuk.forEach(uItem => {
+        const found = state.suratMasuk.some(m => m.noAgenda === uItem.noAgenda && m.perihal === uItem.perihal);
+        if (!found) {
+          state.suratMasuk.unshift(uItem);
+        }
+      });
+    }
 
     calculateNextSequence();
 
@@ -1200,27 +1323,34 @@ async function loadDataFromSpreadsheet() {
     updateDashboardUI();
     filterSuratKeluarData();
     filterSuratMasukData();
+    checkConnectionBanners();
+    updateDriveLinksInUI();
   }
 }
 
 /**
- * Parse CSV Surat Keluar: Deteksi No. Agenda (Col D)
+ * Parse CSV Surat Keluar: No. Urut Mengikuti No. Agenda (Col D)
  */
 function parseCsvKeluar(csvText) {
   const rows = parseCsvRows(csvText);
   const items = [];
 
-  for (let i = 11; i < rows.length; i++) {
+  for (let i = 2; i < rows.length; i++) {
     const r = rows[i];
     if (!r || r.length < 8) continue;
+
+    // Abaikan header
+    if (r[0] === "NO. URUT" || r[0] === "BUKU AGENDA SURAT KELUAR") continue;
 
     const noAgenda = (r[3] || "").trim();
     const perihal = (r[8] || "").trim();
 
-    // Simpan baris bila ada agenda atau perihal
-    if (!noAgenda && !perihal) continue;
+    // HANYA ambil baris yang benar-benar memiliki perihal (surat yang sudah diterbitkan)
+    // Baris template kosong 609-625 yang perihalnya masih kosong diabaikan agar tidak mengacaukan nomor terakhir
+    if (!perihal) continue;
 
-    const noUrut = (r[0] || "").trim();
+    // No. Urut mengikuti No. Agenda sesuai permintaan pengguna!
+    const noUrut = noAgenda || (r[0] || "").trim();
     const kodePrefix = (r[2] || "").trim();
     const sekolahTag = (r[4] || "").trim();
     const bulanRomawi = (r[5] || "").trim();
@@ -1236,7 +1366,7 @@ function parseCsvKeluar(csvText) {
 
     items.push({
       id: "K-" + (i + 1),
-      noUrut: noUrut || String(items.length + 1),
+      noUrut: noUrut, // No. Urut mengikuti No. Agenda
       status: r[1] === "TRUE",
       kodeKlasifikasi: kodePrefix.replace("/", "").trim() || "421.3",
       noAgenda: noAgenda,
@@ -1263,9 +1393,10 @@ function parseCsvMasuk(csvText) {
   const rows = parseCsvRows(csvText);
   const items = [];
 
-  for (let i = 11; i < rows.length; i++) {
+  for (let i = 2; i < rows.length; i++) {
     const r = rows[i];
-    if (!r || r.length < 6) continue;
+    if (!r || r.length < 5) continue;
+    if (r[0] === "NO. URUT" || r[0] === "BUKU AGENDA SURAT MASUK") continue;
 
     const perihal = (r[4] || "").trim();
     const noAgenda = (r[1] || "").trim();
@@ -1325,13 +1456,13 @@ function parseCsvRows(text) {
 }
 
 /**
- * Hitung No. Agenda Berikutnya Mengikuti Nomor Agenda Surat di Spreadsheet
+ * Hitung No. Agenda Berikutnya: Terakhir 608 (Dispensasi CKG Puskesmas), Berikutnya 609
  */
 function calculateNextSequence() {
   let maxFilledAgenda = 0;
 
   state.suratKeluar.forEach(item => {
-    // Ambil angka jika perihalnya ada (artinya sudah digunakan)
+    // Ambil angka jika perihalnya ada (artinya surat riil yang sudah terbit)
     if (item.perihal && item.noAgenda) {
       const match = item.noAgenda.match(/^(\d+)/);
       if (match) {
@@ -1341,8 +1472,11 @@ function calculateNextSequence() {
     }
   });
 
-  // Jika tidak terdeteksi, fallback ke 607 (rekaman riil terakhir di sheet)
-  if (maxFilledAgenda === 0) maxFilledAgenda = 607;
+  // Nomor agenda terakhir yang tercatat di berkas riil adalah 608
+  // (Surat Dispensasi untuk Siswa yang menjadi Petugas CKG bersama UPTD Puskesmas Garuda)
+  if (maxFilledAgenda < 608) {
+    maxFilledAgenda = 608;
+  }
 
   state.lastFilledAgendaNumber = String(maxFilledAgenda);
   state.nextKeluarAgenda = String(maxFilledAgenda + 1);
@@ -1442,8 +1576,13 @@ function renderSuratKeluarTable() {
 
     html += `
       <tr>
-        <td><strong>${item.noUrut || rowNum}</strong></td>
-        <td><span class="nomor-agenda-badge">${escapeHtml(item.noAgenda || "-")}</span></td>
+        <td><span class="nomor-agenda-badge"><strong>${escapeHtml(item.noAgenda || item.noUrut || "-")}</strong></span></td>
+        <td>
+          ${item.isUnsynced
+            ? `<span class="badge-unsynced" title="Tersimpan di browser lokal, belum tersinkron ke Google Sheets"><i class="fa-solid fa-clock"></i> Belum Sync</span>`
+            : `<span class="status-badge ${item.status ? 'status-active' : 'status-pending'}">${item.status ? 'Resmi' : 'Draft'}</span>`
+          }
+        </td>
         <td>
           <span class="nomor-surat-badge">${escapeHtml(item.nomorLengkap || "-")}</span>
         </td>
@@ -1642,6 +1781,49 @@ function updateDashboardUI() {
 }
 
 /**
+ * Update semua link Google Drive di UI agar membuka folder yang sesuai
+ */
+function updateDriveLinksInUI() {
+  const keluarLinks = [
+    document.getElementById("btnHeaderDriveKeluar"),
+    document.getElementById("topNavDriveKeluarBtn"),
+    document.getElementById("navDriveMainLink"),
+    document.getElementById("btnTestOpenDriveKeluar")
+  ];
+  keluarLinks.forEach(el => {
+    if (el && state.driveKeluarUrl) {
+      el.href = state.driveKeluarUrl;
+    }
+  });
+
+  const masukLinks = [
+    document.getElementById("btnHeaderDriveMasuk"),
+    document.getElementById("btnTestOpenDriveMasuk")
+  ];
+  masukLinks.forEach(el => {
+    if (el && state.driveMasukUrl) {
+      el.href = state.driveMasukUrl;
+    }
+  });
+}
+
+/**
+ * Tampilkan / sembunyikan banner status Google Apps Script di tab Generator
+ */
+function checkConnectionBanners() {
+  const bannerWarning = document.getElementById("bannerConnWarning");
+  const bannerSuccess = document.getElementById("bannerConnSuccess");
+
+  if (state.appsScriptUrl) {
+    if (bannerWarning) bannerWarning.style.display = "none";
+    if (bannerSuccess) bannerSuccess.style.display = "flex";
+  } else {
+    if (bannerWarning) bannerWarning.style.display = "flex";
+    if (bannerSuccess) bannerSuccess.style.display = "none";
+  }
+}
+
+/**
  * Handle Penyimpanan Surat Keluar Baru (Termasuk File Upload ke Google Drive)
  */
 async function handleCreateSuratKeluar(e) {
@@ -1663,7 +1845,7 @@ async function handleCreateSuratKeluar(e) {
   const txtKet = document.getElementById("genKeterangan");
 
   let kode = selKode.value === "custom" ? customKode.value.trim() : selKode.value;
-  let noAgenda = txtNoAgenda.value.trim();
+  let noAgenda = txtNoAgenda.value.trim() || state.nextKeluarAgenda || "609";
 
   let romanMonth = "X";
   let tahun = "2026";
@@ -1673,7 +1855,7 @@ async function handleCreateSuratKeluar(e) {
     romanMonth = ROMAN_MONTHS[parseInt(parts[1], 10) - 1] || "X";
   }
 
-  const fullNumber = `${kode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${tahun}`;
+  const fullNumber = `${kode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${tahun}`.replace(/\/{2,}/g, "/");
 
   // Baca file staged jika ada
   let fileBase64 = "";
@@ -1689,9 +1871,10 @@ async function handleCreateSuratKeluar(e) {
     }
   }
 
+  // No. Urut mengikuti No. Agenda sesuai permintaan pengguna!
   const payload = {
     action: "create_surat_keluar",
-    no_urut: state.suratKeluar.length + 1,
+    no_urut: noAgenda,
     kode_klasifikasi: kode,
     nomor_urut: noAgenda,
     bulan_romawi: romanMonth,
@@ -1708,9 +1891,10 @@ async function handleCreateSuratKeluar(e) {
   };
 
   const newItem = {
-    id: "K-" + (state.suratKeluar.length + 1),
-    noUrut: String(state.suratKeluar.length + 1),
+    id: "K-" + Date.now(),
+    noUrut: noAgenda, // No. Urut mengikuti No. Agenda
     status: true,
+    isUnsynced: !state.appsScriptUrl,
     kodeKlasifikasi: kode,
     noAgenda: noAgenda,
     nomorLengkap: fullNumber,
@@ -1725,10 +1909,31 @@ async function handleCreateSuratKeluar(e) {
     driveUrl: ""
   };
 
-  state.suratKeluar.push(newItem);
-  localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+  // Jika URL Apps Script belum diisi di browser ini, munculkan modal peringatan agar user tahu
+  if (!state.appsScriptUrl) {
+    state.pendingKeluarData = { payload, newItem, origBtnContent };
+    const modalPrompt = document.getElementById("modalAppsScriptPrompt");
+    if (modalPrompt) {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = origBtnContent;
+      modalPrompt.classList.add("show");
+      return;
+    }
+  }
 
-  // Kirim ke Google Apps Script
+  await executeSaveSuratKeluar(payload, newItem, origBtnContent);
+}
+
+/**
+ * Eksekusi penyimpanan Surat Keluar
+ */
+async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
+  const btnSubmit = document.getElementById("btnSubmitToSheets");
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...`;
+  }
+
   let syncSuccess = false;
   if (state.appsScriptUrl) {
     try {
@@ -1743,13 +1948,34 @@ async function handleCreateSuratKeluar(e) {
         newItem.lampiran = resJson.drive_file_url;
       }
       syncSuccess = true;
+      newItem.isUnsynced = false;
     } catch (err) {
       console.error("Gagal sync ke Google Apps Script:", err);
+      newItem.isUnsynced = true;
     }
+  } else {
+    newItem.isUnsynced = true;
   }
 
-  btnSubmit.disabled = false;
-  btnSubmit.innerHTML = origBtnContent;
+  // Simpan draft ke unsynced_surat_keluar jika belum sync ke Google Sheets
+  if (newItem.isUnsynced) {
+    const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+    unsyncedList.unshift(newItem);
+    localStorage.setItem("unsynced_surat_keluar", JSON.stringify(unsyncedList));
+  } else {
+    const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+    const updated = unsyncedList.filter(x => !(x.noAgenda === newItem.noAgenda && x.perihal === newItem.perihal));
+    localStorage.setItem("unsynced_surat_keluar", JSON.stringify(updated));
+  }
+
+  // Tambahkan ke state utama di posisi paling atas
+  state.suratKeluar.unshift(newItem);
+  localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+
+  if (btnSubmit) {
+    btnSubmit.disabled = false;
+    btnSubmit.innerHTML = origBtnContent;
+  }
 
   // Bersihkan staged file
   state.stagedFileKeluar = null;
@@ -1765,18 +1991,18 @@ async function handleCreateSuratKeluar(e) {
   updateDashboardUI();
 
   if (syncSuccess) {
-    showToast(`No. Agenda "${noAgenda}" berhasil disimpan ke Spreadsheet & Drive!`, "success");
+    showToast(`✅ No. Agenda ${newItem.noAgenda} berhasil tersimpan ke Google Spreadsheet & Drive!`, "success");
   } else if (!state.appsScriptUrl) {
-    showToast(`Surat "${fullNumber}" tersimpan di web. Masukkan URL Apps Script di Tab Koneksi untuk sync otomatis ke Google Drive.`, "info");
+    showToast(`⚠️ No. Agenda ${newItem.noAgenda} tersimpan aman di browser. Hubungkan Web App URL di Pengaturan agar tersinkron ke Google Sheets.`, "warning");
   } else {
-    showToast(`Surat "${fullNumber}" tersimpan secara lokal.`, "info");
+    showToast(`⚠️ Gagal menyambung ke Apps Script. Data tetap tersimpan aman di browser Anda.`, "warning");
   }
 
   // Tampilkan Lembar Disposisi
   openDisposisiModal({
     tipe: "Surat Keluar",
-    noUrut: noAgenda,
-    noLengkap: fullNumber,
+    noUrut: newItem.noAgenda,
+    noLengkap: newItem.nomorLengkap,
     tanggal: newItem.tanggal,
     perihal: newItem.perihal,
     kepada: newItem.kepada,
@@ -1831,8 +2057,9 @@ async function handleCreateSuratMasuk(e) {
   };
 
   const newItem = {
-    id: "M-" + (state.suratMasuk.length + 1),
+    id: "M-" + Date.now(),
     noUrut: String(state.suratMasuk.length + 1),
+    isUnsynced: !state.appsScriptUrl,
     noAgenda: noAgenda,
     tglSurat: tglSurat,
     tglMasuk: tglTerima,
@@ -1845,9 +2072,7 @@ async function handleCreateSuratMasuk(e) {
     driveUrl: ""
   };
 
-  state.suratMasuk.push(newItem);
-  localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
-
+  let syncSuccess = false;
   if (state.appsScriptUrl) {
     try {
       const res = await fetch(state.appsScriptUrl, {
@@ -1860,10 +2085,22 @@ async function handleCreateSuratMasuk(e) {
         newItem.driveUrl = resJson.drive_file_url;
         newItem.lampiran = resJson.drive_file_url;
       }
+      syncSuccess = true;
+      newItem.isUnsynced = false;
     } catch (err) {
       console.error("Gagal sync surat masuk:", err);
+      newItem.isUnsynced = true;
     }
   }
+
+  if (newItem.isUnsynced) {
+    const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+    unsyncedList.unshift(newItem);
+    localStorage.setItem("unsynced_surat_masuk", JSON.stringify(unsyncedList));
+  }
+
+  state.suratMasuk.unshift(newItem);
+  localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
 
   const modalMasuk = document.getElementById("modalSuratMasuk");
   if (modalMasuk) modalMasuk.classList.remove("show");
@@ -1878,7 +2115,12 @@ async function handleCreateSuratMasuk(e) {
 
   filterSuratMasukData();
   updateDashboardUI();
-  showToast(`Surat Masuk "${noAgenda}" berhasil dicatat ke Spreadsheet & Drive!`, "success");
+
+  if (syncSuccess) {
+    showToast(`✅ Surat Masuk "${noAgenda}" berhasil dicatat ke Spreadsheet & Drive!`, "success");
+  } else {
+    showToast(`⚠️ Surat Masuk "${noAgenda}" tersimpan di browser. Masukkan Web App URL di Pengaturan agar tersinkron ke Spreadsheet.`, "warning");
+  }
 
   e.target.reset();
   initDateDefaults();
@@ -2125,16 +2367,17 @@ function escapeQuotes(str) {
 }
 
 /**
- * Data Bawaan Riil dari Spreadsheet SMA YWKA (Termasuk rekaman No. Agenda 607)
+ * Data Bawaan Riil dari Spreadsheet SMA YWKA (Termasuk rekaman No. Agenda 608)
  */
 function loadBuiltinSampleData() {
   state.suratKeluar = [
-    { id: "K-12", noUrut: "1", status: true, kodeKlasifikasi: "423.1", noAgenda: "001", nomorLengkap: "423.1/001/SMA YWKA/TU/I/2026", bulanRomawi: "I", tanggal: "1/6/2026", perihal: "SK Pengurus OSIS 2026-2027", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "", petugas: "", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
-    { id: "K-25", noUrut: "14", status: true, kodeKlasifikasi: "422.1", noAgenda: "014", nomorLengkap: "422.1/014/SMA YWKA/TU/I/2026", bulanRomawi: "I", tanggal: "1/14/2026", perihal: "Surat Tugas MOU SPMB SMPN 23 Bandung", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "SMPN 23 Bandung", petugas: "", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
-    { id: "K-37", noUrut: "26", status: true, kodeKlasifikasi: "421.71", noAgenda: "026", nomorLengkap: "421.71/026/SMA YWKA/TU/I/2026", bulanRomawi: "I", tanggal: "1/15/2026", perihal: "Permohonan Field Trip SMA YWKA PT. KAI", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "PT. KAI", petugas: "BU ELVIRA", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
+    { id: "K-12", noUrut: "001", status: true, kodeKlasifikasi: "423.1", noAgenda: "001", nomorLengkap: "423.1/001/SMA YWKA/TU/I/2026", bulanRomawi: "I", tanggal: "1/6/2026", perihal: "SK Pengurus OSIS 2026-2027", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "", petugas: "", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
+    { id: "K-25", noUrut: "014", status: true, kodeKlasifikasi: "422.1", noAgenda: "014", nomorLengkap: "422.1/014/SMA YWKA/TU/I/2026", bulanRomawi: "I", tanggal: "1/14/2026", perihal: "Surat Tugas MOU SPMB SMPN 23 Bandung", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "SMPN 23 Bandung", petugas: "", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
+    { id: "K-37", noUrut: "026", status: true, kodeKlasifikasi: "421.71", noAgenda: "026", nomorLengkap: "421.71/026/SMA YWKA/TU/I/2026", bulanRomawi: "I", tanggal: "1/15/2026", perihal: "Permohonan Field Trip SMA YWKA PT. KAI", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "PT. KAI", petugas: "BU ELVIRA", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
     { id: "K-123", noUrut: "111", status: false, kodeKlasifikasi: "425.11", noAgenda: "111", nomorLengkap: "425.11/111/SMA YWKA/TU/IV/2026", bulanRomawi: "IV", tanggal: "6/4/2026", perihal: "Bu Aam Laporan Perbaikan Gedung", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "Yayasan", petugas: "BU AAM", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
-    { id: "K-630", noUrut: "642", status: true, kodeKlasifikasi: "421.7", noAgenda: "599", nomorLengkap: "421.7/599/SMA YWKA TU/X/2026", bulanRomawi: "X", tanggal: "12/10/2026", perihal: "Surat Pemberitahuan Pelaksanaan Pelatihan Dasar Kepemimpinan Siswa (LDKS)", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "Ketua RT 02", petugas: "Bunda Ade", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
-    { id: "K-638", noUrut: "650", status: true, kodeKlasifikasi: "421.3", noAgenda: "607", nomorLengkap: "421.3/607/SMA YWKA TU/X/2026", bulanRomawi: "X", tanggal: "16/10/2026", perihal: "Surat Permohonan Pemberhentian Sementara Distribusi MBG", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "Yayasan", petugas: "Bunda Elvira", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" }
+    { id: "K-630", noUrut: "599", status: true, kodeKlasifikasi: "421.7", noAgenda: "599", nomorLengkap: "421.7/599/SMA YWKA/TU/X/2026", bulanRomawi: "X", tanggal: "12/10/2026", perihal: "Surat Pemberitahuan Pelatihan Dasar Kepemimpinan Siswa (LDKS)", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "Ketua RT 02", petugas: "Bunda Ade", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
+    { id: "K-638", noUrut: "607", status: true, kodeKlasifikasi: "421.3", noAgenda: "607", nomorLengkap: "421.3/607/SMA YWKA/TU/X/2026", bulanRomawi: "X", tanggal: "16/10/2026", perihal: "Surat Permohonan Pemberhentian Sementara Distribusi MBG", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "Yayasan", petugas: "Bunda Elvira", keterangan: "", lampiran: "Surat Keluar", driveUrl: "" },
+    { id: "K-640", noUrut: "608", status: true, kodeKlasifikasi: "421.3", noAgenda: "608", nomorLengkap: "421.3/608/SMA YWKA/TU/X/2026", bulanRomawi: "X", tanggal: "21/10/2026", perihal: "Surat Dispensasi untuk Siswa yang menjadi Petugas CKG bersama UPTD Puskesmas Garuda", dari: "Syarif Hasanudin, S.Pd., Gr., M.M.", kepada: "UPTD Puskesmas Garuda", petugas: "Bunda Ayu", keterangan: "Dispensasi Petugas CKG", lampiran: "Surat Keluar", driveUrl: "" }
   ];
 
   state.suratMasuk = [

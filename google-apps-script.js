@@ -1,30 +1,30 @@
 /**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 2.0 (DILENGKAPI FITUR AUTO-UPLOAD KE GOOGLE DRIVE)
+ * VERSI 2.5 (NO. URUT MENGIKUTI NO. AGENDA & DRIVE AUTO-SETUP)
  * ===================================================================
  * 
- * PANDUAN PEMASANGAN:
+ * PANDUAN PEMASANGAN (AGAR DATA LANGSUNG TERSIMPAN KE SPREADSHEET):
  * 1. Buka Google Spreadsheet SMA YWKA Anda di browser:
  *    https://docs.google.com/spreadsheets/d/1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k/edit?gid=381566345#gid=381566345
  * 2. Klik menu "Ekstensi" (Extensions) > "Apps Script".
  * 3. Hapus semua teks yang ada di editor Apps Script.
  * 4. Salin (Copy) seluruh isi file ini, lalu Tempel (Paste) ke editor tersebut.
  * 5. Klik ikon Simpan (Save).
- * 6. Klik tombol "Deploy" (di kanan atas) > "Manage deployments" (atau "New deployment").
- * 7. Pada tipe deployment pilih "Web app".
- * 8. Atur:
- *    - Description: "API Agenda Surat SMA YWKA v2 - Drive Upload"
+ * 6. (PILIHAN) Pilih fungsi "setupDriveFolders" pada menu dropdown di atas editor, lalu klik "Run/Jalankan"
+ *    untuk langsung membuat folder "Surat Keluar 2026" dan "Surat Masuk 2026" di Google Drive!
+ * 7. Klik tombol "Deploy" (di kanan atas) > "Manage deployments" (atau "New deployment").
+ * 8. Jika Manage deployments: klik ikon pensil (Edit), pilih Version: "New version",
  *    - Execute as: "Me" (email Anda)
- *    - Who has access: "Anyone" (Siapa saja yang memiliki link)
+ *    - Who has access: "Anyone" (Siapa saja yang memiliki link) -> PENTING!
  * 9. Klik "Deploy", izinkan akses (Authorize access) Google Drive & Sheets.
- * 10. Salin "Web app URL" (akhiran /exec) dan tempelkan ke aplikasi web Anda!
+ * 10. Salin "Web app URL" (akhiran /exec) dan tempelkan ke aplikasi web Anda di menu "Koneksi Spreadsheet"!
  */
 
-// Konstanta Nama Sheet sesuai berkas asli
+// Konstanta Nama Sheet sesuai berkas asli SMA YWKA
 const SHEET_SURAT_KELUAR = "SURAT KELUAR 2026";
 const SHEET_SURAT_MASUK = "SURAT MASUK 2026";
-const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Resmi SMA YWKA
+const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Utama Arsip SMA YWKA
 const FOLDER_DRIVE_UTAMA = "Arsip Surat SMA YWKA";
 
 /**
@@ -44,6 +44,15 @@ function doGet(e) {
       });
     }
 
+    if (action === "get_drive_folders" || action === "setup_folders") {
+      const folders = setupDriveFolders();
+      return createJsonResponse({
+        status: "success",
+        message: "Folder Google Drive Surat Keluar & Masuk siap!",
+        folders: folders
+      });
+    }
+
     if (action === "get_data") {
       const type = (e.parameter && e.parameter.type) || "keluar";
       const sheetName = type === "masuk" ? SHEET_SURAT_MASUK : SHEET_SURAT_KELUAR;
@@ -58,7 +67,7 @@ function doGet(e) {
         status: "success",
         sheet: sheetName,
         totalRows: values.length,
-        data: values.slice(11) // Data dimulai dari baris 12 (indeks 11)
+        data: values.slice(3) // Data dimulai dari baris ke-4 (indeks 3)
       });
     }
 
@@ -103,13 +112,13 @@ function doPost(e) {
         );
       }
 
-      const kodePrefix = payload.kode_klasifikasi.endsWith("/") 
-        ? payload.kode_klasifikasi 
-        : payload.kode_klasifikasi + "/";
-
+      const rawKode = payload.kode_klasifikasi || "421.3";
+      const kodePrefix = rawKode.endsWith("/") ? rawKode : rawKode + "/";
       const tahunSuffix = payload.tahun ? "/" + payload.tahun.replace("/", "").trim() : "/2026";
-      const noAgendaStr = String(payload.nomor_urut).trim();
-      const bulanRomawi = payload.bulan_romawi || "I";
+      
+      // Nomor Agenda yang digunakan (misal: 608, 609, dst)
+      const noAgendaStr = String(payload.no_agenda || payload.nomor_urut || "").trim();
+      const bulanRomawi = payload.bulan_romawi || "X";
       const perihal = payload.perihal || "";
       const dari = payload.dari || "Syarif Hasanudin, S.Pd., Gr., M.M.";
       const kepada = payload.kepada || "";
@@ -117,40 +126,54 @@ function doPost(e) {
       const keterangan = payload.keterangan || "";
       const tglSurat = payload.tanggal_surat || "";
 
-      // Nilai lampiran: jika ada link drive gunakan rumus HYPERLINK atau link
+      // Nilai lampiran: jika ada link file drive gunakan url tersebut
       let lampiranVal = "Surat Keluar";
       if (driveFileUrl) {
         lampiranVal = driveFileUrl;
       }
 
-      // 1.B. Cek apakah nomor agenda ini sudah ada slot kosong di spreadsheet (misal baris 608-625)
+      // 1.B. Nomor Urut mengikuti Nomor Agenda (608, 609, dan seterusnya)
+      const rowNoUrut = noAgendaStr || payload.no_urut || "609";
+
+      // 1.C. Cek apakah nomor agenda ini sudah ada slot kosong di spreadsheet (misal baris 609-625)
       const lastRow = sheet.getLastRow();
       let targetRowIndex = -1;
-      let nextNoUrut = 1;
 
-      if (lastRow >= 12) {
-        // Cek apakah ada baris yang kolom D (Agenda) sama dan perihal kosong
-        const agendaColValues = sheet.getRange(12, 4, lastRow - 11, 1).getValues();
-        const perihalColValues = sheet.getRange(12, 9, lastRow - 11, 1).getValues();
-        const noUrutValues = sheet.getRange(12, 1, lastRow - 11, 1).getValues();
+      if (lastRow >= 4) {
+        // Cek baris mulai baris 4
+        const totalScan = lastRow - 3;
+        const agendaColValues = sheet.getRange(4, 4, totalScan, 1).getValues(); // Kolom D (Agenda)
+        const perihalColValues = sheet.getRange(4, 9, totalScan, 1).getValues(); // Kolom I (Perihal)
 
         for (let i = 0; i < agendaColValues.length; i++) {
           const rowAgenda = String(agendaColValues[i][0]).trim();
           const rowPerihal = String(perihalColValues[i][0]).trim();
-          const rowUrut = parseInt(noUrutValues[i][0], 10);
-          if (!isNaN(rowUrut) && rowUrut >= nextNoUrut) {
-            nextNoUrut = rowUrut + 1;
-          }
 
+          // Jika slot no agenda sama dan perihal masih kosong, gunakan baris tersebut
           if (rowAgenda === noAgendaStr && (!rowPerihal || rowPerihal === "")) {
-            targetRowIndex = i + 12; // 12-indexed
+            targetRowIndex = i + 4;
             break;
           }
         }
       }
 
+      // Format baris sesuai kolom asli spreadsheet:
+      // A: NO. URUT (mengikuti No. Agenda)
+      // B: Checkbox (TRUE)
+      // C: KODE KLASIFIKASI PREFIX (misal 421.7/)
+      // D: NO. AGENDA (misal 609)
+      // E: /SMA YWKA/TU/
+      // F: BULAN ROMAWI (misal X)
+      // G: TAHUN (misal /2026)
+      // H: TGL SURAT
+      // I: PRIHAL / ISI RINGKASAN SURAT
+      // J: DARI
+      // K: KEPADA
+      // L: KODE KLASIFIKASI / PETUGAS
+      // M: KETERANGAN
+      // N: Lampiran Fisik (URL Drive atau 'Surat Keluar')
       const rowData = [
-        payload.no_urut || nextNoUrut,
+        rowNoUrut,
         true,
         kodePrefix,
         noAgendaStr,
@@ -167,25 +190,30 @@ function doPost(e) {
       ];
 
       if (targetRowIndex > 0) {
-        // Perbarui baris yang sudah disediakan
+        // Perbarui baris yang sudah disediakan di spreadsheet
         sheet.getRange(targetRowIndex, 1, 1, rowData.length).setValues([rowData]);
       } else {
-        // Tambahkan baris baru di paling bawah
+        // Tambahkan baris baru di paling bawah jika belum ada slot
         sheet.appendRow(rowData);
         targetRowIndex = sheet.getLastRow();
       }
 
-      // Berikan style border tipis ke baris
-      sheet.getRange(targetRowIndex, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
+      // Berikan style border tipis ke baris yang baru terisi
+      try {
+        sheet.getRange(targetRowIndex, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
+      } catch (e) {
+        // Abaikan jika permission border terbatas
+      }
 
-      const fullGenerated = `${kodePrefix}${noAgendaStr}/SMA YWKA/TU/${bulanRomawi}${tahunSuffix}`;
+      const fullGenerated = `${kodePrefix}${noAgendaStr}/SMA YWKA/TU/${bulanRomawi}${tahunSuffix}`.replace(/\/{2,}/g, "/");
 
       return createJsonResponse({
         status: "success",
-        message: "Surat Keluar berhasil disimpan ke Google Sheets!",
+        message: "Surat Keluar berhasil disimpan ke Google Sheets & Google Drive!",
         no_agenda: noAgendaStr,
-        no_urut: payload.no_urut || nextNoUrut,
+        no_urut: rowNoUrut,
         nomor_lengkap: fullGenerated,
+        target_row: targetRowIndex,
         drive_file_url: driveFileUrl
       });
     }
@@ -212,7 +240,7 @@ function doPost(e) {
 
       const lastRow = sheet.getLastRow();
       let nextNoUrut = 1;
-      if (lastRow >= 12) {
+      if (lastRow >= 4) {
         const lastVal = sheet.getRange(lastRow, 1).getValue();
         if (!isNaN(parseInt(lastVal, 10))) {
           nextNoUrut = parseInt(lastVal, 10) + 1;
@@ -239,12 +267,14 @@ function doPost(e) {
 
       sheet.appendRow(rowData);
       const newRowIdx = sheet.getLastRow();
-      sheet.getRange(newRowIdx, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
+      try {
+        sheet.getRange(newRowIdx, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
+      } catch (e) {}
 
       return createJsonResponse({
         status: "success",
-        message: "Surat Masuk berhasil disimpan ke Google Sheets!",
-        no_urut: nextNoUrut,
+        message: "Surat Masuk berhasil disimpan ke Google Sheets & Google Drive!",
+        no_urut: payload.no_urut || nextNoUrut,
         no_agenda: payload.no_agenda,
         drive_file_url: driveFileUrl
       });
@@ -257,11 +287,55 @@ function doPost(e) {
 }
 
 /**
+ * Fungsi: Membuat/Menyiapkan Folder Google Drive Khusus Surat Keluar & Surat Masuk
+ * (Bisa dijalankan langsung di Apps Script editor via tombol Run)
+ */
+function setupDriveFolders() {
+  let mainFolder;
+  try {
+    mainFolder = DriveApp.getFolderById(FOLDER_DRIVE_ID);
+  } catch (e) {
+    const folderIter = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
+    if (folderIter.hasNext()) {
+      mainFolder = folderIter.next();
+    } else {
+      mainFolder = DriveApp.createFolder(FOLDER_DRIVE_UTAMA);
+    }
+  }
+
+  // Folder Surat Keluar 2026
+  let folderKeluar;
+  const iterKeluar = mainFolder.getFoldersByName("Surat Keluar 2026");
+  if (iterKeluar.hasNext()) {
+    folderKeluar = iterKeluar.next();
+  } else {
+    folderKeluar = mainFolder.createFolder("Surat Keluar 2026");
+  }
+  folderKeluar.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // Folder Surat Masuk 2026
+  let folderMasuk;
+  const iterMasuk = mainFolder.getFoldersByName("Surat Masuk 2026");
+  if (iterMasuk.hasNext()) {
+    folderMasuk = iterMasuk.next();
+  } else {
+    folderMasuk = mainFolder.createFolder("Surat Masuk 2026");
+  }
+  folderMasuk.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  return {
+    mainFolderUrl: mainFolder.getUrl(),
+    suratKeluarUrl: folderKeluar.getUrl(),
+    suratMasukUrl: folderMasuk.getUrl()
+  };
+}
+
+/**
  * Fungsi Pembantu: Mengunggah Berkas Base64 ke Google Drive di Folder Sekolah
  */
 function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) {
   try {
-    // 1. Ambil folder Google Drive resmi SMA YWKA berdasarkan ID
+    // 1. Ambil folder Google Drive resmi SMA YWKA
     let mainFolder;
     try {
       mainFolder = DriveApp.getFolderById(FOLDER_DRIVE_ID);
@@ -274,7 +348,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
       }
     }
 
-    // 2. Cari atau buat subfolder jika diinginkan (misal: Surat Keluar 2026), atau simpan langsung di folder utama
+    // 2. Buat atau ambil subfolder (Surat Keluar 2026 / Surat Masuk 2026)
     let targetFolder = mainFolder;
     if (subfolderName) {
       const subIter = mainFolder.getFoldersByName(subfolderName);
