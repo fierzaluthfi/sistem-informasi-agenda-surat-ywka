@@ -1935,6 +1935,7 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
   }
 
   let syncSuccess = false;
+  let errorDetail = "";
   if (state.appsScriptUrl) {
     try {
       const res = await fetch(state.appsScriptUrl, {
@@ -1942,15 +1943,36 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(payload)
       });
-      const resJson = await res.json();
-      if (resJson.drive_file_url) {
-        newItem.driveUrl = resJson.drive_file_url;
-        newItem.lampiran = resJson.drive_file_url;
+      const resText = await res.text();
+      let resJson = null;
+      try {
+        resJson = JSON.parse(resText);
+      } catch (e) {
+        if (resText.includes("tidak ada") || resText.includes("Halaman Tidak Ditemukan")) {
+          errorDetail = "URL Web App 404 (File tidak ditemukan di Google). Perlu Deploy ulang.";
+        } else if (resText.includes("ServiceLogin") || resText.includes("accounts.google.com")) {
+          errorDetail = "Izin akses harus 'Anyone' (Siapa saja).";
+        } else if (resText.includes("ReferenceError")) {
+          errorDetail = "Skrip di Apps Script perlu diperbarui ke versi v2.5.";
+        }
       }
-      syncSuccess = true;
-      newItem.isUnsynced = false;
+
+      if (resJson && resJson.status === "success") {
+        if (resJson.drive_file_url) {
+          newItem.driveUrl = resJson.drive_file_url;
+          newItem.lampiran = resJson.drive_file_url;
+        }
+        syncSuccess = true;
+        newItem.isUnsynced = false;
+      } else if (resJson && resJson.status === "error") {
+        errorDetail = resJson.message || "Apps Script mengembalikan error.";
+        newItem.isUnsynced = true;
+      } else {
+        newItem.isUnsynced = true;
+      }
     } catch (err) {
       console.error("Gagal sync ke Google Apps Script:", err);
+      errorDetail = "Koneksi ke Apps Script terputus atau diblokir browser.";
       newItem.isUnsynced = true;
     }
   } else {
@@ -1995,7 +2017,7 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
   } else if (!state.appsScriptUrl) {
     showToast(`⚠️ No. Agenda ${newItem.noAgenda} tersimpan aman di browser. Hubungkan Web App URL di Pengaturan agar tersinkron ke Google Sheets.`, "warning");
   } else {
-    showToast(`⚠️ Gagal menyambung ke Apps Script. Data tetap tersimpan aman di browser Anda.`, "warning");
+    showToast(`⚠️ Gagal menyambung ke Apps Script: ${errorDetail || "Periksa Web App URL di Pengaturan"}. Data tetap aman di browser Anda.`, "warning");
   }
 
   // Tampilkan Lembar Disposisi
