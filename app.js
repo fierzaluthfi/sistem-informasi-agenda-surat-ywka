@@ -574,6 +574,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initEventListeners();
   updateDriveLinksInUI();
   checkConnectionBanners();
+  initAiTemplateGenerator();
 
   // 1. HIDRASI INSTAN (0 milidetik): Langsung tampilkan data dari cache lokal/bawaan
   // Pengguna tidak perlu menunggu jaringan internet untuk melihat tabel dan statistik!
@@ -1922,6 +1923,10 @@ function calculateNextSequence() {
   if (inputNoAgenda) {
     inputNoAgenda.value = state.nextKeluarAgenda;
   }
+  const aiInputNoAgenda = document.getElementById("aiInputNoAgenda");
+  if (aiInputNoAgenda && (!aiInputNoAgenda.value || aiInputNoAgenda.value === "609" || aiInputNoAgenda.value === String(maxFilledAgenda))) {
+    aiInputNoAgenda.value = state.nextKeluarAgenda;
+  }
   if (nextPreview) nextPreview.textContent = state.nextKeluarAgenda;
   if (topLastNumber) topLastNumber.textContent = state.lastFilledAgendaNumber;
   if (statLastNumber) statLastNumber.textContent = state.lastFilledAgendaNumber;
@@ -3061,3 +3066,755 @@ window.viewDisposisiMasuk = viewDisposisiMasuk;
 window.copyText = copyText;
 window.changeKeluarPage = changeKeluarPage;
 window.changeMasukPage = changeMasukPage;
+
+// ===================================================================
+// MODUL AI TEMPLATE GENERATOR (CLAUDE AI & GOOGLE DRIVE KNOWLEDGE)
+// ===================================================================
+
+/**
+ * Knowledge Base Arsip Berkas Google Drive Surat Keluar SMAS YWKA Bandung
+ * Berisi pola naskah dinas, 12 kode klasifikasi, format penomoran, dan contoh format nyata
+ */
+const YWKA_DRIVE_KNOWLEDGE = {
+  schoolName: "SMAS YWKA BANDUNG",
+  foundation: "YAYASAN WANITA KERETA API",
+  address: "Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat 40184",
+  accreditation: "TERAKREDITASI 'A' (UNGGUL)",
+  phone: "(022) 6011740",
+  email: "smaywkabandung@gmail.com",
+  npsn: "20219736",
+  nss: "302026002008",
+  headmaster: "Syarif Hasanudin, S.Pd., Gr., M.M.",
+  headmasterNuptk: "1234567890123456",
+  driveFolderId: "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A",
+  numberFormat: "[Kode]/[No_Agenda]/SMA YWKA/TU/[Bulan_Romawi]/[Tahun]",
+  codes: {
+    "421.3": "Surat Keterangan Umum, Undangan Dinas, Mutasi, Perjanjian SPP, MBG",
+    "421.6": "Surat Pelepasan / Wisuda Siswa Kelas XII",
+    "421.7": "Kegiatan Siswa, Dispensasi Belajar Lomba FLS2N/O2SN, LDKS, Paskibra, Petugas CKG",
+    "421.71": "Reuni Alumni, Karya Wisata / Field Trip PT KAI",
+    "422.1": "PPDB, MPLS, Surat Tugas Kedinasan Guru/Tendik, Sosialisasi SMPN",
+    "422.3": "Pengumuman Libur Nasional, Idul Fitri, Libur Semester",
+    "422.5": "Beasiswa, Siswa Eligible SNBP, Sertifikat Pelajar Teladan",
+    "423.5": "Kurikulum, SKL Sementara, Supervisi Guru, Ujian Riset/PBL",
+    "423.7": "Asesmen Sumatif (ASTS/ASAT), POS Ujian Sekolah, Rapor",
+    "425.11": "Sarpras & Gedung Sekolah, Renovasi, Laporan Kerusakan",
+    "425.2": "Sarpras Buku, Modul Ajar, Perpustakaan",
+    "425.3": "Sarpras Perlengkapan Sekolah, Peminjaman Lapangan Olahraga/Alat"
+  }
+};
+
+// State internal AI Generator
+let currentAiResult = null;
+
+/**
+ * Inisialisasi Modul AI Template Generator
+ */
+function initAiTemplateGenerator() {
+  const toggleBtn = document.getElementById("toggleAiSettings");
+  const settingsBody = document.getElementById("aiSettingsBody");
+  const iconChevron = document.getElementById("iconAiSettingsChevron");
+  const apiKeyInput = document.getElementById("inputClaudeApiKey");
+  const btnSaveKey = document.getElementById("btnSaveClaudeApiKey");
+  const btnToggleEye = document.getElementById("btnToggleApiKeyVisibility");
+  const iconEye = document.getElementById("iconApiKeyEye");
+  const btnRunAi = document.getElementById("btnRunAiClaude");
+  const btnRefreshAgenda = document.getElementById("btnAiRefreshAgenda");
+  const inputAgenda = document.getElementById("aiInputNoAgenda");
+  const inputTanggal = document.getElementById("aiInputTanggal");
+  const btnApplyToForm = document.getElementById("btnApplyAiToAgendaForm");
+  const btnPrintDoc = document.getElementById("btnPrintAiLetterDoc");
+  const btnCopyText = document.getElementById("btnCopyAiLetterText");
+  const btnTopAi = document.getElementById("btnTopAiClaude");
+  const linkGoAi = document.getElementById("linkGoToAiClaude");
+
+  // Load API Key tersimpan
+  const savedApiKey = localStorage.getItem("claude_api_key_ywka") || "";
+  if (apiKeyInput && savedApiKey) {
+    apiKeyInput.value = savedApiKey;
+  }
+
+  // Set default tanggal hari ini pada form AI
+  if (inputTanggal) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    inputTanggal.value = `${yyyy}-${mm}-${dd}`;
+  }
+
+  // Set default no agenda mengikuti agenda berikutnya
+  if (inputAgenda && state.nextKeluarAgenda) {
+    inputAgenda.value = state.nextKeluarAgenda;
+  }
+
+  // Navigasi Shortcut Topbar & Banner
+  if (btnTopAi) {
+    btnTopAi.addEventListener("click", () => {
+      const tabAiBtn = document.querySelector('[data-tab="tab-claude-ai"]');
+      if (tabAiBtn) tabAiBtn.click();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+  if (linkGoAi) {
+    linkGoAi.addEventListener("click", () => {
+      const tabAiBtn = document.querySelector('[data-tab="tab-claude-ai"]');
+      if (tabAiBtn) tabAiBtn.click();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  // Toggle Accordion Pengaturan API Key
+  if (toggleBtn && settingsBody) {
+    toggleBtn.addEventListener("click", () => {
+      const isHidden = settingsBody.style.display === "none";
+      settingsBody.style.display = isHidden ? "block" : "none";
+      if (iconChevron) {
+        iconChevron.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+      }
+    });
+  }
+
+  // Simpan API Key
+  if (btnSaveKey && apiKeyInput) {
+    btnSaveKey.addEventListener("click", () => {
+      const val = apiKeyInput.value.trim();
+      localStorage.setItem("claude_api_key_ywka", val);
+      showToast(val ? "✅ API Key Claude berhasil disimpan!" : "ℹ️ API Key dikosongkan (Menggunakan Engine Bawaan)", "success");
+    });
+  }
+
+  // Toggle Eye Password
+  if (btnToggleEye && apiKeyInput && iconEye) {
+    btnToggleEye.addEventListener("click", () => {
+      const isPass = apiKeyInput.type === "password";
+      apiKeyInput.type = isPass ? "text" : "password";
+      iconEye.className = isPass ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
+    });
+  }
+
+  // Refresh No Agenda
+  if (btnRefreshAgenda && inputAgenda) {
+    btnRefreshAgenda.addEventListener("click", () => {
+      calculateNextSequence();
+      inputAgenda.value = state.nextKeluarAgenda;
+      showToast(`🔄 No. Agenda diperbarui: ${state.nextKeluarAgenda}`, "info");
+    });
+  }
+
+  // Quick Preset Chips
+  const presetChips = document.querySelectorAll(".ai-preset-chip");
+  presetChips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      presetChips.forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      const presetKey = chip.getAttribute("data-preset");
+      applyAiPreset(presetKey);
+    });
+  });
+
+  // Tombol Run Generate AI
+  if (btnRunAi) {
+    btnRunAi.addEventListener("click", handleRunAiClaude);
+  }
+
+  // Tombol Terapkan ke Form Surat Keluar
+  if (btnApplyToForm) {
+    btnApplyToForm.addEventListener("click", handleApplyAiToForm);
+  }
+
+  // Tombol Cetak PDF
+  if (btnPrintDoc) {
+    btnPrintDoc.addEventListener("click", () => {
+      window.print();
+    });
+  }
+
+  // Tombol Salin Naskah
+  if (btnCopyText) {
+    btnCopyText.addEventListener("click", handleCopyAiNaskahText);
+  }
+}
+
+/**
+ * Terapkan Preset Prompt ke Form AI
+ */
+function applyAiPreset(key) {
+  const promptArea = document.getElementById("aiPromptKebutuhan");
+  const selectKode = document.getElementById("aiSelectKode");
+  if (!promptArea) return;
+
+  const presets = {
+    "dispensasi": {
+      kode: "421.7",
+      text: "Buatkan surat permohonan dispensasi belajar untuk 3 siswa SMAS YWKA Bandung yang mewakili sekolah mengikuti seleksi Festival Lomba Seni Siswa Nasional (FLS2N) Tingkat Kota Bandung pada hari Kamis, 29 Oktober 2026 di SMAN 3 Bandung. Siswa yang ditugaskan: 1. Farhan Ramadhan (XI MIPA 1), 2. Siti Sarah (XI IPS 2), 3. Aditya Pratama (X-3)."
+    },
+    "tugas-guru": {
+      kode: "422.1",
+      text: "Buatkan surat perintah tugas kedinasan untuk 2 orang pendidik (1. Budi Santoso, S.Pd. - Guru Pembina Seni, 2. Ade Kurniawan, S.Kom. - Guru TIK) sebagai pembina dan pendamping siswa dalam kegiatan Workshop dan Pameran Pendidikan Cabang Dinas Wilayah VII pada hari Selasa, 27 Oktober 2026 di Aula BBPMP Jabar."
+    },
+    "keterangan-siswa": {
+      kode: "421.3",
+      text: "Buatkan surat keterangan siswa aktif belajar untuk siswa atas nama Muhammad Rayhan Al-Faris, NISN: 0082736182, Tempat Tanggal Lahir: Bandung 14 Mei 2009, Kelas: X-1 SMAS YWKA Bandung Tahun Ajaran 2026/2027. Surat ini diterbitkan untuk keperluan pengajuan Program Indonesia Pintar (PIP) / Beasiswa Pemerintah Daerah."
+    },
+    "pinjam-sarpras": {
+      kode: "425.3",
+      text: "Buatkan surat permohonan peminjaman sarana lapangan olahraga dan tribun kepada Pengelola Sarana PT Kereta Api Indonesia (Persero) Daerah Operasi 2 Bandung untuk kegiatan Pekan Olahraga dan Seni (PORSENI) Pelajar SMAS YWKA Bandung pada hari Sabtu, 7 November 2026 pukul 07.30 - 15.00 WIB."
+    },
+    "undangan-ortu": {
+      kode: "421.3",
+      text: "Buatkan surat undangan resmi kepada seluruh Orang Tua / Wali Siswa Kelas XII SMAS YWKA Bandung untuk menghadiri Pertemuan Sosialisasi Persiapan Ujian Sekolah, ASTS/ASAT, dan Seleksi Nasional Penerimaan Mahasiswa Baru (SNBP/SNBT) Tahun Ajaran 2026/2027 pada hari Sabtu, 31 Oktober 2026 pukul 08.30 WIB di Aula Sekolah."
+    },
+    "edaran-libur": {
+      kode: "422.3",
+      text: "Buatkan surat edaran resmi pemberitahuan hari libur nasional dan cuti bersama Hari Raya Idul Fitri 1447 H bagi seluruh guru, tenaga kependidikan, dan siswa-siswi SMAS YWKA Bandung, mulai tanggal 18 Maret 2026 sampai dengan tanggal 27 Maret 2026. Kegiatan Belajar Mengajar (KBM) aktif kembali pada hari Senin, 30 Maret 2026."
+    }
+  };
+
+  const item = presets[key];
+  if (item) {
+    promptArea.value = item.text;
+    if (selectKode) selectKode.value = item.kode;
+    promptArea.focus();
+    showToast(`📋 Preset "${key}" diterapkan! Klik Generate untuk membuat naskah surat.`, "info");
+  }
+}
+
+/**
+ * Eksekusi Pembuatan Surat dengan Claude AI (atau Offline Smart Engine)
+ */
+async function handleRunAiClaude() {
+  const promptInput = document.getElementById("aiPromptKebutuhan");
+  const userPrompt = promptInput ? promptInput.value.trim() : "";
+  const selectKode = document.getElementById("aiSelectKode")?.value || "auto";
+  const inputAgenda = document.getElementById("aiInputNoAgenda")?.value.trim() || state.nextKeluarAgenda || "609";
+  const inputTanggal = document.getElementById("aiInputTanggal")?.value || "";
+  const inputPenandatangan = document.getElementById("aiInputPenandatangan")?.value.trim() || YWKA_DRIVE_KNOWLEDGE.headmaster;
+  const inputJabatan = document.getElementById("aiInputJabatan")?.value.trim() || "Kepala SMAS YWKA Bandung";
+  const selectModel = document.getElementById("selectClaudeModel")?.value || "claude-3-5-sonnet-20241022";
+  const apiKey = localStorage.getItem("claude_api_key_ywka") || document.getElementById("inputClaudeApiKey")?.value.trim() || "";
+
+  const btnRun = document.getElementById("btnRunAiClaude");
+  const btnRunText = document.getElementById("btnRunAiClaudeText");
+
+  if (!userPrompt) {
+    showToast("⚠️ Mohon tuliskan kebutuhan naskah surat Anda terlebih dahulu!", "warning");
+    if (promptInput) promptInput.focus();
+    return;
+  }
+
+  const origBtnHtml = btnRun.innerHTML;
+  btnRun.disabled = true;
+  btnRun.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Mempelajari Arsip Drive & Menyusun Surat...</span>`;
+
+  try {
+    let resultData = null;
+
+    if (apiKey) {
+      try {
+        resultData = await callClaudeApi({
+          apiKey,
+          model: selectModel,
+          userPrompt,
+          selectKode,
+          noAgenda: inputAgenda,
+          tanggalIso: inputTanggal,
+          penandatangan: inputPenandatangan,
+          jabatan: inputJabatan
+        });
+      } catch (apiErr) {
+        console.warn("Panggilan Claude API gagal/kuota habis, beralih ke Smart School Engine:", apiErr);
+        showToast("ℹ️ Terhubung ke Smart School Engine (Arsip Drive SMAS YWKA)", "info");
+        resultData = generateAiTemplateOfflineFallback({
+          userPrompt,
+          selectKode,
+          noAgenda: inputAgenda,
+          tanggalIso: inputTanggal,
+          penandatangan: inputPenandatangan,
+          jabatan: inputJabatan
+        });
+      }
+    } else {
+      // Smart Fallback jika user belum memasukkan API key
+      resultData = generateAiTemplateOfflineFallback({
+        userPrompt,
+        selectKode,
+        noAgenda: inputAgenda,
+        tanggalIso: inputTanggal,
+        penandatangan: inputPenandatangan,
+        jabatan: inputJabatan
+      });
+    }
+
+    currentAiResult = resultData;
+    renderAiResultToPreview(resultData);
+    showToast("✨ Surat dinas resmi berhasil dibuat dan disesuaikan dengan arsip Google Drive!", "success");
+
+    // Scroll halus ke area hasil pada layar kecil
+    if (window.innerWidth < 1100) {
+      const banner = document.getElementById("aiResultActionBanner");
+      if (banner) banner.scrollIntoView({ behavior: "smooth" });
+    }
+  } catch (err) {
+    console.error("Gagal membuat naskah surat AI:", err);
+    showToast(`⚠️ Terjadi kendala saat menyusun surat: ${err.message || err}`, "error");
+  } finally {
+    btnRun.disabled = false;
+    btnRun.innerHTML = origBtnHtml;
+  }
+}
+
+/**
+ * Panggil Anthropic Messages API (Claude AI)
+ */
+async function callClaudeApi(params) {
+  const { apiKey, model, userPrompt, selectKode, noAgenda, tanggalIso, penandatangan, jabatan } = params;
+
+  const dateObj = tanggalIso ? new Date(tanggalIso) : new Date();
+  const romanMonth = getRomanMonth(dateObj.getMonth() + 1);
+  const year = dateObj.getFullYear();
+  const formattedDateIndo = formatDateToIndonesianLong(dateObj);
+
+  const systemPrompt = `Anda adalah Asisten Tata Usaha Ahli di SMAS YWKA Bandung (di bawah Yayasan Wanita Kereta Api).
+Tugas Anda adalah menghasilkan naskah dinas resmi dan data agenda surat keluar sesuai pedoman arsip Google Drive Surat Keluar SMAS YWKA:
+1. Identitas Sekolah:
+   - Nama: SMAS YWKA BANDUNG (Yayasan Wanita Kereta Api)
+   - Alamat: Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung 40184
+   - Kontak: Telp (022) 6011740 | Email smaywkabandung@gmail.com | NPSN 20219736 | Akreditasi A
+   - Kepala Sekolah: ${penandatangan} (${jabatan})
+2. Format Nomor Surat Keluar:
+   [Kode]/[No_Agenda]/SMA YWKA/TU/[Bulan_Romawi]/[Tahun]
+   Contoh: 421.7/${noAgenda}/SMA YWKA/TU/${romanMonth}/${year}
+3. 12 Kode Klasifikasi Resmi SMAS YWKA:
+   - 421.3: Surat Umum / Keterangan Aktif Belajar / Undangan Umum
+   - 421.6: Surat Pelepasan / Wisuda Kelas XII
+   - 421.7: Kegiatan Siswa / Dispensasi Lomba (FLS2N, O2SN, Paskibra, Petugas CKG)
+   - 421.71: Reuni Alumni / Karya Wisata PT KAI
+   - 422.1: PPDB / MPLS / Surat Tugas Kedinasan Guru & Tendik
+   - 422.3: Pengumuman Hari Libur Nasional / Ramadhan / Semester
+   - 422.5: Beasiswa / Pelajar Teladan / Siswa Eligible
+   - 423.5: Kegiatan Kurikulum / SKL Sementara / Supervisi Guru
+   - 423.7: Asesmen ASTS / ASAT / Ujian Sekolah / Rapor
+   - 425.11: Sarpras Gedung & Ruang Sekolah
+   - 425.2: Sarpras Buku & Bahan Ajar Perpustakaan
+   - 425.3: Sarpras Perlengkapan Sekolah / Peminjaman Lapangan Olahraga
+4. Format Kolom I (Perihal Agenda Spreadsheet):
+   Wajib ditulis dalam huruf KAPITAL ringkas tanpa tanda titik di akhir.
+   Contoh: "SURAT DISPENSASI SISWA MENGIKUTI SELEKSI FLS2N TINGKAT KOTA BANDUNG"
+
+Kembalikan HANYA JSON valid (tanpa markdown backtick, tanpa komentar tambahan di luar JSON) dengan struktur berikut:
+{
+  "kode": "string kode klasifikasi (misal 421.7 atau 422.1)",
+  "no_agenda": "${noAgenda}",
+  "no_surat_lengkap": "string nomor naskah dinas resmi lengkap",
+  "tanggal_indo": "${formattedDateIndo}",
+  "perihal_agenda": "STRING PERIHAL UNTUK KOLOM I SPREADSHEET DALAM HURUF KAPITAL RINGKAS",
+  "perihal_surat": "Perihal surat formal naskah dinas",
+  "lampiran": "string lampiran (misal: - atau 1 (Satu) Berkas)",
+  "kepada": "Pihak yang dituju",
+  "alamat_tujuan": "Alamat tujuan (misal: di Tempat / di Bandung)",
+  "dari": "${penandatangan}",
+  "petugas": "Petugas PIC (misal: BU ELVIRA / BU ADE / MIRA)",
+  "keterangan": "Arsip Surat Keluar",
+  "is_surat_tugas": boolean (true jika naskah merupakan Surat Tugas/Perintah),
+  "judul_tengah": "string jika surat tugas/keterangan (misal: SURAT TUGAS)",
+  "isi_html": "string HTML paragraf pembuka, uraian, dan penutup surat resmi berbahasa Indonesia baku",
+  "has_table": boolean (true jika ada tabel daftar nama siswa/guru),
+  "table_html": "string HTML <table>...</table> jika ada daftar personil, atau string kosong"
+}`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: model || "claude-3-5-sonnet-20241022",
+      max_tokens: 2500,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: `Kebutuhan Surat: ${userPrompt}\nKode Klasifikasi yang diminta: ${selectKode}\nNo Agenda: ${noAgenda}\nTanggal: ${tanggalIso}`
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `HTTP ${response.status} ${response.statusText}`);
+  }
+
+  const resJson = await response.json();
+  const textContent = resJson.content?.[0]?.text || "{}";
+  
+  // Bersihkan backtick jika model membungkusnya dengan ```json ... ```
+  const cleanJson = textContent.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const parsed = JSON.parse(cleanJson);
+  parsed.tanggal_iso = tanggalIso;
+  return parsed;
+}
+
+/**
+ * Smart School Template Engine (Offline Fallback berbasis Berkas Drive YWKA)
+ * Menghasilkan naskah dinas resmi dan data agenda tanpa memerlukan internet / API Key
+ */
+function generateAiTemplateOfflineFallback(params) {
+  const { userPrompt, selectKode, noAgenda, tanggalIso, penandatangan, jabatan } = params;
+  const promptLower = userPrompt.toLowerCase();
+
+  const dateObj = tanggalIso ? new Date(tanggalIso) : new Date();
+  const romanMonth = getRomanMonth(dateObj.getMonth() + 1);
+  const year = dateObj.getFullYear();
+  const formattedDateIndo = formatDateToIndonesianLong(dateObj);
+
+  // 1. Tentukan Kode Klasifikasi
+  let determinedKode = "421.3";
+  if (selectKode && selectKode !== "auto") {
+    determinedKode = selectKode;
+  } else if (promptLower.includes("dispensasi") || promptLower.includes("lomba") || promptLower.includes("paskibra") || promptLower.includes("o2sn") || promptLower.includes("fls2n")) {
+    determinedKode = "421.7";
+  } else if (promptLower.includes("tugas") || promptLower.includes("perintah") || promptLower.includes("ppdb") || promptLower.includes("mpls") || promptLower.includes("spmb")) {
+    determinedKode = "422.1";
+  } else if (promptLower.includes("wisuda") || promptLower.includes("pelepasan") || promptLower.includes("kelulusan")) {
+    determinedKode = "421.6";
+  } else if (promptLower.includes("libur") || promptLower.includes("cuti")) {
+    determinedKode = "422.3";
+  } else if (promptLower.includes("beasiswa") || promptLower.includes("teladan") || promptLower.includes("eligible")) {
+    determinedKode = "422.5";
+  } else if (promptLower.includes("kurikulum") || promptLower.includes("skl") || promptLower.includes("supervisi")) {
+    determinedKode = "423.5";
+  } else if (promptLower.includes("ujian") || promptLower.includes("asts") || promptLower.includes("asat") || promptLower.includes("pas") || promptLower.includes("pts") || promptLower.includes("rapor")) {
+    determinedKode = "423.7";
+  } else if (promptLower.includes("gedung") || promptLower.includes("renovasi")) {
+    determinedKode = "425.11";
+  } else if (promptLower.includes("buku") || promptLower.includes("modul") || promptLower.includes("perpustakaan")) {
+    determinedKode = "425.2";
+  } else if (promptLower.includes("lapangan") || promptLower.includes("pinjam") || promptLower.includes("sarana") || promptLower.includes("alat")) {
+    determinedKode = "425.3";
+  }
+
+  const noSuratLengkap = `${determinedKode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${year}`;
+
+  // 2. Ekstrak nama personil jika ada pola angka 1. ... 2. ...
+  const tableRows = [];
+  const lines = userPrompt.split(/\r?\n|;/);
+  let counter = 1;
+  lines.forEach(l => {
+    const match = l.match(/(?:^|\s)(?:[0-9]+[.)]|[-*])\s*([^,\n]+)/);
+    if (match && match[1].trim().length > 3) {
+      const rawText = match[1].trim();
+      tableRows.push({
+        no: counter++,
+        nama: rawText.replace(/\([^)]*\)/g, "").trim(),
+        keterangan: rawText.includes("(") ? rawText.substring(rawText.indexOf("(") + 1, rawText.indexOf(")")) : "Peserta / Ditugaskan"
+      });
+    }
+  });
+
+  // 3. Susun Data Spesifik berdasarkan Kategori
+  let perihalAgenda = "SURAT KELUAR DINAS SMAS YWKA BANDUNG";
+  let perihalSurat = "Surat Dinas Resmi Sekolah";
+  let kepada = "Pihak Terkait";
+  let alamatTujuan = "di Tempat";
+  let petugas = "BU ELVIRA";
+  let isSuratTugas = false;
+  let judulTengah = "";
+  let isiHtml = "";
+  let tableHtml = "";
+
+  if (determinedKode === "421.7") {
+    // Dispensasi Siswa
+    perihalAgenda = "SURAT DISPENSASI SISWA KEGIATAN LOMBA DAN PEMBINAAN";
+    perihalSurat = "Permohonan Izin Dispensasi Belajar Siswa";
+    kepada = "Bapak/Ibu Guru Mata Pelajaran / Panitia Pelaksana";
+    petugas = "BU ELVIRA";
+    isiHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Sehubungan dengan adanya agenda kegiatan pembinaan dan keikutsertaan siswa-siswi SMAS YWKA Bandung dalam kegiatan pengembangan minat dan bakat, bersama ini Kepala SMAS YWKA Bandung memberikan izin dispensasi belajar kepada siswa-siswi kami:
+      </p>
+    `;
+    if (tableRows.length > 0) {
+      tableHtml = `
+        <table class="letter-table-formal">
+          <thead>
+            <tr>
+              <th style="width: 35px;">No</th>
+              <th>Nama Lengkap Siswa</th>
+              <th>Kelas / Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows.map(r => `<tr><td style="text-align: center;">${r.no}</td><td><strong>${escapeHtml(r.nama)}</strong></td><td>${escapeHtml(r.keterangan)}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+    isiHtml += (tableHtml || `<p style="font-style: italic; padding-left: 20px;">(Daftar nama siswa terlampir pada lembar registrasi resmi kegiatan)</p>`) + `
+      <p>
+        Kegiatan tersebut akan dilaksanakan sesuai jadwal penugasan. Kami memohon kepada Bapak/Ibu Guru untuk memberikan izin dispensasi serta tidak memperhitungkan ketidakhadiran siswa bersangkutan selama jam pelajaran berlangsung.
+      </p>
+      <p>
+        Demikian surat dispensasi ini kami sampaikan, atas perhatian dan kerjasama yang baik dari Bapak/Ibu, kami ucapkan terima kasih.
+      </p>
+    `;
+  } else if (determinedKode === "422.1") {
+    // Surat Tugas Guru / PPDB
+    isSuratTugas = true;
+    judulTengah = "SURAT PERINTAH TUGAS";
+    perihalAgenda = "SURAT TUGAS KEDINASAN GURU DAN TENAGA KEPENDIDIKAN";
+    perihalSurat = "Surat Perintah Tugas Kedinasan";
+    kepada = "Pendidik / Tenaga Kependidikan yang Ditugaskan";
+    petugas = "BU ADE";
+    isiHtml = `
+      <p class="no-indent">Kepala SMAS YWKA Bandung dengan ini menugaskan kepada:</p>
+    `;
+    if (tableRows.length > 0) {
+      tableHtml = `
+        <table class="letter-table-formal">
+          <thead>
+            <tr>
+              <th style="width: 35px;">No</th>
+              <th>Nama Pegawai / Guru</th>
+              <th>Jabatan / Tugas Kedinasan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows.map(r => `<tr><td style="text-align: center;">${r.no}</td><td><strong>${escapeHtml(r.nama)}</strong></td><td>${escapeHtml(r.keterangan)}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+    isiHtml += (tableHtml || `<p style="padding-left: 20px;"><strong>Nama Pendidik:</strong> Budi Santoso, S.Pd. dkk<br><strong>Jabatan:</strong> Guru / Pembina Sekolah</p>`) + `
+      <p>
+        Untuk melaksanakan tugas kedinasan sesuai dengan arahan Kepala Sekolah serta menyampaikan laporan tertulis setelah pelaksanaan tugas selesai dilaksanakan.
+      </p>
+      <p>
+        Demikian surat tugas ini diberikan untuk dapat dilaksanakan dengan sebaik-baiknya dan penuh rasa tanggung jawab.
+      </p>
+    `;
+  } else if (determinedKode === "425.3") {
+    // Peminjaman Sarpras
+    perihalAgenda = "PERMOHONAN PEMINJAMAN SARANA PRASARANA SEKOLAH";
+    perihalSurat = "Permohonan Peminjaman Sarana dan Prasarana";
+    kepada = "Pimpinan / Pengelola Sarana PT KAI Daop 2 Bandung";
+    petugas = "Ayah Irwin";
+    isiHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Dalam rangka mendukung kelancaran kegiatan kesiswaan serta Pekan Olahraga dan Seni SMAS YWKA Bandung Tahun 2026, bersama ini kami mengajukan permohonan izin peminjaman sarana dan prasarana.
+      </p>
+      <p>
+        Adapun sarana yang kami maksud akan dipergunakan dengan sebaik-baiknya dengan senantiasa menjaga kebersihan, ketertiban, dan keutuhan fasilitas selama kegiatan berlangsung.
+      </p>
+      <p>
+        Besar harapan kami kiranya Bapak/Ibu berkenan mengabulkan permohonan ini. Atas perhatian, dukungan, dan kerjasamanya kami haturkan terima kasih.
+      </p>
+    `;
+  } else if (determinedKode === "422.3") {
+    // Pengumuman Libur
+    perihalAgenda = "PEMBERITAHUAN HARI LIBUR NASIONAL DAN KEGIATAN SEKOLAH";
+    perihalSurat = "Pemberitahuan Hari Libur Sekolah";
+    kepada = "Bapak/Ibu Orang Tua / Wali Murid SMAS YWKA Bandung";
+    petugas = "MIRA";
+    isiHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Berdasarkan Kalender Pendidikan Dinas Pendidikan Provinsi Jawa Barat serta keputusan rapat pimpinan SMAS YWKA Bandung, dengan ini kami sampaikan pemberitahuan mengenai pelaksanaan hari libur sekolah bagi seluruh peserta didik.
+      </p>
+      <p>
+        Kami mengimbau kepada Bapak/Ibu Orang Tua/Wali Murid untuk senantiasa mendampingi dan mengawasi kegiatan putra-putrinya selama berada di rumah agar tetap mengulang materi pelajaran secara mandiri.
+      </p>
+      <p>
+        Demikian pemberitahuan ini kami sampaikan, atas perhatian dan kerjasama Bapak/Ibu, kami ucapkan terima kasih.
+      </p>
+    `;
+  } else {
+    // Surat Umum / Keterangan (421.3)
+    perihalAgenda = "SURAT KETERANGAN RESMI SISWA AKTIF BELAJAR";
+    perihalSurat = "Surat Keterangan Aktif Belajar";
+    kepada = "Orang Tua Siswa / Lembaga Terkait";
+    petugas = "BU ELVIRA";
+    isiHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Yang bertanda tangan di bawah ini, Kepala SMAS YWKA Bandung menerangkan dengan sebenarnya bahwa peserta didik kami:
+      </p>
+      <div style="padding-left: 32px; line-height: 1.8; margin-bottom: 14px;">
+        <strong>Nama Siswa:</strong> Muhammad Rayhan Al-Faris<br>
+        <strong>NIS / NISN:</strong> 232410012 / 0082736182<br>
+        <strong>Kelas:</strong> X (Fase E-1)<br>
+        <strong>Tahun Ajaran:</strong> 2026/2027
+      </div>
+      <p>
+        Adalah benar siswa yang bersangkutan tercatat aktif mengikuti Kegiatan Belajar Mengajar (KBM) di SMAS YWKA Bandung dan berkelakuan baik. Surat keterangan ini diterbitkan untuk dipergunakan sebagaimana mestinya.
+      </p>
+      <p>
+        Demikian surat keterangan ini kami buat dengan sebenarnya untuk dapat dipergunakan sesuai kebutuhan.
+      </p>
+    `;
+  }
+
+  return {
+    kode: determinedKode,
+    no_agenda: noAgenda,
+    no_surat_lengkap: noSuratLengkap,
+    tanggal_indo: formattedDateIndo,
+    tanggal_iso: tanggalIso,
+    perihal_agenda: perihalAgenda,
+    perihal_surat: perihalSurat,
+    lampiran: tableRows.length > 0 ? "1 (Satu) Lembar" : "- (Nihil)",
+    kepada: kepada,
+    alamat_tujuan: alamatTujuan,
+    dari: penandatangan,
+    petugas: petugas,
+    keterangan: "Arsip Surat Keluar",
+    is_surat_tugas: isSuratTugas,
+    judul_tengah: judulTengah,
+    isi_html: isiHtml,
+    has_table: tableRows.length > 0,
+    table_html: tableHtml
+  };
+}
+
+/**
+ * Render Hasil AI ke Pratinjau Kertas Surat & Action Banner
+ */
+function renderAiResultToPreview(data) {
+  if (!data) return;
+
+  // Badge Action Banner
+  const badgeNomor = document.getElementById("aiBadgeNomorSurat");
+  if (badgeNomor) badgeNomor.textContent = data.no_surat_lengkap || "-";
+
+  // Metadata Surat di Kertas A4
+  const docNomor = document.getElementById("docPreviewNomor");
+  const docLampiran = document.getElementById("docPreviewLampiran");
+  const docPerihal = document.getElementById("docPreviewPerihal");
+  const docTitiMangsaTop = document.getElementById("docPreviewTitiMangsaTop");
+  const docKepada = document.getElementById("docPreviewKepada");
+  const docAlamat = document.getElementById("docPreviewAlamatTujuan");
+
+  if (docNomor) docNomor.textContent = data.no_surat_lengkap;
+  if (docLampiran) docLampiran.textContent = data.lampiran || "-";
+  if (docPerihal) docPerihal.textContent = data.perihal_surat || data.perihal_agenda;
+  if (docTitiMangsaTop) docTitiMangsaTop.textContent = `Bandung, ${data.tanggal_indo}`;
+  if (docKepada) docKepada.textContent = data.kepada;
+  if (docAlamat) docAlamat.textContent = data.alamat_tujuan || "di Tempat";
+
+  // Judul Tengah (Jika Surat Tugas / SK)
+  const titleBox = document.getElementById("docPreviewTitleBox");
+  const centerTitle = document.getElementById("docPreviewCenterTitle");
+  const centerNomor = document.getElementById("docPreviewCenterNomor");
+  if (titleBox && centerTitle && centerNomor) {
+    if (data.is_surat_tugas && data.judul_tengah) {
+      titleBox.style.display = "block";
+      centerTitle.textContent = data.judul_tengah;
+      centerNomor.textContent = `Nomor: ${data.no_surat_lengkap}`;
+    } else {
+      titleBox.style.display = "none";
+    }
+  }
+
+  // Isi Badan Surat
+  const contentArea = document.getElementById("docPreviewContent");
+  if (contentArea && data.isi_html) {
+    contentArea.innerHTML = data.isi_html;
+  }
+
+  // Titi Mangsa & TTD Bawah
+  const titiMangsaBottom = document.getElementById("docPreviewTitiMangsaBottom");
+  const jabatanSig = document.getElementById("docPreviewJabatanSig");
+  const namaSig = document.getElementById("docPreviewNamaSig");
+
+  if (titiMangsaBottom) titiMangsaBottom.textContent = `Bandung, ${data.tanggal_indo}`;
+  if (jabatanSig) jabatanSig.textContent = `${data.jabatan || "Kepala SMAS YWKA Bandung"},`;
+  if (namaSig) namaSig.textContent = data.dari || YWKA_DRIVE_KNOWLEDGE.headmaster;
+}
+
+/**
+ * Terapkan Hasil AI ke Form Generator Surat Keluar & Spreadsheet
+ */
+function handleApplyAiToForm() {
+  if (!currentAiResult) {
+    showToast("⚠️ Belum ada hasil surat yang di-generate!", "warning");
+    return;
+  }
+
+  const d = currentAiResult;
+
+  // 1. Isi Form Generator Surat Keluar (Tab Generator)
+  const selKode = document.getElementById("genKodeKlasifikasi");
+  const inNomor = document.getElementById("genNomorUrut");
+  const inTanggal = document.getElementById("genTanggalSurat");
+  const inPerihal = document.getElementById("genPerihal");
+  const inKepada = document.getElementById("genKepada");
+  const inDari = document.getElementById("genDari");
+  const inPetugas = document.getElementById("genPetugas");
+  const inKeterangan = document.getElementById("genKeterangan");
+
+  if (selKode) selKode.value = d.kode;
+  if (inNomor) inNomor.value = d.no_agenda;
+  if (inTanggal && d.tanggal_iso) inTanggal.value = d.tanggal_iso;
+  if (inPerihal) inPerihal.value = d.perihal_agenda;
+  if (inKepada) inKepada.value = d.kepada;
+  if (inDari) inDari.value = d.dari;
+  if (inPetugas) inPetugas.value = d.petugas || "BU ELVIRA";
+  if (inKeterangan) inKeterangan.value = d.keterangan || "Arsip Surat Keluar";
+
+  // Perbarui preview nomor surat di Tab Generator
+  updateGeneratedPreview();
+
+  // 2. Berpindah otomatis ke Tab Generator
+  const tabGenBtn = document.querySelector('[data-tab="tab-generator"]');
+  if (tabGenBtn) tabGenBtn.click();
+
+  // Scroll ke form generator
+  const formEl = document.getElementById("formGeneratorSurat");
+  if (formEl) {
+    formEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  showToast("🚀 Data surat berhasil diterapkan ke Form Surat Keluar! Anda tinggal melampirkan berkas Drive jika ada lalu klik Simpan.", "success");
+}
+
+/**
+ * Salin Naskah Teks Bersih ke Clipboard
+ */
+function handleCopyAiNaskahText() {
+  const letterSheet = document.getElementById("officialLetterSheet");
+  if (!letterSheet) return;
+
+  const rawText = letterSheet.innerText || letterSheet.textContent;
+  copyText(rawText, "✅ Teks naskah surat dinas lengkap berhasil disalin ke clipboard!");
+}
+
+/**
+ * Format Tanggal ke Bahasa Indonesia Panjang (contoh: 22 Oktober 2026)
+ */
+function formatDateToIndonesianLong(date) {
+  if (!date || isNaN(date.getTime())) return "22 Oktober 2026";
+  const months = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/**
+ * Escape string HTML untuk keamanan
+ */
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
