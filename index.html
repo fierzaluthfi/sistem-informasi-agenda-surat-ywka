@@ -342,6 +342,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT MASUK 2026</code> (gid: 1925080880) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <button class="btn btn-emerald btn-sm" id="btnOpenModalMasukHeader" title="Catat Surat Masuk Baru">
+                  <i class="fa-solid fa-plus"></i> Catat Surat Masuk
+                </button>
                 <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" id="btnHeaderDriveMasuk" title="Buka Folder Google Drive Surat Masuk">
                   <i class="fa-brands fa-google-drive"></i> Folder Drive Surat Masuk
                 </a>
@@ -1237,9 +1240,13 @@
       <form id="formInputSuratMasuk">
         <div class="modal-body">
           <div class="form-row">
+            <div class="form-group" style="flex: 0 0 100px;">
+              <label for="inMasukNoUrut" class="form-label">No. Urut <span class="text-danger">*</span></label>
+              <input type="number" id="inMasukNoUrut" class="form-control stat-mono font-bold" placeholder="210" required title="Nomor Urut Buku Agenda Surat Masuk">
+            </div>
             <div class="form-group flex-2">
               <label for="inMasukNoAgenda" class="form-label">No. Surat Asal / No. Agenda <span class="text-danger">*</span></label>
-              <input type="text" id="inMasukNoAgenda" class="form-control" placeholder="Contoh: 129/PK.03.03.01-Cadisdikwil.VII" required>
+              <input type="text" id="inMasukNoAgenda" class="form-control font-bold" placeholder="Contoh: 129/PK.03.03.01-Cadisdikwil.VII" required>
             </div>
             <div class="form-group flex-1">
               <label for="inMasukTglSurat" class="form-label">Tanggal Surat <span class="text-danger">*</span></label>
@@ -1559,6 +1566,10 @@
           <input type="hidden" id="editMasukOldNoUrut">
 
           <div class="form-row">
+            <div class="form-group" style="flex: 0 0 100px;">
+              <label for="editMasukNoUrut" class="form-label">No. Urut <span class="text-danger">*</span></label>
+              <input type="number" id="editMasukNoUrut" class="form-control stat-mono font-bold" required title="Nomor Urut Buku Agenda">
+            </div>
             <div class="form-group flex-2">
               <label for="editMasukNoAgenda" class="form-label">No. Surat Asal / No. Agenda <span class="text-danger">*</span></label>
               <input type="text" id="editMasukNoAgenda" class="form-control font-bold" required>
