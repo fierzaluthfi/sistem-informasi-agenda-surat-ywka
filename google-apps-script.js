@@ -436,7 +436,10 @@ function doPost(e) {
 
       const lastRow = sheet.getLastRow();
       let foundRow = -1;
-      if (lastRow >= 4) {
+      const rowIndex = parseInt(payload.row_index, 10);
+      if (!isNaN(rowIndex) && rowIndex >= 4 && rowIndex <= lastRow) {
+        foundRow = rowIndex;
+      } else if (lastRow >= 4) {
         const agendaColValues = sheet.getRange(4, 4, lastRow - 3, 1).getValues();
         for (let i = 0; i < agendaColValues.length; i++) {
           if (String(agendaColValues[i][0]).trim() === noAgendaStr) {
@@ -668,16 +671,23 @@ function doPost(e) {
 
       const noAgendaStr = String(payload.no_agenda || "").trim();
       const noUrutStr = String(payload.no_urut || "").trim();
+      const rowIndex = parseInt(payload.row_index, 10);
 
       const lastRow = sheet.getLastRow();
       let foundRow = -1;
-      if (lastRow >= 4) {
+
+      // 1. Jika dikirim row_index spesifik dari aplikasi web, hapus baris tersebut
+      if (!isNaN(rowIndex) && rowIndex >= 4 && rowIndex <= lastRow) {
+        foundRow = rowIndex;
+      } else if (lastRow >= 4) {
         const totalScan = lastRow - 3;
         const agendaColValues = sheet.getRange(4, 2, totalScan, 1).getValues();
         const urutColValues = sheet.getRange(4, 1, totalScan, 1).getValues();
-        for (let i = 0; i < totalScan; i++) {
-          if ((noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr) ||
-              (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
+        // Cari dari baris terbawah ke atas agar menghapus duplikat paling baru
+        for (let i = totalScan - 1; i >= 0; i--) {
+          const matchAgenda = noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr;
+          const matchUrut = noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr;
+          if (matchAgenda || matchUrut) {
             foundRow = i + 4;
             break;
           }
@@ -690,7 +700,7 @@ function doPost(e) {
 
       return createJsonResponse({
         status: "success",
-        message: "Data surat masuk " + (noAgendaStr || noUrutStr) + " berhasil dihapus dari Spreadsheet!",
+        message: "Data surat masuk " + (noAgendaStr || noUrutStr) + " baris " + foundRow + " berhasil dihapus dari Spreadsheet!",
         no_agenda: noAgendaStr,
         target_row: foundRow
       });
