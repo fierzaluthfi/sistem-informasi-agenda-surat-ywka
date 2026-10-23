@@ -484,10 +484,31 @@ function doPost(e) {
 
       const lastRow = sheet.getLastRow();
       let nextNoUrut = 1;
+      let existingDuplicateRow = -1;
+
+      // Cek apakah data surat masuk dengan no_agenda & perihal yang sama sudah ada di baris-baris akhir
       if (lastRow >= 4) {
-        const lastVal = sheet.getRange(lastRow, 1).getValue();
-        if (!isNaN(parseInt(lastVal, 10))) {
-          nextNoUrut = parseInt(lastVal, 10) + 1;
+        const scanCount = Math.min(30, lastRow - 3);
+        const startRow = lastRow - scanCount + 1;
+        const vals = sheet.getRange(startRow, 1, scanCount, 6).getValues();
+        const targetAgenda = String(payload.no_agenda || "").trim().toLowerCase();
+        const targetPerihal = String(payload.perihal || "").trim().toLowerCase();
+
+        for (let s = scanCount - 1; s >= 0; s--) {
+          const rowUrutVal = vals[s][0];
+          if (!isNaN(parseInt(rowUrutVal, 10)) && parseInt(rowUrutVal, 10) >= nextNoUrut) {
+            nextNoUrut = parseInt(rowUrutVal, 10) + 1;
+          }
+          const rowAgenda = String(vals[s][1] || "").trim().toLowerCase();
+          const rowPerihal = String(vals[s][4] || "").trim().toLowerCase();
+
+          if (targetAgenda && rowAgenda === targetAgenda) {
+            existingDuplicateRow = startRow + s;
+            break;
+          } else if (targetPerihal && rowPerihal === targetPerihal && targetPerihal.length > 10) {
+            existingDuplicateRow = startRow + s;
+            break;
+          }
         }
       }
 
@@ -513,6 +534,22 @@ function doPost(e) {
         lampiranVal
       ];
 
+      // Jika surat ini SUDAH PERNAH TERSIMPAN sebelumnya, perbarui baris yang sudah ada (JANGAN DUPLIKAT!)
+      if (existingDuplicateRow > 0) {
+        sheet.getRange(existingDuplicateRow, 1, 1, rowData.length).setValues([rowData]);
+        sheet.getRange(existingDuplicateRow, 3).setNumberFormat("@").setValue(tglSuratMasuk);
+        sheet.getRange(existingDuplicateRow, 4).setNumberFormat("@").setValue(tglDiterimaMasuk);
+
+        return createJsonResponse({
+          status: "success",
+          message: "Data Surat Masuk diperbarui pada baris yang sudah ada (duplikasi dicegah)!",
+          no_urut: payload.no_urut || nextNoUrut,
+          no_agenda: payload.no_agenda,
+          target_row: existingDuplicateRow,
+          drive_file_url: driveFileUrl
+        });
+      }
+
       sheet.appendRow(rowData);
       const newRowIdx = sheet.getLastRow();
       try {
@@ -526,6 +563,7 @@ function doPost(e) {
         message: "Surat Masuk berhasil disimpan ke Google Sheets & Google Drive!",
         no_urut: payload.no_urut || nextNoUrut,
         no_agenda: payload.no_agenda,
+        target_row: newRowIdx,
         drive_file_url: driveFileUrl
       });
     }
@@ -661,7 +699,7 @@ function doPost(e) {
     }
 
     // ==========================================
-    // 8. HAPUS DATA SURAT MASUK
+    // 8. HAPUS DATA SURAT MASUK (DENGAN DUKUNGAN HAPUS DUPLIKAT BERSIH)
     // ==========================================
     if (action === "delete_surat_masuk") {
       const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
@@ -671,38 +709,107 @@ function doPost(e) {
 
       const noAgendaStr = String(payload.no_agenda || "").trim();
       const noUrutStr = String(payload.no_urut || "").trim();
-      const rowIndex = parseInt(payload.row_index, 10);
-
       const lastRow = sheet.getLastRow();
-      let foundRow = -1;
+      const deletedRows = [];
 
-      // 1. Jika dikirim row_index spesifik dari aplikasi web, hapus baris tersebut
-      if (!isNaN(rowIndex) && rowIndex >= 4 && rowIndex <= lastRow) {
-        foundRow = rowIndex;
-      } else if (lastRow >= 4) {
-        const totalScan = lastRow - 3;
-        const agendaColValues = sheet.getRange(4, 2, totalScan, 1).getValues();
-        const urutColValues = sheet.getRange(4, 1, totalScan, 1).getValues();
-        // Cari dari baris terbawah ke atas agar menghapus duplikat paling baru
-        for (let i = totalScan - 1; i >= 0; i--) {
-          const matchAgenda = noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr;
-          const matchUrut = noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr;
-          if (matchAgenda || matchUrut) {
-            foundRow = i + 4;
-            break;
+      // 1. Jika dikirim array row_indices (untuk menghapus semua baris duplikat sekaligus)
+      if (Array.isArray(payload.row_indices) && payload.row_indices.length > 0) {
+        const sortedIndices = payload.row_indices
+          .map(function(n) { return parseInt(n, 10); })
+          .filter(function(n) { return !isNaN(n) && n >= 4 && n <= sheet.getLastRow(); })
+          .sort(function(a, b) { return b - a; }); // Hapus dari baris terbawah agar index baris atas tidak bergeser!
+
+        for (var d = 0; d < sortedIndices.length; d++) {
+          try {
+            sheet.deleteRow(sortedIndices[d]);
+            deletedRows.push(sortedIndices[d]);
+          } catch (e) {}
+        }
+      } else {
+        const rowIndex = parseInt(payload.row_index, 10);
+        if (!isNaN(rowIndex) && rowIndex >= 4 && rowIndex <= lastRow) {
+          sheet.deleteRow(rowIndex);
+          deletedRows.push(rowIndex);
+        }
+      }
+
+      // 2. Jika delete_all_matching true atau masih ada baris duplikat dengan no_agenda yang sama
+      if (noAgendaStr && (payload.delete_all_matching || deletedRows.length === 0)) {
+        const curLast = sheet.getLastRow();
+        if (curLast >= 4) {
+          const totalScan = curLast - 3;
+          const vals = sheet.getRange(4, 2, totalScan, 1).getValues();
+          for (var i = totalScan - 1; i >= 0; i--) {
+            if (String(vals[i][0]).trim().toLowerCase() === noAgendaStr.toLowerCase()) {
+              var rTarget = i + 4;
+              sheet.deleteRow(rTarget);
+              deletedRows.push(rTarget);
+            }
           }
         }
       }
 
-      if (foundRow > 0) {
-        sheet.deleteRow(foundRow);
+      return createJsonResponse({
+        status: "success",
+        message: "Data surat masuk " + (noAgendaStr || noUrutStr) + " (Baris: " + deletedRows.join(", ") + ") berhasil dihapus bersih dari Spreadsheet!",
+        no_agenda: noAgendaStr,
+        deleted_rows: deletedRows
+      });
+    }
+
+    // ==========================================
+    // 9. DEDUKLIKASI OTOMATIS SELURUH SPREADSHEET
+    // ==========================================
+    if (action === "clean_duplicates" || action === "clean_duplicate_surat_masuk") {
+      const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
+      if (!sheet) {
+        return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_MASUK + " tidak ditemukan!" });
+      }
+
+      const lastRow = sheet.getLastRow();
+      var removedCount = 0;
+      if (lastRow >= 5) {
+        const totalRows = lastRow - 3;
+        const data = sheet.getRange(4, 1, totalRows, 6).getValues();
+        const seenMap = {};
+        const rowsToDelete = [];
+
+        // Scan dari baris paling awal ke akhir untuk mencatat duplikat
+        for (var i = 0; i < totalRows; i++) {
+          var rowAgenda = String(data[i][1] || "").trim().toLowerCase();
+          var rowPerihal = String(data[i][4] || "").trim().toLowerCase();
+          var actualRow = i + 4;
+
+          var key = "";
+          if (rowAgenda && rowAgenda !== "-") {
+            key = "agenda:" + rowAgenda;
+          } else if (rowPerihal && rowPerihal.length > 10) {
+            key = "perihal:" + rowPerihal;
+          }
+
+          if (key) {
+            if (seenMap[key]) {
+              rowsToDelete.push(actualRow);
+            } else {
+              seenMap[key] = actualRow;
+            }
+          }
+        }
+
+        // Hapus dari bawah ke atas agar nomor baris tidak bergeser
+        rowsToDelete.sort(function(a, b) { return b - a; });
+        for (var r = 0; r < rowsToDelete.length; r++) {
+          try {
+            sheet.deleteRow(rowsToDelete[r]);
+            removedCount++;
+          } catch (e) {}
+        }
       }
 
       return createJsonResponse({
         status: "success",
-        message: "Data surat masuk " + (noAgendaStr || noUrutStr) + " baris " + foundRow + " berhasil dihapus dari Spreadsheet!",
-        no_agenda: noAgendaStr,
-        target_row: foundRow
+        message: "Deduplikasi selesai! Berhasil membersihkan " + removedCount + " baris ganda di Spreadsheet.",
+        removed_count: removedCount
       });
     }
 

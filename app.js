@@ -744,7 +744,57 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /**
- * Hidrasi Seketika (0 milidetik): Muat cache lokal atau data bawaan terlebih dahulu
+ * Helper: Bersihkan dan satukan data ganda (Deduplikasi Cerdas)
+ */
+function deduplicateItems(list, type = "masuk") {
+  if (!Array.isArray(list) || list.length === 0) return [];
+  const result = [];
+  const seen = new Set();
+
+  for (const item of list) {
+    if (!item) continue;
+    let key = "";
+    if (type === "keluar") {
+      key = item.noAgenda ? `keluar:${item.noAgenda.trim().toLowerCase()}` : `id:${item.id}`;
+    } else {
+      const sigAgenda = (item.noAgenda && item.noAgenda !== "-") ? item.noAgenda.trim().toLowerCase() : "";
+      const sigPerihal = item.perihal ? item.perihal.trim().toLowerCase() : "";
+      if (sigAgenda) {
+        key = `masuk_agenda:${sigAgenda}`;
+      } else if (sigPerihal) {
+        key = `masuk_perihal:${sigPerihal}`;
+      } else {
+        key = `id:${item.id}`;
+      }
+    }
+
+    if (seen.has(key)) {
+      const existing = result.find(r => {
+        if (type === "keluar") return r.noAgenda === item.noAgenda;
+        return (r.noAgenda && r.noAgenda === item.noAgenda && r.noAgenda !== "-") || (r.perihal === item.perihal);
+      });
+      if (existing) {
+        if (!existing.driveUrl && item.driveUrl) {
+          existing.driveUrl = item.driveUrl;
+          existing.lampiran = item.lampiran;
+        }
+        if (!existing.duplicateRowIndices) existing.duplicateRowIndices = [existing.rowIndex];
+        if (item.rowIndex && !existing.duplicateRowIndices.includes(item.rowIndex)) {
+          existing.duplicateRowIndices.push(item.rowIndex);
+        }
+      }
+      continue;
+    }
+
+    seen.add(key);
+    result.push(item);
+  }
+
+  return result;
+}
+
+/**
+ * Hidrasi Seketika (0 milidetik): Muat cache lokal atau data bawaan terlebih dahulu dengan Anti-Duplikasi
  */
 function hydrateFromCacheOrBuiltin() {
   const cachedKeluar = localStorage.getItem("cache_surat_keluar_2026");
@@ -755,12 +805,12 @@ function hydrateFromCacheOrBuiltin() {
       const parsedKeluar = JSON.parse(cachedKeluar);
       const parsedMasuk = JSON.parse(cachedMasuk);
       if (Array.isArray(parsedKeluar) && parsedKeluar.length > 0) {
-        state.suratKeluar = parsedKeluar;
+        state.suratKeluar = deduplicateItems(parsedKeluar, "keluar");
       } else {
         loadBuiltinSampleData();
       }
       if (Array.isArray(parsedMasuk) && parsedMasuk.length > 0) {
-        state.suratMasuk = parsedMasuk;
+        state.suratMasuk = deduplicateItems(parsedMasuk, "masuk");
       }
     } catch (e) {
       loadBuiltinSampleData();
@@ -769,13 +819,31 @@ function hydrateFromCacheOrBuiltin() {
     loadBuiltinSampleData();
   }
 
-  // Pertahankan surat lokal yang belum tersimpan
+  // Pertahankan surat lokal yang belum tersimpan dan bersihkan yang sudah sinkron
   const unsyncedKeluar = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
   if (unsyncedKeluar.length > 0) {
+    const remainingKeluar = [];
     unsyncedKeluar.forEach(uItem => {
-      const found = state.suratKeluar.some(k => k.noAgenda === uItem.noAgenda && k.perihal === uItem.perihal);
-      if (!found) state.suratKeluar.unshift(uItem);
+      const found = state.suratKeluar.some(k => (k.noAgenda && uItem.noAgenda && k.noAgenda === uItem.noAgenda) || (k.perihal && uItem.perihal && k.perihal === uItem.perihal));
+      if (!found) {
+        state.suratKeluar.unshift(uItem);
+        remainingKeluar.push(uItem);
+      }
     });
+    localStorage.setItem("unsynced_surat_keluar", JSON.stringify(remainingKeluar));
+  }
+
+  const unsyncedMasuk = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+  if (unsyncedMasuk.length > 0) {
+    const remainingMasuk = [];
+    unsyncedMasuk.forEach(uItem => {
+      const found = state.suratMasuk.some(m => (m.noAgenda && uItem.noAgenda && m.noAgenda !== "-" && m.noAgenda === uItem.noAgenda) || (m.perihal && uItem.perihal && m.perihal === uItem.perihal));
+      if (!found) {
+        state.suratMasuk.unshift(uItem);
+        remainingMasuk.push(uItem);
+      }
+    });
+    localStorage.setItem("unsynced_surat_masuk", JSON.stringify(remainingMasuk));
   }
 
   calculateNextSequence();
@@ -1421,10 +1489,31 @@ function doPost(e) {
 
       const lastRow = sheet.getLastRow();
       let nextNoUrut = 1;
+      let existingDuplicateRow = -1;
+
+      // Cek apakah data surat masuk dengan no_agenda & perihal yang sama sudah ada di baris-baris akhir
       if (lastRow >= 4) {
-        const lastVal = sheet.getRange(lastRow, 1).getValue();
-        if (!isNaN(parseInt(lastVal, 10))) {
-          nextNoUrut = parseInt(lastVal, 10) + 1;
+        const scanCount = Math.min(30, lastRow - 3);
+        const startRow = lastRow - scanCount + 1;
+        const vals = sheet.getRange(startRow, 1, scanCount, 6).getValues();
+        const targetAgenda = String(payload.no_agenda || "").trim().toLowerCase();
+        const targetPerihal = String(payload.perihal || "").trim().toLowerCase();
+
+        for (let s = scanCount - 1; s >= 0; s--) {
+          const rowUrutVal = vals[s][0];
+          if (!isNaN(parseInt(rowUrutVal, 10)) && parseInt(rowUrutVal, 10) >= nextNoUrut) {
+            nextNoUrut = parseInt(rowUrutVal, 10) + 1;
+          }
+          const rowAgenda = String(vals[s][1] || "").trim().toLowerCase();
+          const rowPerihal = String(vals[s][4] || "").trim().toLowerCase();
+
+          if (targetAgenda && rowAgenda === targetAgenda) {
+            existingDuplicateRow = startRow + s;
+            break;
+          } else if (targetPerihal && rowPerihal === targetPerihal && targetPerihal.length > 10) {
+            existingDuplicateRow = startRow + s;
+            break;
+          }
         }
       }
 
@@ -1461,10 +1550,26 @@ function doPost(e) {
         lampiranVal
       ];
 
+      if (existingDuplicateRow > 0) {
+        sheet.getRange(existingDuplicateRow, 1, 1, rowData.length).setValues([rowData]);
+        sheet.getRange(existingDuplicateRow, 3).setNumberFormat("@").setValue(tglSuratMasuk);
+        sheet.getRange(existingDuplicateRow, 4).setNumberFormat("@").setValue(tglDiterimaMasuk);
+        return createJsonResponse({
+          status: "success",
+          message: "Data Surat Masuk diperbarui pada baris yang sudah ada (duplikasi dicegah)!",
+          no_urut: payload.no_urut || nextNoUrut,
+          no_agenda: payload.no_agenda,
+          target_row: existingDuplicateRow,
+          drive_file_url: driveFileUrl
+        });
+      }
+
       sheet.appendRow(rowData);
       const newRowIdx = sheet.getLastRow();
       try {
         sheet.getRange(newRowIdx, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
+        sheet.getRange(newRowIdx, 3).setNumberFormat("@").setValue(tglSuratMasuk);
+        sheet.getRange(newRowIdx, 4).setNumberFormat("@").setValue(tglDiterimaMasuk);
       } catch (e) {}
 
       return createJsonResponse({
@@ -1472,7 +1577,162 @@ function doPost(e) {
         message: "Surat Masuk berhasil disimpan ke Google Sheets & Google Drive!",
         no_urut: payload.no_urut || nextNoUrut,
         no_agenda: payload.no_agenda,
+        target_row: newRowIdx,
         drive_file_url: driveFileUrl
+      });
+    }
+
+    if (action === "edit_surat_masuk") {
+      const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
+      if (!sheet) {
+        return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_MASUK + " tidak ditemukan!" });
+      }
+
+      const oldAgendaStr = String(payload.old_no_agenda || payload.no_agenda || "").trim();
+      const lastRow = sheet.getLastRow();
+      let foundRow = -1;
+      const rowIndex = parseInt(payload.row_index, 10);
+      if (!isNaN(rowIndex) && rowIndex >= 4 && rowIndex <= lastRow) {
+        foundRow = rowIndex;
+      } else if (lastRow >= 4) {
+        const agendaColValues = sheet.getRange(4, 2, lastRow - 3, 1).getValues();
+        for (let i = 0; i < agendaColValues.length; i++) {
+          if (String(agendaColValues[i][0]).trim() === oldAgendaStr) {
+            foundRow = i + 4;
+            break;
+          }
+        }
+      }
+
+      if (foundRow > 0) {
+        const existingValues = sheet.getRange(foundRow, 1, 1, 10).getValues()[0];
+        let lampiranFinal = existingValues[9] || "Surat Masuk";
+        if (payload.fileBase64 && payload.fileName) {
+          const driveUrl = uploadFileToGoogleDrive(payload.fileBase64, payload.fileName, payload.fileMime || "application/pdf", "Surat Masuk 2026");
+          if (driveUrl) lampiranFinal = driveUrl;
+        }
+
+        let tglSurat = payload.tanggal_surat || existingValues[2];
+        let tglTerima = payload.tanggal_diterima || existingValues[3];
+
+        const rowData = [
+          payload.no_urut || existingValues[0],
+          payload.no_agenda || existingValues[1],
+          tglSurat,
+          tglTerima,
+          payload.perihal || existingValues[4],
+          payload.dari || existingValues[5],
+          payload.kepada || "SMA YWKA",
+          payload.kode_klasifikasi || "",
+          payload.keterangan || "",
+          lampiranFinal
+        ];
+
+        sheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
+        sheet.getRange(foundRow, 3).setNumberFormat("@").setValue(tglSurat);
+        sheet.getRange(foundRow, 4).setNumberFormat("@").setValue(tglTerima);
+
+        return createJsonResponse({
+          status: "success",
+          message: "Data Surat Masuk berhasil diperbarui!",
+          no_agenda: payload.no_agenda,
+          target_row: foundRow
+        });
+      }
+      return createJsonResponse({ status: "error", message: "Baris surat masuk tidak ditemukan!" });
+    }
+
+    if (action === "delete_surat_masuk") {
+      const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
+      if (!sheet) {
+        return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_MASUK + " tidak ditemukan!" });
+      }
+
+      const noAgendaStr = String(payload.no_agenda || "").trim();
+      const lastRow = sheet.getLastRow();
+      const deletedRows = [];
+
+      if (Array.isArray(payload.row_indices) && payload.row_indices.length > 0) {
+        const sortedIndices = payload.row_indices
+          .map(function(n) { return parseInt(n, 10); })
+          .filter(function(n) { return !isNaN(n) && n >= 4 && n <= sheet.getLastRow(); })
+          .sort(function(a, b) { return b - a; });
+
+        for (var d = 0; d < sortedIndices.length; d++) {
+          try {
+            sheet.deleteRow(sortedIndices[d]);
+            deletedRows.push(sortedIndices[d]);
+          } catch (e) {}
+        }
+      } else {
+        const rowIndex = parseInt(payload.row_index, 10);
+        if (!isNaN(rowIndex) && rowIndex >= 4 && rowIndex <= lastRow) {
+          sheet.deleteRow(rowIndex);
+          deletedRows.push(rowIndex);
+        }
+      }
+
+      if (noAgendaStr && (payload.delete_all_matching || deletedRows.length === 0)) {
+        const curLast = sheet.getLastRow();
+        if (curLast >= 4) {
+          const totalScan = curLast - 3;
+          const vals = sheet.getRange(4, 2, totalScan, 1).getValues();
+          for (var i = totalScan - 1; i >= 0; i--) {
+            if (String(vals[i][0]).trim().toLowerCase() === noAgendaStr.toLowerCase()) {
+              var rTarget = i + 4;
+              sheet.deleteRow(rTarget);
+              deletedRows.push(rTarget);
+            }
+          }
+        }
+      }
+
+      return createJsonResponse({
+        status: "success",
+        message: "Data surat masuk " + noAgendaStr + " berhasil dihapus bersih!",
+        deleted_rows: deletedRows
+      });
+    }
+
+    if (action === "clean_duplicates") {
+      const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
+      if (!sheet) return createJsonResponse({ status: "error", message: "Sheet tidak ditemukan!" });
+
+      const lastRow = sheet.getLastRow();
+      var removedCount = 0;
+      if (lastRow >= 5) {
+        const totalRows = lastRow - 3;
+        const data = sheet.getRange(4, 1, totalRows, 6).getValues();
+        const seenMap = {};
+        const rowsToDelete = [];
+
+        for (var i = 0; i < totalRows; i++) {
+          var rowAgenda = String(data[i][1] || "").trim().toLowerCase();
+          var rowPerihal = String(data[i][4] || "").trim().toLowerCase();
+          var actualRow = i + 4;
+          var key = (rowAgenda && rowAgenda !== "-") ? ("agenda:" + rowAgenda) : (rowPerihal.length > 10 ? ("perihal:" + rowPerihal) : "");
+          if (key) {
+            if (seenMap[key]) {
+              rowsToDelete.push(actualRow);
+            } else {
+              seenMap[key] = actualRow;
+            }
+          }
+        }
+
+        rowsToDelete.sort(function(a, b) { return b - a; });
+        for (var r = 0; r < rowsToDelete.length; r++) {
+          try {
+            sheet.deleteRow(rowsToDelete[r]);
+            removedCount++;
+          } catch (e) {}
+        }
+      }
+
+      return createJsonResponse({
+        status: "success",
+        message: "Deduplikasi berhasil! Membersihkan " + removedCount + " baris ganda di Spreadsheet.",
+        removed_count: removedCount
       });
     }
 
@@ -1756,6 +2016,20 @@ function initEventListeners() {
     });
   }
 
+  const btnCleanDuplicates = document.getElementById("btnCleanSpreadsheetDuplicates");
+  if (btnCleanDuplicates) {
+    btnCleanDuplicates.addEventListener("click", async () => {
+      btnCleanDuplicates.disabled = true;
+      btnCleanDuplicates.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Membersihkan...`;
+      try {
+        await cleanSpreadsheetDuplicates();
+      } finally {
+        btnCleanDuplicates.disabled = false;
+        btnCleanDuplicates.innerHTML = `<i class="fa-solid fa-broom" style="color: #f59e0b;"></i> Bersihkan Baris Ganda`;
+      }
+    });
+  }
+
   // Modal Prompt Apps Script Handlers
   const modalPrompt = document.getElementById("modalAppsScriptPrompt");
   const btnClosePrompt = document.getElementById("btnCloseModalPrompt");
@@ -1982,25 +2256,31 @@ async function loadDataFromSpreadsheet() {
       state.suratMasuk = liveMasuk;
     }
 
-    // 3. Pertahankan surat lokal yang belum tersimpan ke Google Sheets agar TIDAK HILANG saat sinkron
+    // 3. Pertahankan surat lokal yang belum tersimpan ke Google Sheets agar TIDAK HILANG saat sinkron dan bersihkan yang sudah tersinkron
     const unsyncedKeluar = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
     if (unsyncedKeluar.length > 0) {
+      const remainingKeluar = [];
       unsyncedKeluar.forEach(uItem => {
-        const found = state.suratKeluar.some(k => k.noAgenda === uItem.noAgenda && k.perihal === uItem.perihal);
+        const found = state.suratKeluar.some(k => (k.noAgenda && uItem.noAgenda && k.noAgenda === uItem.noAgenda) || (k.perihal && uItem.perihal && k.perihal === uItem.perihal));
         if (!found) {
           state.suratKeluar.unshift(uItem);
+          remainingKeluar.push(uItem);
         }
       });
+      localStorage.setItem("unsynced_surat_keluar", JSON.stringify(remainingKeluar));
     }
 
     const unsyncedMasuk = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
     if (unsyncedMasuk.length > 0) {
+      const remainingMasuk = [];
       unsyncedMasuk.forEach(uItem => {
-        const found = state.suratMasuk.some(m => m.noAgenda === uItem.noAgenda && m.perihal === uItem.perihal);
+        const found = state.suratMasuk.some(m => (m.noAgenda && uItem.noAgenda && m.noAgenda !== "-" && m.noAgenda === uItem.noAgenda) || (m.perihal && uItem.perihal && m.perihal === uItem.perihal));
         if (!found) {
           state.suratMasuk.unshift(uItem);
+          remainingMasuk.push(uItem);
         }
       });
+      localStorage.setItem("unsynced_surat_masuk", JSON.stringify(remainingMasuk));
     }
 
     calculateNextSequence();
@@ -2027,11 +2307,11 @@ async function loadDataFromSpreadsheet() {
 }
 
 /**
- * Parse CSV Surat Keluar: No. Urut Mengikuti No. Agenda (Col D)
+ * Parse CSV Surat Keluar: No. Urut Mengikuti No. Agenda (Col D) dengan Anti-Duplikasi
  */
 function parseCsvKeluar(csvText) {
   const rows = parseCsvRows(csvText);
-  const items = [];
+  const rawItems = [];
 
   for (let i = 2; i < rows.length; i++) {
     const r = rows[i];
@@ -2062,7 +2342,7 @@ function parseCsvKeluar(csvText) {
       nomorLengkap = `${noAgenda}/SMA YWKA/TU/${bulanRomawi || 'X'}/${tahun || '2026'}`;
     }
 
-    items.push({
+    rawItems.push({
       id: "K-" + (i + 1),
       rowIndex: i + 1,
       noUrut: noUrut, // No. Urut mengikuti No. Agenda
@@ -2082,15 +2362,38 @@ function parseCsvKeluar(csvText) {
     });
   }
 
+  // Deduplikasi cerdas Surat Keluar (berdasarkan noAgenda unik)
+  const items = [];
+  const seenAgenda = new Map();
+
+  for (const item of rawItems) {
+    const key = item.noAgenda ? item.noAgenda.toLowerCase() : "";
+    if (key) {
+      if (seenAgenda.has(key)) {
+        const exIdx = seenAgenda.get(key);
+        const ex = items[exIdx];
+        if (!ex.duplicateRowIndices) ex.duplicateRowIndices = [ex.rowIndex];
+        ex.duplicateRowIndices.push(item.rowIndex);
+        if (!ex.driveUrl && item.driveUrl) {
+          ex.driveUrl = item.driveUrl;
+          ex.lampiran = item.lampiran;
+        }
+        continue;
+      }
+      seenAgenda.set(key, items.length);
+    }
+    items.push(item);
+  }
+
   return items;
 }
 
 /**
- * Parse CSV Surat Masuk
+ * Parse CSV Surat Masuk dengan Deduplikasi Cerdas & Normalisasi Nomor Urut
  */
 function parseCsvMasuk(csvText) {
   const rows = parseCsvRows(csvText);
-  const items = [];
+  const rawItems = [];
 
   for (let i = 2; i < rows.length; i++) {
     const r = rows[i];
@@ -2103,10 +2406,10 @@ function parseCsvMasuk(csvText) {
 
     if (!perihal && !noAgenda) continue;
 
-    items.push({
+    rawItems.push({
       id: "M-" + (i + 1),
       rowIndex: i + 1,
-      noUrut: (r[0] || String(items.length + 1)).trim(),
+      noUrut: (r[0] || "").trim(),
       noAgenda: noAgenda || "-",
       tglSurat: formatDateIndo((r[2] || "").trim()),
       tglMasuk: formatDateIndo((r[3] || "").trim()),
@@ -2118,6 +2421,65 @@ function parseCsvMasuk(csvText) {
       lampiran: lampiranVal || "Surat Masuk",
       driveUrl: lampiranVal.includes("drive.google.com") ? lampiranVal : ""
     });
+  }
+
+  // Deduplikasi Cerdas Surat Masuk:
+  // Satukan baris ganda yang memiliki No. Agenda yang sama atau perihal & pengirim yang persis sama
+  const items = [];
+  const seenMap = new Map();
+
+  for (const item of rawItems) {
+    const sigAgenda = (item.noAgenda && item.noAgenda !== "-") ? item.noAgenda.trim().toLowerCase() : "";
+    const sigPerihal = item.perihal ? item.perihal.trim().toLowerCase() : "";
+    const sigDari = item.dari ? item.dari.trim().toLowerCase() : "";
+
+    let dedupKey = "";
+    if (sigAgenda) {
+      dedupKey = `agenda:${sigAgenda}`;
+    } else if (sigPerihal && sigDari) {
+      dedupKey = `perihal:${sigPerihal}|dari:${sigDari}`;
+    }
+
+    if (dedupKey) {
+      if (seenMap.has(dedupKey)) {
+        const existingIdx = seenMap.get(dedupKey);
+        const existing = items[existingIdx];
+
+        if (!existing.duplicateRowIndices) {
+          existing.duplicateRowIndices = [existing.rowIndex];
+        }
+        existing.duplicateRowIndices.push(item.rowIndex);
+
+        // Pertahankan berkas Drive jika entitas baru memilikinya
+        if (!existing.driveUrl && item.driveUrl) {
+          existing.driveUrl = item.driveUrl;
+          existing.lampiran = item.lampiran;
+        }
+
+        // Jika nomor urut yang lama bentrok (misal 209 bentrok dengan Polban) sedangkan yang baru 210, ambil 210
+        const exNum = parseInt(existing.noUrut, 10);
+        const itNum = parseInt(item.noUrut, 10);
+        if (isNaN(exNum) || (itNum > exNum)) {
+          existing.noUrut = item.noUrut;
+        }
+        continue;
+      }
+      seenMap.set(dedupKey, items.length);
+    }
+    items.push(item);
+  }
+
+  // Normalisasi nomor urut surat masuk secara mulus agar nomor urut rapi & tidak ada yang ganda/bentrok
+  let currentMaxUrut = 0;
+  for (let idx = 0; idx < items.length; idx++) {
+    const it = items[idx];
+    const n = parseInt(it.noUrut, 10);
+    if (!isNaN(n) && n > currentMaxUrut) {
+      currentMaxUrut = n;
+    } else {
+      currentMaxUrut++;
+      it.noUrut = String(currentMaxUrut);
+    }
   }
 
   return items;
@@ -2791,6 +3153,19 @@ async function handleCreateSuratMasuk(e) {
     const disposisi = document.getElementById("inMasukDisposisi")?.value.trim() || "";
     const kodeKlas = document.getElementById("inMasukKodeKlasifikasi")?.value || "";
 
+    // Cegah duplikasi surat masuk yang sama persis
+    if (noAgenda && noAgenda !== "-") {
+      const exists = state.suratMasuk.some(m => m.noAgenda && m.noAgenda.trim().toLowerCase() === noAgenda.trim().toLowerCase());
+      if (exists) {
+        showToast(`⚠️ Surat Masuk dengan Nomor "${noAgenda}" sudah ada dalam daftar!`, "warning");
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Simpan Surat Masuk`;
+        }
+        return;
+      }
+    }
+
     let fileBase64 = "";
     let fileName = "";
     let fileMime = "";
@@ -3361,7 +3736,10 @@ function openDeleteModalKeluar(id) {
   if (targetIdInput) targetIdInput.value = item.id;
   const noAgendaVal = item.noAgenda || item.noUrut || "";
   if (targetAgendaInput) targetAgendaInput.value = noAgendaVal;
-  if (targetRowIndexInput) targetRowIndexInput.value = item.rowIndex || (item.id && item.id.startsWith("K-") ? item.id.replace("K-", "") : "");
+  if (targetRowIndexInput) {
+    targetRowIndexInput.value = item.rowIndex || (item.id && item.id.startsWith("K-") ? item.id.replace("K-", "") : "");
+    targetRowIndexInput.dataset.duplicateRowIndices = JSON.stringify(item.duplicateRowIndices || []);
+  }
   if (targetUrutInput) targetUrutInput.value = item.noUrut || "";
   if (agendaText) agendaText.textContent = noAgendaVal ? `Agenda #${noAgendaVal}` : "-";
   if (nomorText) nomorText.textContent = item.nomorLengkap || "-";
@@ -3399,7 +3777,10 @@ function openDeleteModalMasuk(id) {
   if (note) note.innerHTML = `<i class="fa-solid fa-circle-info"></i> Baris spesifik pada Sheet SURAT MASUK 2026 di Spreadsheet akan dihapus dan data lokal browser akan dibersihkan.`;
   if (targetIdInput) targetIdInput.value = item.id;
   if (targetAgendaInput) targetAgendaInput.value = item.noAgenda || item.noUrut || "";
-  if (targetRowIndexInput) targetRowIndexInput.value = item.rowIndex || (item.id && item.id.startsWith("M-") ? item.id.replace("M-", "") : "");
+  if (targetRowIndexInput) {
+    targetRowIndexInput.value = item.rowIndex || (item.id && item.id.startsWith("M-") ? item.id.replace("M-", "") : "");
+    targetRowIndexInput.dataset.duplicateRowIndices = JSON.stringify(item.duplicateRowIndices || []);
+  }
   if (targetUrutInput) targetUrutInput.value = item.noUrut || "";
   if (agendaText) agendaText.textContent = item.noUrut ? `Urut #${item.noUrut}` : "-";
   if (nomorText) nomorText.textContent = item.noAgenda || "-";
@@ -3409,12 +3790,13 @@ function openDeleteModalMasuk(id) {
 }
 
 /**
- * Eksekusi hapus data surat (Mendukung Surat Keluar & Surat Masuk)
+ * Eksekusi hapus data surat (Mendukung Surat Keluar & Surat Masuk dengan Pembersihan Duplikat Bersih)
  */
 async function handleExecuteDeleteRow() {
   const targetId = document.getElementById("deleteModalTargetId")?.value;
   const targetAgenda = document.getElementById("deleteModalTargetAgenda")?.value;
-  const targetRowIndex = document.getElementById("deleteModalTargetRowIndex")?.value;
+  const targetRowIndexInput = document.getElementById("deleteModalTargetRowIndex");
+  const targetRowIndex = targetRowIndexInput?.value;
   const targetUrut = document.getElementById("deleteModalTargetUrut")?.value;
   const targetType = document.getElementById("deleteModalTargetType")?.value || "keluar";
   const btnExec = document.getElementById("btnExecuteDeleteRow");
@@ -3423,6 +3805,14 @@ async function handleExecuteDeleteRow() {
   if (!targetId && !targetAgenda) {
     showToast("Data target hapus tidak valid!", "error");
     return;
+  }
+
+  let dupIndices = [];
+  try {
+    dupIndices = JSON.parse(targetRowIndexInput?.dataset?.duplicateRowIndices || "[]");
+  } catch (e) {}
+  if (!dupIndices.length && targetRowIndex) {
+    dupIndices = [parseInt(targetRowIndex, 10)];
   }
 
   const origBtnHtml = btnExec.innerHTML;
@@ -3439,6 +3829,8 @@ async function handleExecuteDeleteRow() {
           no_agenda: targetAgenda,
           no_urut: targetUrut || "",
           row_index: targetRowIndex ? parseInt(targetRowIndex, 10) : -1,
+          row_indices: dupIndices,
+          delete_all_matching: true,
           id: targetId
         };
         await fetch(state.appsScriptUrl, {
@@ -3452,26 +3844,41 @@ async function handleExecuteDeleteRow() {
     }
 
     if (isMasuk) {
-      // HANYA hapus baris yang dipilih (berdasarkan targetId unik), jangan hapus baris lain
-      state.suratMasuk = state.suratMasuk.filter(m => m.id !== targetId);
+      // Hapus dari state berdasarkan targetId ATAU nomor agenda yang sama persis
+      state.suratMasuk = state.suratMasuk.filter(m => {
+        if (m.id === targetId) return false;
+        if (targetAgenda && targetAgenda !== "-" && m.noAgenda === targetAgenda) return false;
+        return true;
+      });
       localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
 
       const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
-      const updatedUnsynced = unsyncedList.filter(m => m.id !== targetId);
+      const updatedUnsynced = unsyncedList.filter(m => {
+        if (m.id === targetId) return false;
+        if (targetAgenda && targetAgenda !== "-" && m.noAgenda === targetAgenda) return false;
+        return true;
+      });
       localStorage.setItem("unsynced_surat_masuk", JSON.stringify(updatedUnsynced));
 
       filterSuratMasukData();
       updateDashboardUI();
 
       if (modal) modal.classList.remove("show");
-      showToast(`✅ Data surat masuk berhasil dihapus!`, "success");
+      showToast(`✅ Data surat masuk berhasil dihapus bersih!`, "success");
     } else {
-      // HANYA hapus baris yang dipilih (berdasarkan targetId unik)
-      state.suratKeluar = state.suratKeluar.filter(s => s.id !== targetId);
+      state.suratKeluar = state.suratKeluar.filter(s => {
+        if (s.id === targetId) return false;
+        if (targetAgenda && s.noAgenda === targetAgenda) return false;
+        return true;
+      });
       localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
 
       const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
-      const updatedUnsynced = unsyncedList.filter(s => s.id !== targetId);
+      const updatedUnsynced = unsyncedList.filter(s => {
+        if (s.id === targetId) return false;
+        if (targetAgenda && s.noAgenda === targetAgenda) return false;
+        return true;
+      });
       localStorage.setItem("unsynced_surat_keluar", JSON.stringify(updatedUnsynced));
 
       calculateNextSequence();
@@ -3490,6 +3897,45 @@ async function handleExecuteDeleteRow() {
   } finally {
     btnExec.disabled = false;
     btnExec.innerHTML = origBtnHtml;
+  }
+}
+
+/**
+ * Fungsi Pembersih Duplikat Spreadsheet (Trigger via Tombol Pengaturan atau Otomatis)
+ */
+async function cleanSpreadsheetDuplicates() {
+  state.suratMasuk = deduplicateItems(state.suratMasuk, "masuk");
+  state.suratKeluar = deduplicateItems(state.suratKeluar, "keluar");
+  localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
+  localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+  localStorage.removeItem("unsynced_surat_masuk");
+  filterSuratMasukData();
+  filterSuratKeluarData();
+  updateDashboardUI();
+
+  if (!state.appsScriptUrl) {
+    showToast("✅ Tampilan & cache lokal berhasil dibersihkan dari duplikat!", "success");
+    return;
+  }
+
+  showToast("⏳ Sedang membersihkan baris ganda di Google Spreadsheet...", "info");
+  try {
+    const res = await fetch(state.appsScriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "clean_duplicates" })
+    });
+    const resJson = await res.json();
+    if (resJson && resJson.status === "success") {
+      showToast(`✅ ${resJson.message}`, "success");
+    } else {
+      showToast(`✅ Tampilan telah dibersihkan`, "success");
+    }
+  } catch (err) {
+    console.warn("Gagal request clean_duplicates ke Apps Script:", err);
+    showToast("✅ Tampilan lokal bersih (Pastikan Apps Script terpasang)", "info");
+  } finally {
+    await loadDataFromSpreadsheet();
   }
 }
 
