@@ -450,6 +450,9 @@
                   <button type="button" class="ai-preset-chip" data-preset="tugas-guru">
                     <i class="fa-solid fa-chalkboard-user text-primary"></i> Surat Tugas Guru / Pembina (422.1)
                   </button>
+                  <button type="button" class="ai-preset-chip" data-preset="surat-masuk-tugas">
+                    <i class="fa-brands fa-google-drive text-emerald"></i> Surat Tugas Berdasarkan Surat Masuk Drive (422.1)
+                  </button>
                   <button type="button" class="ai-preset-chip" data-preset="keterangan-siswa">
                     <i class="fa-solid fa-graduation-cap text-purple"></i> Surat Keterangan Siswa Aktif (421.3)
                   </button>
@@ -510,6 +513,9 @@
                   <div class="form-group flex-1">
                     <label for="aiInputTanggal" class="form-label">Tanggal Surat</label>
                     <input type="date" id="aiInputTanggal" class="form-control">
+                    <div class="date-format-badge" id="badgeAiInputTanggal">
+                      <i class="fa-regular fa-calendar-check text-emerald"></i> Format: <strong id="previewAiInputTanggal">-</strong> (<span id="previewAiRomanMonth">Bulan Romawi: X</span>)
+                    </div>
                   </div>
                 </div>
 
@@ -588,6 +594,17 @@
                     <span>Terapkan ke Form Surat Keluar</span>
                   </button>
                 </div>
+              </div>
+
+              <!-- Banner Rujukan Surat Masuk Google Drive -->
+              <div id="aiDriveSuratMasukRefBanner" style="display: none; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: #065f46; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <div id="aiDriveSuratMasukRefText">
+                  <i class="fa-brands fa-google-drive text-emerald" style="font-size: 15px; margin-right: 6px;"></i>
+                  <strong>Tersinkron Surat Masuk Drive:</strong> <span id="aiDriveSuratMasukRefDesc">-</span>
+                </div>
+                <a id="aiDriveSuratMasukRefLink" href="#" target="_blank" rel="noopener noreferrer" style="background: #059669; color: #fff; padding: 5px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                  <i class="fa-brands fa-google-drive"></i> Buka Folder Drive Surat Masuk <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 10px;"></i>
+                </a>
               </div>
 
               <!-- Lembar Surat Dinas Resmi (Official Letter Sheet) -->

@@ -49,6 +49,101 @@ const MONTH_NAMES = [
 ];
 
 /**
+ * Helper: Ambil Bulan Romawi (I s/d XII) dari nomor bulan (1-12) atau objek Date
+ */
+function getRomanMonth(val) {
+  if (!val) return "X";
+  if (val instanceof Date) {
+    return ROMAN_MONTHS[val.getMonth()] || "X";
+  }
+  const m = parseInt(val, 10);
+  if (m >= 1 && m <= 12) {
+    return ROMAN_MONTHS[m - 1];
+  }
+  return "X";
+}
+
+/**
+ * Helper: Parse Tanggal secara fleksibel tanpa bias timezone UTC
+ */
+function parseDateParts(val) {
+  if (!val) {
+    const now = new Date();
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      day: now.getDate(),
+      romanMonth: ROMAN_MONTHS[now.getMonth()] || "X",
+      dateObj: now
+    };
+  }
+
+  const str = String(val).trim().replace(/^'+/, "");
+
+  // 1. Cek format YYYY-MM-DD atau YYYY/MM/DD
+  const matchIso = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (matchIso) {
+    const year = parseInt(matchIso[1], 10);
+    const month = parseInt(matchIso[2], 10);
+    const day = parseInt(matchIso[3], 10);
+    const romanMonth = (month >= 1 && month <= 12) ? ROMAN_MONTHS[month - 1] : "X";
+    return {
+      year,
+      month,
+      day,
+      romanMonth,
+      dateObj: new Date(year, month - 1, day)
+    };
+  }
+
+  // 2. Cek format DD/MM/YYYY atau DD-MM-YYYY
+  const matchDmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (matchDmy) {
+    let part1 = parseInt(matchDmy[1], 10);
+    let part2 = parseInt(matchDmy[2], 10);
+    const year = parseInt(matchDmy[3], 10);
+    let day = part1;
+    let month = part2;
+    if (part2 > 12 && part1 <= 12) {
+      month = part1;
+      day = part2;
+    }
+    const romanMonth = (month >= 1 && month <= 12) ? ROMAN_MONTHS[month - 1] : "X";
+    return {
+      year,
+      month,
+      day,
+      romanMonth,
+      dateObj: new Date(year, month - 1, day)
+    };
+  }
+
+  const dt = new Date(str);
+  if (!isNaN(dt.getTime())) {
+    const year = dt.getFullYear();
+    const month = dt.getMonth() + 1;
+    const day = dt.getDate();
+    const romanMonth = ROMAN_MONTHS[dt.getMonth()] || "X";
+    return {
+      year,
+      month,
+      day,
+      romanMonth,
+      dateObj: dt
+    };
+  }
+
+  const now = new Date();
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    day: now.getDate(),
+    romanMonth: ROMAN_MONTHS[now.getMonth()] || "X",
+    dateObj: now
+  };
+}
+
+/**
  * Helper: Format Tanggal Indonesia (DD/MM/YYYY)
  * Mengubah 2026-10-26, 2026/10/26, ISO strings, maupun format tanggal lainnya menjadi 26/10/2026
  */
@@ -736,14 +831,30 @@ function initDateDefaults() {
     editMasukTerima.addEventListener("input", () => updateDateBadgePreview("editMasukTglDiterima", "previewEditMasukTglDiterima"));
   }
 
+  // AI Form date listener
+  const aiTgl = document.getElementById("aiInputTanggal");
+  if (aiTgl) {
+    aiTgl.value = formattedToday;
+    updateDateBadgePreview("aiInputTanggal", "previewAiInputTanggal", "previewAiRomanMonth");
+    aiTgl.addEventListener("change", () => updateDateBadgePreview("aiInputTanggal", "previewAiInputTanggal", "previewAiRomanMonth"));
+    aiTgl.addEventListener("input", () => updateDateBadgePreview("aiInputTanggal", "previewAiInputTanggal", "previewAiRomanMonth"));
+  }
+
   updateGeneratedPreview();
 }
 
-function updateDateBadgePreview(inputId, previewId) {
+function updateDateBadgePreview(inputId, previewId, romanPreviewId) {
   const input = document.getElementById(inputId);
   const preview = document.getElementById(previewId);
   if (input && preview) {
     preview.textContent = formatDateIndo(input.value) || "-";
+  }
+  if (input && romanPreviewId) {
+    const romanEl = document.getElementById(romanPreviewId);
+    if (romanEl) {
+      const parts = parseDateParts(input.value);
+      romanEl.textContent = `Bulan Romawi: ${parts.romanMonth}`;
+    }
   }
 }
 
@@ -1795,14 +1906,9 @@ function updateGeneratedPreview() {
   let tahun = "2026";
 
   if (dtTgl && dtTgl.value) {
-    const parts = dtTgl.value.split("-");
-    if (parts.length === 3) {
-      tahun = parts[0];
-      const monthIdx = parseInt(parts[1], 10) - 1;
-      if (monthIdx >= 0 && monthIdx < 12) {
-        romanMonth = ROMAN_MONTHS[monthIdx];
-      }
-    }
+    const parts = parseDateParts(dtTgl.value);
+    tahun = String(parts.year);
+    romanMonth = parts.romanMonth;
   }
 
   const fullGeneratedNumber = `${kode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${tahun}`.replace(/\/{2,}/g, "/");
@@ -3966,6 +4072,10 @@ function applyAiPreset(key) {
       kode: "422.1",
       text: "Buatkan surat perintah tugas kedinasan untuk 2 orang pendidik (1. Budi Santoso, S.Pd. - Guru Pembina Seni, 2. Ade Kurniawan, S.Kom. - Guru TIK) sebagai pembina dan pendamping siswa dalam kegiatan Workshop dan Pameran Pendidikan Cabang Dinas Wilayah VII pada hari Selasa, 27 Oktober 2026 di Aula BBPMP Jabar."
     },
+    "surat-masuk-tugas": {
+      kode: "422.1",
+      text: "buat kan surat perintah untuk Kegiatan Literasi Digital untuk Memperkuat Peran Guru dalam Menangkal Paham Kekerasan pada Siswa Melalui Forum Koordinasi Pencegahan Terorisme (FPKT) T.A 2026 (A.N Nada Khairunisa, S.Pd) berdasarkan surat masuk dengan no 206 bisa dicek drive surat masuk untuk keterangan lebih lanjutnya"
+    },
     "keterangan-siswa": {
       kode: "421.3",
       text: "Buatkan surat keterangan siswa aktif belajar untuk siswa atas nama Muhammad Rayhan Al-Faris, NISN: 0082736182, Tempat Tanggal Lahir: Bandung 14 Mei 2009, Kelas: X-1 SMAS YWKA Bandung Tahun Ajaran 2026/2027. Surat ini diterbitkan untuk keperluan pengajuan Program Indonesia Pintar (PIP) / Beasiswa Pemerintah Daerah."
@@ -4078,15 +4188,171 @@ async function handleRunAiClaude() {
 }
 
 /**
+ * Helper: Mencari rujukan Surat Masuk dari prompt pengguna di dalam agenda & Google Drive SMAS YWKA
+ */
+function resolveSuratMasukFromPrompt(promptText) {
+  if (!promptText) return null;
+  const text = promptText.trim();
+  const lower = text.toLowerCase();
+
+  // 1. Pola regex untuk mengekstrak nomor agenda / surat masuk
+  const patterns = [
+    /(?:surat\s+masuk|agenda\s+masuk)[^0-9]{0,25}(?:no\.?|nomor|agenda)?\s*([0-9]{1,4})/i,
+    /(?:berdasarkan|rujukan|menindaklanjuti)[^0-9]{0,30}(?:surat\s+masuk\s*)?(?:no\.?|nomor|agenda)?\s*([0-9]{1,4})/i,
+    /(?:no\.?|nomor|agenda)\s*([0-9]{1,4})\s*(?:bisa\s+dicek|pada\s+drive|surat\s+masuk)/i
+  ];
+
+  let matchedNumber = null;
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m && m[1]) {
+      matchedNumber = m[1].trim();
+      break;
+    }
+  }
+
+  const hasDriveMention = lower.includes("surat masuk") || lower.includes("drive surat masuk") || lower.includes("dicek drive");
+
+  // 2. Cari di database cache live state.suratMasuk
+  let foundItem = null;
+  if (state.suratMasuk && state.suratMasuk.length > 0) {
+    if (matchedNumber) {
+      foundItem = state.suratMasuk.find(item => 
+        String(item.noAgenda).trim() === matchedNumber ||
+        String(item.noUrut).trim() === matchedNumber
+      );
+    }
+
+    if (!foundItem) {
+      const keywords = ["fkpt", "fpkt", "literasi digital", "pencegahan terorisme", "cadisdik", "dinas pendidikan"];
+      for (const kw of keywords) {
+        if (lower.includes(kw)) {
+          foundItem = state.suratMasuk.find(item => 
+            (item.perihal && item.perihal.toLowerCase().includes(kw)) ||
+            (item.dari && item.dari.toLowerCase().includes(kw))
+          );
+          if (foundItem) break;
+        }
+      }
+    }
+  }
+
+  if (!matchedNumber && !foundItem && !hasDriveMention) {
+    return null;
+  }
+
+  const finalNo = foundItem ? foundItem.noAgenda : (matchedNumber || "206");
+  const defaultDriveMasuk = state.driveMasukUrl || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A";
+  const finalDriveUrl = (foundItem && foundItem.driveUrl) ? foundItem.driveUrl : defaultDriveMasuk;
+
+  let pengirim = foundItem ? foundItem.dari : "";
+  let perihal = foundItem ? foundItem.perihal : "";
+  let tglSurat = foundItem ? foundItem.tglSurat : "";
+
+  if (!pengirim) {
+    if (lower.includes("fkpt") || lower.includes("fpkt") || lower.includes("terorisme")) {
+      pengirim = "Forum Koordinasi Pencegahan Terorisme (FKPT) Jawa Barat";
+    } else if (lower.includes("cadisdik") || lower.includes("disdik") || lower.includes("dinas pendidikan")) {
+      pengirim = "Cabang Dinas Pendidikan Wilayah VII Provinsi Jawa Barat";
+    } else {
+      pengirim = "Instansi Pengirim Surat Masuk";
+    }
+  }
+
+  if (!perihal) {
+    if (lower.includes("literasi digital")) {
+      perihal = "Kegiatan Literasi Digital untuk Memperkuat Peran Guru dalam Menangkal Paham Kekerasan pada Siswa";
+    } else {
+      perihal = "Undangan / Pemberitahuan Kegiatan Kedinasan";
+    }
+  }
+
+  return {
+    matchedNumber: finalNo,
+    foundInCache: !!foundItem,
+    dari: pengirim,
+    perihal: perihal,
+    tglSurat: tglSurat || "Oktober 2026",
+    driveUrl: finalDriveUrl,
+    driveFolderUrl: defaultDriveMasuk
+  };
+}
+
+/**
+ * Helper: Ekstraksi personil (nama guru / siswa) dari prompt pengguna
+ */
+function extractPersonnelFromPrompt(promptText) {
+  if (!promptText) return [];
+  const results = [];
+  const seen = new Set();
+
+  // 1. Ekstraksi pola: (A.N Nada Khairunisa, S.Pd) atau A.N Nada Khairunisa, S.Pd
+  const anMatches = promptText.matchAll(/(?:\((?:a\.?n\.?|atas\s+nama)\s*([^)]+)\)|(?:a\.?n\.?|atas\s+nama)\s+([A-Za-z\s.,'’]+?)(?=(?:\s+berdasarkan|\s+pada|\s+untuk|\s*\(|$)))/gi);
+  for (const m of anMatches) {
+    const raw = (m[1] || m[2] || "").trim().replace(/[.,]$/, "");
+    if (raw.length > 3 && !seen.has(raw.toLowerCase())) {
+      seen.add(raw.toLowerCase());
+      results.push({
+        no: results.length + 1,
+        nama: raw,
+        jabatan: "Guru / Tenaga Pendidik SMAS YWKA Bandung",
+        keterangan: "Peserta Ditugaskan"
+      });
+    }
+  }
+
+  // 2. Ekstraksi baris berangka: 1. ... 2. ...
+  const lines = promptText.split(/\r?\n|;/);
+  lines.forEach(l => {
+    const match = l.match(/(?:^|\s)(?:[0-9]+[.)]|[-*])\s*([^,\n]+)/);
+    if (match && match[1].trim().length > 3) {
+      const rawText = match[1].trim();
+      const cleanName = rawText.replace(/\([^)]*\)/g, "").trim();
+      if (!seen.has(cleanName.toLowerCase())) {
+        seen.add(cleanName.toLowerCase());
+        const info = rawText.includes("(") ? rawText.substring(rawText.indexOf("(") + 1, rawText.indexOf(")")) : "Peserta / Ditugaskan";
+        results.push({
+          no: results.length + 1,
+          nama: cleanName,
+          jabatan: (info.includes("Guru") || info.includes("S.Pd") || info.includes("M.Pd")) ? info : "Guru / Tenaga Pendidik",
+          keterangan: info
+        });
+      }
+    }
+  });
+
+  return results;
+}
+
+/**
  * Panggil Anthropic Messages API (Claude AI)
  */
 async function callClaudeApi(params) {
   const { apiKey, model, userPrompt, selectKode, noAgenda, tanggalIso, penandatangan, jabatan } = params;
 
-  const dateObj = tanggalIso ? new Date(tanggalIso) : new Date();
-  const romanMonth = getRomanMonth(dateObj.getMonth() + 1);
-  const year = dateObj.getFullYear();
-  const formattedDateIndo = formatDateToIndonesianLong(dateObj);
+  const dateParts = parseDateParts(tanggalIso);
+  const romanMonth = dateParts.romanMonth;
+  const year = dateParts.year;
+  const formattedDateIndo = formatDateToIndonesianLong(dateParts.dateObj);
+
+  const suratMasukRef = resolveSuratMasukFromPrompt(userPrompt);
+  const personnelList = extractPersonnelFromPrompt(userPrompt);
+
+  let refInfo = "";
+  if (suratMasukRef) {
+    refInfo = `\nRujukan Surat Masuk yang Terdeteksi dari Google Drive:
+- No. Agenda Surat Masuk: ${suratMasukRef.matchedNumber}
+- Pengirim: ${suratMasukRef.dari}
+- Perihal: ${suratMasukRef.perihal}
+- Link Berkas Drive: ${suratMasukRef.driveUrl}
+Instruksi: Masukkan rujukan ini pada bagian 'Dasar:' dalam naskah dinas resmi.`;
+  }
+
+  let persInfo = "";
+  if (personnelList.length > 0) {
+    persInfo = `\nPersonil yang Ditugaskan / Disebut:
+${personnelList.map(p => `- ${p.nama} (${p.jabatan})`).join("\n")}`;
+  }
 
   const systemPrompt = `Anda adalah Asisten Tata Usaha Ahli di SMAS YWKA Bandung (di bawah Yayasan Wanita Kereta Api).
 Tugas Anda adalah menghasilkan naskah dinas resmi dan data agenda surat keluar sesuai pedoman arsip Google Drive Surat Keluar SMAS YWKA:
@@ -4097,13 +4363,14 @@ Tugas Anda adalah menghasilkan naskah dinas resmi dan data agenda surat keluar s
    - Kepala Sekolah: ${penandatangan} (${jabatan})
 2. Format Nomor Surat Keluar:
    [Kode]/[No_Agenda]/SMA YWKA/TU/[Bulan_Romawi]/[Tahun]
-   Contoh: 421.7/${noAgenda}/SMA YWKA/TU/${romanMonth}/${year}
+   Contoh: 422.1/${noAgenda}/SMA YWKA/TU/${romanMonth}/${year}
+   (Bulan Romawi saat ini wajib: ${romanMonth})
 3. 12 Kode Klasifikasi Resmi SMAS YWKA:
    - 421.3: Surat Umum / Keterangan Aktif Belajar / Undangan Umum
    - 421.6: Surat Pelepasan / Wisuda Kelas XII
-   - 421.7: Kegiatan Siswa / Dispensasi Lomba (FLS2N, O2SN, Paskibra, Petugas CKG)
+   - 421.7: Kegiatan Siswa / Dispensasi Lomba (FLS2N, O2SN, Paskibra)
    - 421.71: Reuni Alumni / Karya Wisata PT KAI
-   - 422.1: PPDB / MPLS / Surat Tugas Kedinasan Guru & Tendik
+   - 422.1: PPDB / MPLS / Surat Tugas Kedinasan Guru & Tendik (Surat Perintah Tugas)
    - 422.3: Pengumuman Hari Libur Nasional / Ramadhan / Semester
    - 422.5: Beasiswa / Pelajar Teladan / Siswa Eligible
    - 423.5: Kegiatan Kurikulum / SKL Sementara / Supervisi Guru
@@ -4113,27 +4380,28 @@ Tugas Anda adalah menghasilkan naskah dinas resmi dan data agenda surat keluar s
    - 425.3: Sarpras Perlengkapan Sekolah / Peminjaman Lapangan Olahraga
 4. Format Kolom I (Perihal Agenda Spreadsheet):
    Wajib ditulis dalam huruf KAPITAL ringkas tanpa tanda titik di akhir.
-   Contoh: "SURAT DISPENSASI SISWA MENGIKUTI SELEKSI FLS2N TINGKAT KOTA BANDUNG"
+   Contoh: "SURAT PERINTAH TUGAS LITERASI DIGITAL FKPT A.N NADA KHAIRUNISA, S.PD"${refInfo}${persInfo}
 
 Kembalikan HANYA JSON valid (tanpa markdown backtick, tanpa komentar tambahan di luar JSON) dengan struktur berikut:
 {
-  "kode": "string kode klasifikasi (misal 421.7 atau 422.1)",
+  "kode": "string kode klasifikasi (misal 422.1 atau 421.7)",
   "no_agenda": "${noAgenda}",
-  "no_surat_lengkap": "string nomor naskah dinas resmi lengkap",
+  "no_surat_lengkap": "string nomor naskah dinas resmi lengkap dengan bulan romawi ${romanMonth}",
   "tanggal_indo": "${formattedDateIndo}",
   "perihal_agenda": "STRING PERIHAL UNTUK KOLOM I SPREADSHEET DALAM HURUF KAPITAL RINGKAS",
   "perihal_surat": "Perihal surat formal naskah dinas",
   "lampiran": "string lampiran (misal: - atau 1 (Satu) Berkas)",
-  "kepada": "Pihak yang dituju",
+  "kepada": "Pihak yang dituju / yang ditugaskan",
   "alamat_tujuan": "Alamat tujuan (misal: di Tempat / di Bandung)",
   "dari": "${penandatangan}",
-  "petugas": "Petugas PIC (misal: BU ELVIRA / BU ADE / MIRA)",
-  "keterangan": "Arsip Surat Keluar",
+  "petugas": "Petugas PIC (misal: BU ADE / BU ELVIRA / MIRA)",
+  "keterangan": "string keterangan (misal: Menindaklanjuti Surat Masuk No. Agenda ... di Google Drive)",
   "is_surat_tugas": boolean (true jika naskah merupakan Surat Tugas/Perintah),
-  "judul_tengah": "string jika surat tugas/keterangan (misal: SURAT TUGAS)",
-  "isi_html": "string HTML paragraf pembuka, uraian, dan penutup surat resmi berbahasa Indonesia baku",
-  "has_table": boolean (true jika ada tabel daftar nama siswa/guru),
-  "table_html": "string HTML <table>...</table> jika ada daftar personil, atau string kosong"
+  "judul_tengah": "string jika surat tugas/keterangan (misal: SURAT PERINTAH TUGAS)",
+  "isi_html": "string HTML lengkap berisi Dasar, Memerintahkan/Menugaskan, rincian personil dan penugasan",
+  "has_table": boolean,
+  "table_html": "string HTML <table>...</table> jika ada daftar personil, atau string kosong",
+  "surat_masuk_ref": object atau null
 }`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -4165,34 +4433,43 @@ Kembalikan HANYA JSON valid (tanpa markdown backtick, tanpa komentar tambahan di
   const resJson = await response.json();
   const textContent = resJson.content?.[0]?.text || "{}";
   
-  // Bersihkan backtick jika model membungkusnya dengan ```json ... ```
   const cleanJson = textContent.replace(/```json/gi, "").replace(/```/g, "").trim();
   const parsed = JSON.parse(cleanJson);
   parsed.tanggal_iso = tanggalIso;
+  if (!parsed.surat_masuk_ref && suratMasukRef) {
+    parsed.surat_masuk_ref = suratMasukRef;
+  }
   return parsed;
 }
 
 /**
- * Smart School Template Engine (Offline Fallback berbasis Berkas Drive YWKA)
+ * Smart School Template Engine (Offline Fallback berbasis Berkas Drive & Data Masuk YWKA)
  * Menghasilkan naskah dinas resmi dan data agenda tanpa memerlukan internet / API Key
  */
 function generateAiTemplateOfflineFallback(params) {
   const { userPrompt, selectKode, noAgenda, tanggalIso, penandatangan, jabatan } = params;
   const promptLower = userPrompt.toLowerCase();
 
-  const dateObj = tanggalIso ? new Date(tanggalIso) : new Date();
-  const romanMonth = getRomanMonth(dateObj.getMonth() + 1);
-  const year = dateObj.getFullYear();
-  const formattedDateIndo = formatDateToIndonesianLong(dateObj);
+  // Parse tanggal & bulan Romawi secara presisi
+  const dateParts = parseDateParts(tanggalIso);
+  const romanMonth = dateParts.romanMonth;
+  const year = dateParts.year;
+  const formattedDateIndo = formatDateToIndonesianLong(dateParts.dateObj);
 
-  // 1. Tentukan Kode Klasifikasi
+  // Resolusi data Surat Masuk dari Google Drive & Cache Agenda
+  const suratMasukRef = resolveSuratMasukFromPrompt(userPrompt);
+
+  // Ekstraksi daftar nama personil
+  const personnelList = extractPersonnelFromPrompt(userPrompt);
+
+  // 1. Tentukan Kode Klasifikasi Resmi
   let determinedKode = "421.3";
   if (selectKode && selectKode !== "auto") {
     determinedKode = selectKode;
+  } else if (promptLower.includes("perintah") || promptLower.includes("tugas") || promptLower.includes("literasi digital") || promptLower.includes("fpkt") || promptLower.includes("fkpt") || promptLower.includes("ppdb") || promptLower.includes("mpls") || promptLower.includes("spmb")) {
+    determinedKode = "422.1"; // PPDB / MPLS / Surat Tugas Kedinasan Guru & Tendik
   } else if (promptLower.includes("dispensasi") || promptLower.includes("lomba") || promptLower.includes("paskibra") || promptLower.includes("o2sn") || promptLower.includes("fls2n")) {
-    determinedKode = "421.7";
-  } else if (promptLower.includes("tugas") || promptLower.includes("perintah") || promptLower.includes("ppdb") || promptLower.includes("mpls") || promptLower.includes("spmb")) {
-    determinedKode = "422.1";
+    determinedKode = "421.7"; // Kegiatan Siswa / Dispensasi
   } else if (promptLower.includes("wisuda") || promptLower.includes("pelepasan") || promptLower.includes("kelulusan")) {
     determinedKode = "421.6";
   } else if (promptLower.includes("libur") || promptLower.includes("cuti")) {
@@ -4213,106 +4490,172 @@ function generateAiTemplateOfflineFallback(params) {
 
   const noSuratLengkap = `${determinedKode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${year}`;
 
-  // 2. Ekstrak nama personil jika ada pola angka 1. ... 2. ...
-  const tableRows = [];
-  const lines = userPrompt.split(/\r?\n|;/);
-  let counter = 1;
-  lines.forEach(l => {
-    const match = l.match(/(?:^|\s)(?:[0-9]+[.)]|[-*])\s*([^,\n]+)/);
-    if (match && match[1].trim().length > 3) {
-      const rawText = match[1].trim();
-      tableRows.push({
-        no: counter++,
-        nama: rawText.replace(/\([^)]*\)/g, "").trim(),
-        keterangan: rawText.includes("(") ? rawText.substring(rawText.indexOf("(") + 1, rawText.indexOf(")")) : "Peserta / Ditugaskan"
-      });
-    }
-  });
-
-  // 3. Susun Data Spesifik berdasarkan Kategori
+  // 2. Susun Data Spesifik berdasarkan Kategori & Rujukan Surat Masuk
   let perihalAgenda = "SURAT KELUAR DINAS SMAS YWKA BANDUNG";
   let perihalSurat = "Surat Dinas Resmi Sekolah";
   let kepada = "Pihak Terkait";
   let alamatTujuan = "di Tempat";
-  let petugas = "BU ELVIRA";
+  let petugas = "BU ADE";
   let isSuratTugas = false;
   let judulTengah = "";
+  let keterangan = "Arsip Surat Keluar";
   let isiHtml = "";
   let tableHtml = "";
 
-  if (determinedKode === "421.7") {
-    // Dispensasi Siswa
+  if (determinedKode === "422.1") {
+    // SURAT PERINTAH TUGAS KEDINASAN GURU & TENDIK (422.1)
+    isSuratTugas = true;
+    judulTengah = "SURAT PERINTAH TUGAS";
+    petugas = "BU ADE";
+
+    const namaUtama = personnelList.length > 0 ? personnelList[0].nama : "Guru / Tenaga Pendidik";
+    const shortTopic = promptLower.includes("literasi digital") ? "LITERASI DIGITAL FKPT" : "TUGAS KEDINASAN GURU";
+
+    perihalAgenda = `SURAT PERINTAH TUGAS ${shortTopic} A.N ${namaUtama.toUpperCase()}`;
+    perihalSurat = "Surat Perintah Tugas Kedinasan Guru";
+    kepada = `${namaUtama} (Guru SMAS YWKA Bandung)`;
+
+    if (suratMasukRef) {
+      keterangan = `Menindaklanjuti Surat Masuk No. Agenda ${suratMasukRef.matchedNumber} (Google Drive)`;
+    } else {
+      keterangan = "Arsip Surat Perintah Tugas SMAS YWKA";
+    }
+
+    // Bangun Tabel Personil yang Ditugaskan
+    const personRows = personnelList.length > 0 ? personnelList : [
+      { no: 1, nama: "Nada Khairunisa, S.Pd.", jabatan: "Guru Mata Pelajaran", keterangan: "Peserta Perwakilan SMAS YWKA" }
+    ];
+
+    tableHtml = `
+      <table class="letter-table-formal">
+        <thead>
+          <tr>
+            <th style="width: 35px; text-align: center;">No</th>
+            <th>Nama Lengkap Guru / Pegawai</th>
+            <th>Jabatan / Unit Kerja</th>
+            <th>Status Penugasan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${personRows.map(r => `
+            <tr>
+              <td style="text-align: center;">${r.no}</td>
+              <td><strong>${escapeHtml(r.nama)}</strong></td>
+              <td>${escapeHtml(r.jabatan || "Guru SMAS YWKA Bandung")}</td>
+              <td>${escapeHtml(r.keterangan || "Peserta Kegiatan")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+    // Bangun Rujukan Dasar Surat Masuk dari Google Drive
+    let dasarHtml = "";
+    if (suratMasukRef) {
+      dasarHtml = `
+        <div class="letter-dasar-box" style="margin-bottom: 14px; font-size: 13px; line-height: 1.6; background: #f8fafc; border-left: 3px solid #059669; padding: 8px 14px; border-radius: 0 6px 6px 0;">
+          <strong>Dasar Penugasan:</strong>
+          <ol style="margin: 4px 0 0 16px; padding: 0;">
+            <li>Surat Masuk No. Agenda: <strong>${escapeHtml(suratMasukRef.matchedNumber)}</strong> dari <strong>${escapeHtml(suratMasukRef.dari)}</strong> perihal <em>${escapeHtml(suratMasukRef.perihal)}</em> (Berkas tersimpan pada arsip Google Drive Surat Masuk SMAS YWKA Bandung).</li>
+            <li>Program Kerja Tahunan dan Kebijakan Kepala SMAS YWKA Bandung Tahun Pelajaran ${year}/${parseInt(year, 10) + 1}.</li>
+          </ol>
+        </div>
+      `;
+    } else {
+      dasarHtml = `
+        <div class="letter-dasar-box" style="margin-bottom: 14px; font-size: 13px; line-height: 1.6; background: #f8fafc; border-left: 3px solid #059669; padding: 8px 14px; border-radius: 0 6px 6px 0;">
+          <strong>Dasar:</strong> Program Kerja Pembinaan dan Peningkatan Kompetensi Guru SMAS YWKA Bandung Tahun Pelajaran ${year}/${parseInt(year, 10) + 1}.
+        </div>
+      `;
+    }
+
+    const driveInfoLink = suratMasukRef ? `
+      <tr>
+        <td style="font-weight: 600;">Rujukan Google Drive</td>
+        <td><a href="${escapeHtml(suratMasukRef.driveUrl)}" target="_blank" rel="noopener noreferrer" style="color: #059669; font-weight: 600; text-decoration: underline;"><i class="fa-brands fa-google-drive"></i> Berkas Surat Masuk No. Agenda ${escapeHtml(suratMasukRef.matchedNumber)}</a></td>
+      </tr>
+    ` : "";
+
+    isiHtml = `
+      ${dasarHtml}
+      <p class="no-indent" style="text-align: center; font-weight: bold; margin: 12px 0 8px 0; letter-spacing: 0.5px;">
+        MEMERINTAHKAN:
+      </p>
+      <p class="no-indent" style="font-weight: 600; margin-bottom: 6px;">Kepada:</p>
+      ${tableHtml}
+      <p class="no-indent" style="font-weight: 600; margin-top: 12px; margin-bottom: 6px;">Untuk:</p>
+      <table class="letter-table-formal">
+        <tbody>
+          <tr>
+            <td style="width: 140px; font-weight: 600;">Nama Kegiatan</td>
+            <td><strong>Kegiatan Literasi Digital untuk Memperkuat Peran Guru dalam Menangkal Paham Kekerasan pada Siswa</strong></td>
+          </tr>
+          <tr>
+            <td style="font-weight: 600;">Penyelenggara</td>
+            <td>${escapeHtml(suratMasukRef ? suratMasukRef.dari : "Forum Koordinasi Pencegahan Terorisme (FKPT) Jawa Barat")}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: 600;">Tahun Anggaran</td>
+            <td>T.A ${year}</td>
+          </tr>
+          ${driveInfoLink}
+        </tbody>
+      </table>
+      <p style="margin-top: 14px;">
+        Demikian surat perintah tugas ini diberikan kepada yang bersangkutan untuk dilaksanakan dengan penuh rasa tanggung jawab dan dedikasi yang tinggi, serta menyampaikan laporan hasil penugasan secara tertulis kepada Kepala Sekolah setelah kegiatan selesai.
+      </p>
+    `;
+  } else if (determinedKode === "421.7") {
+    // Dispensasi Siswa (421.7)
     perihalAgenda = "SURAT DISPENSASI SISWA KEGIATAN LOMBA DAN PEMBINAAN";
     perihalSurat = "Permohonan Izin Dispensasi Belajar Siswa";
     kepada = "Bapak/Ibu Guru Mata Pelajaran / Panitia Pelaksana";
     petugas = "BU ELVIRA";
+    keterangan = "Arsip Surat Keluar";
+
+    const sRows = personnelList.length > 0 ? personnelList : [
+      { no: 1, nama: "Farhan Ramadhan", jabatan: "XI MIPA 1", keterangan: "Vokal Solo Putra FLS2N" },
+      { no: 2, nama: "Siti Sarah", jabatan: "XI MIPA 2", keterangan: "Cipta & Baca Puisi" }
+    ];
+
+    tableHtml = `
+      <table class="letter-table-formal">
+        <thead>
+          <tr>
+            <th style="width: 35px; text-align: center;">No</th>
+            <th>Nama Lengkap Siswa</th>
+            <th>Kelas / NISN</th>
+            <th>Bidang Lomba / Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sRows.map(r => `
+            <tr>
+              <td style="text-align: center;">${r.no}</td>
+              <td><strong>${escapeHtml(r.nama)}</strong></td>
+              <td>${escapeHtml(r.jabatan || "-")}</td>
+              <td>${escapeHtml(r.keterangan || "Peserta Lomba")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
     isiHtml = `
       <p class="no-indent">Dengan hormat,</p>
       <p>
-        Sehubungan dengan adanya agenda kegiatan pembinaan dan keikutsertaan siswa-siswi SMAS YWKA Bandung dalam kegiatan pengembangan minat dan bakat, bersama ini Kepala SMAS YWKA Bandung memberikan izin dispensasi belajar kepada siswa-siswi kami:
+        Sehubungan dengan adanya keikutsertaan siswa-siswi SMAS YWKA Bandung dalam agenda perlombaan dan pengembangan minat bakat, bersama ini Kepala SMAS YWKA Bandung menerangkan sekaligus memberikan izin dispensasi belajar kepada siswa-siswi berprestasi kami:
       </p>
-    `;
-    if (tableRows.length > 0) {
-      tableHtml = `
-        <table class="letter-table-formal">
-          <thead>
-            <tr>
-              <th style="width: 35px;">No</th>
-              <th>Nama Lengkap Siswa</th>
-              <th>Kelas / Keterangan</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows.map(r => `<tr><td style="text-align: center;">${r.no}</td><td><strong>${escapeHtml(r.nama)}</strong></td><td>${escapeHtml(r.keterangan)}</td></tr>`).join("")}
-          </tbody>
-        </table>
-      `;
-    }
-    isiHtml += (tableHtml || `<p style="font-style: italic; padding-left: 20px;">(Daftar nama siswa terlampir pada lembar registrasi resmi kegiatan)</p>`) + `
+      ${tableHtml}
       <p>
-        Kegiatan tersebut akan dilaksanakan sesuai jadwal penugasan. Kami memohon kepada Bapak/Ibu Guru untuk memberikan izin dispensasi serta tidak memperhitungkan ketidakhadiran siswa bersangkutan selama jam pelajaran berlangsung.
+        Kegiatan tersebut akan dilaksanakan sesuai jadwal penugasan dari panitia. Kami memohon bantuan Bapak/Ibu Guru untuk memberikan izin serta tidak memperhitungkan ketidakhadiran siswa bersangkutan selama jam pelajaran berlangsung.
       </p>
       <p>
         Demikian surat dispensasi ini kami sampaikan, atas perhatian dan kerjasama yang baik dari Bapak/Ibu, kami ucapkan terima kasih.
       </p>
     `;
-  } else if (determinedKode === "422.1") {
-    // Surat Tugas Guru / PPDB
-    isSuratTugas = true;
-    judulTengah = "SURAT PERINTAH TUGAS";
-    perihalAgenda = "SURAT TUGAS KEDINASAN GURU DAN TENAGA KEPENDIDIKAN";
-    perihalSurat = "Surat Perintah Tugas Kedinasan";
-    kepada = "Pendidik / Tenaga Kependidikan yang Ditugaskan";
-    petugas = "BU ADE";
-    isiHtml = `
-      <p class="no-indent">Kepala SMAS YWKA Bandung dengan ini menugaskan kepada:</p>
-    `;
-    if (tableRows.length > 0) {
-      tableHtml = `
-        <table class="letter-table-formal">
-          <thead>
-            <tr>
-              <th style="width: 35px;">No</th>
-              <th>Nama Pegawai / Guru</th>
-              <th>Jabatan / Tugas Kedinasan</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows.map(r => `<tr><td style="text-align: center;">${r.no}</td><td><strong>${escapeHtml(r.nama)}</strong></td><td>${escapeHtml(r.keterangan)}</td></tr>`).join("")}
-          </tbody>
-        </table>
-      `;
-    }
-    isiHtml += (tableHtml || `<p style="padding-left: 20px;"><strong>Nama Pendidik:</strong> Budi Santoso, S.Pd. dkk<br><strong>Jabatan:</strong> Guru / Pembina Sekolah</p>`) + `
-      <p>
-        Untuk melaksanakan tugas kedinasan sesuai dengan arahan Kepala Sekolah serta menyampaikan laporan tertulis setelah pelaksanaan tugas selesai dilaksanakan.
-      </p>
-      <p>
-        Demikian surat tugas ini diberikan untuk dapat dilaksanakan dengan sebaik-baiknya dan penuh rasa tanggung jawab.
-      </p>
-    `;
   } else if (determinedKode === "425.3") {
-    // Peminjaman Sarpras
+    // Peminjaman Sarpras (425.3)
     perihalAgenda = "PERMOHONAN PEMINJAMAN SARANA PRASARANA SEKOLAH";
     perihalSurat = "Permohonan Peminjaman Sarana dan Prasarana";
     kepada = "Pimpinan / Pengelola Sarana PT KAI Daop 2 Bandung";
@@ -4320,17 +4663,17 @@ function generateAiTemplateOfflineFallback(params) {
     isiHtml = `
       <p class="no-indent">Dengan hormat,</p>
       <p>
-        Dalam rangka mendukung kelancaran kegiatan kesiswaan serta Pekan Olahraga dan Seni SMAS YWKA Bandung Tahun 2026, bersama ini kami mengajukan permohonan izin peminjaman sarana dan prasarana.
+        Dalam rangka mendukung kelancaran kegiatan kesiswaan serta Pekan Olahraga dan Seni SMAS YWKA Bandung Tahun ${year}, bersama ini kami mengajukan permohonan izin peminjaman sarana dan prasarana.
       </p>
       <p>
-        Adapun sarana yang kami maksud akan dipergunakan dengan sebaik-baiknya dengan senantiasa menjaga kebersihan, ketertiban, dan keutuhan fasilitas selama kegiatan berlangsung.
+        Adapun fasilitas yang dipinjam akan dipergunakan dengan sebaik-baiknya dengan senantiasa menjaga kebersihan, ketertiban, dan keutuhan fasilitas selama kegiatan berlangsung.
       </p>
       <p>
-        Besar harapan kami kiranya Bapak/Ibu berkenan mengabulkan permohonan ini. Atas perhatian, dukungan, dan kerjasamanya kami haturkan terima kasih.
+        Besar harapan kami kiranya Bapak/Ibu berkenan mengabulkan permohonan ini. Atas perhatian dan kerjasamanya kami haturkan terima kasih.
       </p>
     `;
   } else if (determinedKode === "422.3") {
-    // Pengumuman Libur
+    // Pengumuman Libur (422.3)
     perihalAgenda = "PEMBERITAHUAN HARI LIBUR NASIONAL DAN KEGIATAN SEKOLAH";
     perihalSurat = "Pemberitahuan Hari Libur Sekolah";
     kepada = "Bapak/Ibu Orang Tua / Wali Murid SMAS YWKA Bandung";
@@ -4362,7 +4705,7 @@ function generateAiTemplateOfflineFallback(params) {
         <strong>Nama Siswa:</strong> Muhammad Rayhan Al-Faris<br>
         <strong>NIS / NISN:</strong> 232410012 / 0082736182<br>
         <strong>Kelas:</strong> X (Fase E-1)<br>
-        <strong>Tahun Ajaran:</strong> 2026/2027
+        <strong>Tahun Ajaran:</strong> ${year}/${parseInt(year, 10) + 1}
       </div>
       <p>
         Adalah benar siswa yang bersangkutan tercatat aktif mengikuti Kegiatan Belajar Mengajar (KBM) di SMAS YWKA Bandung dan berkelakuan baik. Surat keterangan ini diterbitkan untuk dipergunakan sebagaimana mestinya.
@@ -4381,17 +4724,19 @@ function generateAiTemplateOfflineFallback(params) {
     tanggal_iso: tanggalIso,
     perihal_agenda: perihalAgenda,
     perihal_surat: perihalSurat,
-    lampiran: tableRows.length > 0 ? "1 (Satu) Lembar" : "- (Nihil)",
+    lampiran: (tableHtml || personnelList.length > 0) ? "1 (Satu) Berkas" : "- (Nihil)",
     kepada: kepada,
     alamat_tujuan: alamatTujuan,
     dari: penandatangan,
+    jabatan: jabatan,
     petugas: petugas,
-    keterangan: "Arsip Surat Keluar",
+    keterangan: keterangan,
     is_surat_tugas: isSuratTugas,
     judul_tengah: judulTengah,
     isi_html: isiHtml,
-    has_table: tableRows.length > 0,
-    table_html: tableHtml
+    has_table: !!tableHtml,
+    table_html: tableHtml,
+    surat_masuk_ref: suratMasukRef
   };
 }
 
@@ -4404,6 +4749,23 @@ function renderAiResultToPreview(data) {
   // Badge Action Banner
   const badgeNomor = document.getElementById("aiBadgeNomorSurat");
   if (badgeNomor) badgeNomor.textContent = data.no_surat_lengkap || "-";
+
+  // Banner Sinkronisasi Rujukan Surat Masuk Google Drive
+  const driveBanner = document.getElementById("aiDriveSuratMasukRefBanner");
+  const driveDesc = document.getElementById("aiDriveSuratMasukRefDesc");
+  const driveLink = document.getElementById("aiDriveSuratMasukRefLink");
+
+  if (data.surat_masuk_ref) {
+    if (driveBanner) driveBanner.style.display = "flex";
+    if (driveDesc) {
+      driveDesc.innerHTML = `Surat Masuk No. Agenda <strong>${escapeHtml(data.surat_masuk_ref.matchedNumber)}</strong> &bull; <strong>${escapeHtml(data.surat_masuk_ref.dari)}</strong> &mdash; <em>${escapeHtml(data.surat_masuk_ref.perihal)}</em>`;
+    }
+    if (driveLink) {
+      driveLink.href = data.surat_masuk_ref.driveUrl || state.driveMasukUrl;
+    }
+  } else if (driveBanner) {
+    driveBanner.style.display = "none";
+  }
 
   // Metadata Surat di Kertas A4
   const docNomor = document.getElementById("docPreviewNomor");
