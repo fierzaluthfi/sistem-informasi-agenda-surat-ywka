@@ -975,6 +975,16 @@ body {
   border-color: var(--primary-border);
 }
 
+.btn-table-action.btn-edit-action {
+  color: #0284c7;
+}
+
+.btn-table-action.btn-edit-action:hover {
+  background: #f0f9ff;
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+
 .btn-table-action.btn-upload-action {
   color: #059669;
 }
@@ -993,6 +1003,21 @@ body {
   background: #fff1f2;
   color: #be123c;
   border-color: #fecdd3;
+}
+
+/* Badge Format Tanggal Real-time */
+.date-format-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #047857;
+  background: #ecfdf5;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid #a7f3d0;
+  width: fit-content;
 }
 
 /* Tombol Upload Langsung di Kolom Berkas Drive */

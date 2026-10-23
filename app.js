@@ -50,27 +50,91 @@ const MONTH_NAMES = [
 
 /**
  * Helper: Format Tanggal Indonesia (DD/MM/YYYY)
- * Mengubah 2026-10-26 menjadi 26/10/2026
+ * Mengubah 2026-10-26, 2026/10/26, ISO strings, maupun format tanggal lainnya menjadi 26/10/2026
  */
 function formatDateIndo(dateStr) {
   if (!dateStr) return "-";
-  dateStr = String(dateStr).trim();
-  if (!dateStr || dateStr === "-") return "-";
-  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(dateStr)) {
-    const parts = dateStr.split(/[-/]/);
-    const y = parts[0];
-    const m = parts[1].padStart(2, "0");
-    const d = parts[2].padStart(2, "0");
+  dateStr = String(dateStr).trim().replace(/^'+/, "");
+  if (!dateStr || dateStr === "-" || dateStr === "null" || dateStr === "undefined") return "-";
+
+  // 1. Cek format DD-MM-YYYY atau DD/MM/YYYY (atau MM/DD/YYYY dari spreadsheet US)
+  const matchDmy = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (matchDmy) {
+    const part1 = parseInt(matchDmy[1], 10);
+    const part2 = parseInt(matchDmy[2], 10);
+    const year = matchDmy[3];
+    if (part2 > 12 && part1 <= 12) {
+      // US format MM/DD/YYYY dari spreadsheet -> ubah ke DD/MM/YYYY
+      const d = String(part2).padStart(2, "0");
+      const m = String(part1).padStart(2, "0");
+      return `${d}/${m}/${year}`;
+    }
+    const d = String(part1).padStart(2, "0");
+    const m = String(part2).padStart(2, "0");
+    return `${d}/${m}/${year}`;
+  }
+
+  // 2. Cek format ISO YYYY-MM-DD atau YYYY/MM/DD
+  const matchIso = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (matchIso) {
+    const y = matchIso[1];
+    const m = String(matchIso[2]).padStart(2, "0");
+    const d = String(matchIso[3]).padStart(2, "0");
     return `${d}/${m}/${y}`;
   }
-  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(dateStr)) {
-    const parts = dateStr.split(/[-/]/);
-    const d = parts[0].padStart(2, "0");
-    const m = parts[1].padStart(2, "0");
-    const y = parts[2];
+
+  // 3. Fallback Date.parse
+  const parsed = Date.parse(dateStr);
+  if (!isNaN(parsed)) {
+    const dt = new Date(parsed);
+    const d = String(dt.getDate()).padStart(2, "0");
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const y = dt.getFullYear();
     return `${d}/${m}/${y}`;
   }
+
   return dateStr;
+}
+
+/**
+ * Helper: Mengubah tanggal (DD/MM/YYYY atau lainnya) menjadi format input HTML (YYYY-MM-DD)
+ */
+function formatDateToInput(dateStr) {
+  if (!dateStr || dateStr === "-") return "";
+  dateStr = String(dateStr).trim().replace(/^'+/, "");
+  
+  const matchIso = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (matchIso) {
+    const y = matchIso[1];
+    const m = String(matchIso[2]).padStart(2, "0");
+    const d = String(matchIso[3]).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  const matchDmy = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (matchDmy) {
+    const part1 = parseInt(matchDmy[1], 10);
+    const part2 = parseInt(matchDmy[2], 10);
+    const year = matchDmy[3];
+    let d = part1;
+    let m = part2;
+    if (part2 > 12 && part1 <= 12) {
+      d = part2;
+      m = part1;
+    }
+    return `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  const parsed = Date.parse(dateStr);
+  if (!isNaN(parsed)) {
+    const dt = new Date(parsed);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  return "";
 }
 
 // Koleksi Template Surat Lengkap Berdasarkan Arsip Google Drive SMA YWKA
@@ -633,14 +697,54 @@ function initDateDefaults() {
   const formattedToday = `${yyyy}-${mm}-${dd}`;
 
   const genDateInput = document.getElementById("genTanggalSurat");
-  if (genDateInput) genDateInput.value = formattedToday;
+  if (genDateInput) {
+    genDateInput.value = formattedToday;
+    updateDateBadgePreview("genTanggalSurat", "previewGenTanggalSurat");
+    genDateInput.addEventListener("change", () => updateDateBadgePreview("genTanggalSurat", "previewGenTanggalSurat"));
+    genDateInput.addEventListener("input", () => updateDateBadgePreview("genTanggalSurat", "previewGenTanggalSurat"));
+  }
 
   const masukTglInput = document.getElementById("inMasukTglSurat");
   const masukTerimaInput = document.getElementById("inMasukTglDiterima");
-  if (masukTglInput) masukTglInput.value = formattedToday;
-  if (masukTerimaInput) masukTerimaInput.value = formattedToday;
+  if (masukTglInput) {
+    masukTglInput.value = formattedToday;
+    updateDateBadgePreview("inMasukTglSurat", "previewInMasukTglSurat");
+    masukTglInput.addEventListener("change", () => updateDateBadgePreview("inMasukTglSurat", "previewInMasukTglSurat"));
+    masukTglInput.addEventListener("input", () => updateDateBadgePreview("inMasukTglSurat", "previewInMasukTglSurat"));
+  }
+  if (masukTerimaInput) {
+    masukTerimaInput.value = formattedToday;
+    updateDateBadgePreview("inMasukTglDiterima", "previewInMasukTglDiterima");
+    masukTerimaInput.addEventListener("change", () => updateDateBadgePreview("inMasukTglDiterima", "previewInMasukTglDiterima"));
+    masukTerimaInput.addEventListener("input", () => updateDateBadgePreview("inMasukTglDiterima", "previewInMasukTglDiterima"));
+  }
+
+  // Edit forms date listeners
+  const editKeluarTgl = document.getElementById("editKeluarTanggalSurat");
+  if (editKeluarTgl) {
+    editKeluarTgl.addEventListener("change", () => updateDateBadgePreview("editKeluarTanggalSurat", "previewEditKeluarTgl"));
+    editKeluarTgl.addEventListener("input", () => updateDateBadgePreview("editKeluarTanggalSurat", "previewEditKeluarTgl"));
+  }
+  const editMasukTgl = document.getElementById("editMasukTglSurat");
+  if (editMasukTgl) {
+    editMasukTgl.addEventListener("change", () => updateDateBadgePreview("editMasukTglSurat", "previewEditMasukTglSurat"));
+    editMasukTgl.addEventListener("input", () => updateDateBadgePreview("editMasukTglSurat", "previewEditMasukTglSurat"));
+  }
+  const editMasukTerima = document.getElementById("editMasukTglDiterima");
+  if (editMasukTerima) {
+    editMasukTerima.addEventListener("change", () => updateDateBadgePreview("editMasukTglDiterima", "previewEditMasukTglDiterima"));
+    editMasukTerima.addEventListener("input", () => updateDateBadgePreview("editMasukTglDiterima", "previewEditMasukTglDiterima"));
+  }
 
   updateGeneratedPreview();
+}
+
+function updateDateBadgePreview(inputId, previewId) {
+  const input = document.getElementById(inputId);
+  const preview = document.getElementById(previewId);
+  if (input && preview) {
+    preview.textContent = formatDateIndo(input.value) || "-";
+  }
 }
 
 function initNavigation() {
@@ -1323,13 +1427,25 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
   }
 }`;
 
-  if (codeArea) codeArea.value = scriptCode;
+  if (codeArea) {
+    codeArea.value = scriptCode;
+    // Muat langsung dari google-apps-script.js agar selalu sinkron dengan versi terbaru v2.6
+    fetch("google-apps-script.js")
+      .then(res => res.text())
+      .then(latestCode => {
+        if (latestCode && latestCode.includes("VERSI 2.6")) {
+          codeArea.value = latestCode;
+        }
+      })
+      .catch(() => {});
+  }
 
   const btnCopyScript = document.getElementById("btnCopyScriptCode");
   if (btnCopyScript) {
     btnCopyScript.addEventListener("click", () => {
-      navigator.clipboard.writeText(scriptCode);
-      showToast("Kode Google Apps Script v2.5 berhasil disalin!", "success");
+      const codeToCopy = (codeArea && codeArea.value) ? codeArea.value : scriptCode;
+      navigator.clipboard.writeText(codeToCopy);
+      showToast("Kode Google Apps Script v2.6 berhasil disalin!", "success");
     });
   }
 }
@@ -1598,7 +1714,7 @@ function initEventListeners() {
     formUploadRow.addEventListener("submit", handleExecuteUploadRowDrive);
   }
 
-  // Modal Delete Surat Keluar Listeners
+  // Modal Delete Surat (Keluar & Masuk) Listeners
   const modalDelete = document.getElementById("modalConfirmDelete");
   const btnCloseDelete = document.getElementById("btnCloseConfirmDelete");
   const btnCancelDelete = document.getElementById("btnCancelConfirmDelete");
@@ -1612,6 +1728,49 @@ function initEventListeners() {
   }
   if (btnExecDelete) {
     btnExecDelete.addEventListener("click", handleExecuteDeleteRow);
+  }
+
+  // Modal Edit Surat Keluar Listeners
+  const modalEditKeluar = document.getElementById("modalEditSuratKeluar");
+  const btnCloseModalEditKeluar = document.getElementById("btnCloseModalEditKeluar");
+  const btnCancelModalEditKeluar = document.getElementById("btnCancelModalEditKeluar");
+  const formEditSuratKeluar = document.getElementById("formEditSuratKeluar");
+  const editKeluarKodeKlasifikasi = document.getElementById("editKeluarKodeKlasifikasi");
+  const editKeluarCustomKode = document.getElementById("editKeluarCustomKode");
+
+  if (btnCloseModalEditKeluar && modalEditKeluar) {
+    btnCloseModalEditKeluar.addEventListener("click", () => modalEditKeluar.classList.remove("show"));
+  }
+  if (btnCancelModalEditKeluar && modalEditKeluar) {
+    btnCancelModalEditKeluar.addEventListener("click", () => modalEditKeluar.classList.remove("show"));
+  }
+  if (formEditSuratKeluar) {
+    formEditSuratKeluar.addEventListener("submit", handleExecuteEditSuratKeluar);
+  }
+  if (editKeluarKodeKlasifikasi && editKeluarCustomKode) {
+    editKeluarKodeKlasifikasi.addEventListener("change", () => {
+      if (editKeluarKodeKlasifikasi.value === "custom") {
+        editKeluarCustomKode.style.display = "block";
+      } else {
+        editKeluarCustomKode.style.display = "none";
+      }
+    });
+  }
+
+  // Modal Edit Surat Masuk Listeners
+  const modalEditMasuk = document.getElementById("modalEditSuratMasuk");
+  const btnCloseModalEditMasuk = document.getElementById("btnCloseModalEditMasuk");
+  const btnCancelModalEditMasuk = document.getElementById("btnCancelModalEditMasuk");
+  const formEditSuratMasuk = document.getElementById("formEditSuratMasuk");
+
+  if (btnCloseModalEditMasuk && modalEditMasuk) {
+    btnCloseModalEditMasuk.addEventListener("click", () => modalEditMasuk.classList.remove("show"));
+  }
+  if (btnCancelModalEditMasuk && modalEditMasuk) {
+    btnCancelModalEditMasuk.addEventListener("click", () => modalEditMasuk.classList.remove("show"));
+  }
+  if (formEditSuratMasuk) {
+    formEditSuratMasuk.addEventListener("submit", handleExecuteEditSuratMasuk);
   }
 }
 
@@ -2043,6 +2202,9 @@ function renderSuratKeluarTable() {
             <button type="button" class="btn-table-action" title="Lihat Lembar Agenda" onclick="viewDisposisiKeluar('${item.id}')">
               <i class="fa-solid fa-file-invoice"></i>
             </button>
+            <button type="button" class="btn-table-action btn-edit-action" title="Edit Data Surat Keluar" onclick="openEditModalKeluar('${item.id}')">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
             <button type="button" class="btn-table-action btn-upload-action" title="Upload Berkas ke Google Drive" onclick="openUploadModalKeluar('${item.id}')">
               <i class="fa-solid fa-cloud-arrow-up"></i>
             </button>
@@ -2137,11 +2299,14 @@ function renderSuratMasukTable() {
   let html = "";
   currentSlice.forEach((item, idx) => {
     const rowNum = start + idx + 1;
-    const driveLinkHtml = (item.driveUrl || item.lampiran.includes("http"))
-      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" rel="noopener noreferrer" class="btn-drive-link">
+    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")));
+    const driveLinkHtml = hasDriveFile
+      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Buka berkas scan di Google Drive">
            <i class="fa-brands fa-google-drive"></i> Berkas Drive
          </a>`
-      : `<span class="text-light" style="font-size: 11px;">Surat Masuk</span>`;
+      : `<button type="button" class="btn-upload-direct" title="Upload berkas scan ke Google Drive Surat Masuk" onclick="openUploadModalMasuk('${item.id}')">
+           <i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Upload Drive
+         </button>`;
 
     html += `
       <tr>
@@ -2156,9 +2321,23 @@ function renderSuratMasukTable() {
         <td>${item.keterangan ? `<span class="tag-pic">${escapeHtml(item.keterangan)}</span>` : "-"}</td>
         <td style="text-align: center;">${driveLinkHtml}</td>
         <td style="text-align: center;">
-          <button type="button" class="btn-table-action" title="Lihat Lembar Disposisi Masuk" onclick="viewDisposisiMasuk('${item.id}')">
-            <i class="fa-solid fa-file-invoice"></i>
-          </button>
+          <div class="action-buttons">
+            <button type="button" class="btn-table-action" title="Salin Nomor Agenda / Asal" onclick="copyText('${escapeQuotes(item.noAgenda)}')">
+              <i class="fa-solid fa-copy"></i>
+            </button>
+            <button type="button" class="btn-table-action" title="Lihat Lembar Disposisi Masuk" onclick="viewDisposisiMasuk('${item.id}')">
+              <i class="fa-solid fa-file-invoice"></i>
+            </button>
+            <button type="button" class="btn-table-action btn-edit-action" title="Edit Data Surat Masuk" onclick="openEditModalMasuk('${item.id}')">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+            <button type="button" class="btn-table-action btn-upload-action" title="Upload Berkas ke Google Drive Surat Masuk" onclick="openUploadModalMasuk('${item.id}')">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+            </button>
+            <button type="button" class="btn-table-action btn-danger-action" title="Hapus Data Surat Masuk Ini" onclick="openDeleteModalMasuk('${item.id}')">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -2871,15 +3050,22 @@ function openUploadModalKeluar(id) {
   }
 
   const modal = document.getElementById("modalUploadRowDrive");
+  const typeLabel = document.getElementById("uploadModalTypeLabel");
+  const folderInfo = document.getElementById("uploadModalFolderInfo");
   const targetIdInput = document.getElementById("uploadModalTargetId");
   const targetAgendaInput = document.getElementById("uploadModalTargetAgenda");
+  const targetTypeInput = document.getElementById("uploadModalTargetType");
   const nomorText = document.getElementById("uploadModalNomorLengkap");
   const perihalText = document.getElementById("uploadModalPerihal");
   const fileInput = document.getElementById("inputUploadRowFile");
 
+  if (typeLabel) typeLabel.textContent = "SURAT KELUAR TARGET:";
+  if (folderInfo) folderInfo.innerHTML = `<i class="fa-solid fa-folder-tree"></i> Tersimpan otomatis ke folder: <strong>Surat Keluar 2026</strong> & checkbox spreadsheet otomatis diceklis (☑)`;
+  if (targetTypeInput) targetTypeInput.value = "keluar";
   if (targetIdInput) targetIdInput.value = item.id;
-  if (targetAgendaInput) targetAgendaInput.value = item.noAgenda || item.noUrut || "";
-  if (nomorText) nomorText.textContent = item.nomorLengkap || `No. Agenda: ${item.noAgenda || item.noUrut}`;
+  const noAgendaVal = item.noAgenda || item.noUrut || "";
+  if (targetAgendaInput) targetAgendaInput.value = noAgendaVal;
+  if (nomorText) nomorText.textContent = item.nomorLengkap || `No. Agenda: ${noAgendaVal}`;
   if (perihalText) perihalText.textContent = item.perihal || "-";
   if (fileInput) fileInput.value = "";
 
@@ -2887,13 +3073,46 @@ function openUploadModalKeluar(id) {
 }
 
 /**
- * Eksekusi upload file ke Google Drive per baris surat keluar
+ * Buka modal upload Google Drive per baris surat masuk
+ */
+function openUploadModalMasuk(id) {
+  const item = state.suratMasuk.find(m => m.id === id);
+  if (!item) {
+    showToast("Data surat masuk tidak ditemukan!", "error");
+    return;
+  }
+
+  const modal = document.getElementById("modalUploadRowDrive");
+  const typeLabel = document.getElementById("uploadModalTypeLabel");
+  const folderInfo = document.getElementById("uploadModalFolderInfo");
+  const targetIdInput = document.getElementById("uploadModalTargetId");
+  const targetAgendaInput = document.getElementById("uploadModalTargetAgenda");
+  const targetTypeInput = document.getElementById("uploadModalTargetType");
+  const nomorText = document.getElementById("uploadModalNomorLengkap");
+  const perihalText = document.getElementById("uploadModalPerihal");
+  const fileInput = document.getElementById("inputUploadRowFile");
+
+  if (typeLabel) typeLabel.textContent = "SURAT MASUK TARGET:";
+  if (folderInfo) folderInfo.innerHTML = `<i class="fa-solid fa-folder-tree"></i> Tersimpan otomatis ke folder: <strong>Surat Masuk 2026</strong> pada Google Drive SMA YWKA`;
+  if (targetTypeInput) targetTypeInput.value = "masuk";
+  if (targetIdInput) targetIdInput.value = item.id;
+  if (targetAgendaInput) targetAgendaInput.value = item.noAgenda || item.noUrut || "";
+  if (nomorText) nomorText.textContent = item.noAgenda ? `No. Asal/Agenda: ${item.noAgenda}` : `No. Urut: ${item.noUrut}`;
+  if (perihalText) perihalText.textContent = `${item.perihal || "-"} (Pengirim: ${item.dari || "-"})`;
+  if (fileInput) fileInput.value = "";
+
+  if (modal) modal.classList.add("show");
+}
+
+/**
+ * Eksekusi upload file ke Google Drive (Mendukung Surat Keluar & Surat Masuk)
  */
 async function handleExecuteUploadRowDrive(e) {
   e.preventDefault();
 
   const targetId = document.getElementById("uploadModalTargetId")?.value;
   const targetAgenda = document.getElementById("uploadModalTargetAgenda")?.value;
+  const targetType = document.getElementById("uploadModalTargetType")?.value || "keluar";
   const fileInput = document.getElementById("inputUploadRowFile");
   const btnSubmit = document.getElementById("btnSubmitUploadRowDrive");
   const modal = document.getElementById("modalUploadRowDrive");
@@ -2925,8 +3144,9 @@ async function handleExecuteUploadRowDrive(e) {
       return;
     }
 
+    const isMasuk = (targetType === "masuk");
     const payload = {
-      action: "upload_lampiran_keluar",
+      action: isMasuk ? "upload_lampiran_masuk" : "upload_lampiran_keluar",
       no_agenda: targetAgenda,
       fileName: fileName,
       fileBase64: fileBase64,
@@ -2941,27 +3161,40 @@ async function handleExecuteUploadRowDrive(e) {
 
     const resJson = await res.json();
     if (resJson && resJson.status === "success" && resJson.drive_file_url) {
-      const item = state.suratKeluar.find(s => s.id === targetId || s.noAgenda === targetAgenda);
-      if (item) {
-        item.driveUrl = resJson.drive_file_url;
-        item.lampiran = resJson.drive_file_url;
-        item.status = true;
-      }
-      localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+      if (isMasuk) {
+        const item = state.suratMasuk.find(m => m.id === targetId || m.noAgenda === targetAgenda);
+        if (item) {
+          item.driveUrl = resJson.drive_file_url;
+          item.lampiran = resJson.drive_file_url;
+        }
+        localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
+        filterSuratMasukData();
+        updateDashboardUI();
+        if (modal) modal.classList.remove("show");
+        showToast(`✅ Berkas surat masuk berhasil diunggah ke Google Drive!`, "success");
+      } else {
+        const item = state.suratKeluar.find(s => s.id === targetId || s.noAgenda === targetAgenda);
+        if (item) {
+          item.driveUrl = resJson.drive_file_url;
+          item.lampiran = resJson.drive_file_url;
+          item.status = true;
+        }
+        localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
 
-      const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
-      const unIdx = unsyncedList.findIndex(x => x.id === targetId || x.noAgenda === targetAgenda);
-      if (unIdx !== -1) {
-        unsyncedList[unIdx].driveUrl = resJson.drive_file_url;
-        unsyncedList[unIdx].lampiran = resJson.drive_file_url;
-        unsyncedList[unIdx].status = true;
-        localStorage.setItem("unsynced_surat_keluar", JSON.stringify(unsyncedList));
-      }
+        const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+        const unIdx = unsyncedList.findIndex(x => x.id === targetId || x.noAgenda === targetAgenda);
+        if (unIdx !== -1) {
+          unsyncedList[unIdx].driveUrl = resJson.drive_file_url;
+          unsyncedList[unIdx].lampiran = resJson.drive_file_url;
+          unsyncedList[unIdx].status = true;
+          localStorage.setItem("unsynced_surat_keluar", JSON.stringify(unsyncedList));
+        }
 
-      filterSuratKeluarData();
-      updateDashboardUI();
-      if (modal) modal.classList.remove("show");
-      showToast(`✅ Berkas berhasil diunggah ke Google Drive & checkbox spreadsheet telah diceklis!`, "success");
+        filterSuratKeluarData();
+        updateDashboardUI();
+        if (modal) modal.classList.remove("show");
+        showToast(`✅ Berkas berhasil diunggah ke Google Drive & checkbox spreadsheet telah diceklis!`, "success");
+      }
     } else {
       throw new Error(resJson?.message || "Gagal mengunggah berkas");
     }
@@ -2987,13 +3220,22 @@ function openDeleteModalKeluar(id) {
   const modal = document.getElementById("modalConfirmDelete");
   const targetIdInput = document.getElementById("deleteModalTargetId");
   const targetAgendaInput = document.getElementById("deleteModalTargetAgenda");
+  const targetTypeInput = document.getElementById("deleteModalTargetType");
+  const title = document.getElementById("deleteModalTitle");
+  const prompt = document.getElementById("deleteModalPromptText");
+  const note = document.getElementById("deleteModalNote");
   const agendaText = document.getElementById("deleteModalAgenda");
   const nomorText = document.getElementById("deleteModalNomor");
   const perihalText = document.getElementById("deleteModalPerihal");
 
+  if (targetTypeInput) targetTypeInput.value = "keluar";
+  if (title) title.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color: #e11d48;"></i> Konfirmasi Hapus Surat Keluar`;
+  if (prompt) prompt.textContent = "Apakah Anda yakin ingin menghapus data surat keluar ini?";
+  if (note) note.innerHTML = `<i class="fa-solid fa-circle-info"></i> Baris di Spreadsheet akan di-reset (uncheck kotak & kosongkan perihal), dan data lokal browser akan dibersihkan.`;
   if (targetIdInput) targetIdInput.value = item.id;
-  if (targetAgendaInput) targetAgendaInput.value = item.noAgenda || item.noUrut || "";
-  if (agendaText) agendaText.textContent = item.noAgenda || item.noUrut || "-";
+  const noAgendaVal = item.noAgenda || item.noUrut || "";
+  if (targetAgendaInput) targetAgendaInput.value = noAgendaVal;
+  if (agendaText) agendaText.textContent = noAgendaVal || "-";
   if (nomorText) nomorText.textContent = item.nomorLengkap || "-";
   if (perihalText) perihalText.textContent = item.perihal || "-";
 
@@ -3001,11 +3243,46 @@ function openDeleteModalKeluar(id) {
 }
 
 /**
- * Eksekusi hapus data surat keluar
+ * Buka modal konfirmasi hapus data surat masuk
+ */
+function openDeleteModalMasuk(id) {
+  const item = state.suratMasuk.find(m => m.id === id);
+  if (!item) {
+    showToast("Data surat masuk tidak ditemukan!", "error");
+    return;
+  }
+
+  const modal = document.getElementById("modalConfirmDelete");
+  const targetIdInput = document.getElementById("deleteModalTargetId");
+  const targetAgendaInput = document.getElementById("deleteModalTargetAgenda");
+  const targetTypeInput = document.getElementById("deleteModalTargetType");
+  const title = document.getElementById("deleteModalTitle");
+  const prompt = document.getElementById("deleteModalPromptText");
+  const note = document.getElementById("deleteModalNote");
+  const agendaText = document.getElementById("deleteModalAgenda");
+  const nomorText = document.getElementById("deleteModalNomor");
+  const perihalText = document.getElementById("deleteModalPerihal");
+
+  if (targetTypeInput) targetTypeInput.value = "masuk";
+  if (title) title.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color: #e11d48;"></i> Konfirmasi Hapus Surat Masuk`;
+  if (prompt) prompt.textContent = "Apakah Anda yakin ingin menghapus data surat masuk ini?";
+  if (note) note.innerHTML = `<i class="fa-solid fa-circle-info"></i> Baris pada Sheet SURAT MASUK 2026 di Spreadsheet akan dihapus dan data lokal browser akan dibersihkan.`;
+  if (targetIdInput) targetIdInput.value = item.id;
+  if (targetAgendaInput) targetAgendaInput.value = item.noAgenda || item.noUrut || "";
+  if (agendaText) agendaText.textContent = item.noUrut ? `Urut #${item.noUrut}` : "-";
+  if (nomorText) nomorText.textContent = item.noAgenda || "-";
+  if (perihalText) perihalText.textContent = `${item.perihal || "-"} (Pengirim: ${item.dari || "-"})`;
+
+  if (modal) modal.classList.add("show");
+}
+
+/**
+ * Eksekusi hapus data surat (Mendukung Surat Keluar & Surat Masuk)
  */
 async function handleExecuteDeleteRow() {
   const targetId = document.getElementById("deleteModalTargetId")?.value;
   const targetAgenda = document.getElementById("deleteModalTargetAgenda")?.value;
+  const targetType = document.getElementById("deleteModalTargetType")?.value || "keluar";
   const btnExec = document.getElementById("btnExecuteDeleteRow");
   const modal = document.getElementById("modalConfirmDelete");
 
@@ -3018,15 +3295,18 @@ async function handleExecuteDeleteRow() {
   btnExec.disabled = true;
   btnExec.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghapus...`;
 
+  const isMasuk = (targetType === "masuk");
+
   try {
-    if (state.appsScriptUrl && targetAgenda) {
+    if (state.appsScriptUrl) {
       try {
         await fetch(state.appsScriptUrl, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
           body: JSON.stringify({
-            action: "delete_surat_keluar",
-            no_agenda: targetAgenda
+            action: isMasuk ? "delete_surat_masuk" : "delete_surat_keluar",
+            no_agenda: targetAgenda,
+            id: targetId
           })
         });
       } catch (scriptErr) {
@@ -3034,21 +3314,36 @@ async function handleExecuteDeleteRow() {
       }
     }
 
-    state.suratKeluar = state.suratKeluar.filter(s => s.id !== targetId && s.noAgenda !== targetAgenda);
-    localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+    if (isMasuk) {
+      state.suratMasuk = state.suratMasuk.filter(m => m.id !== targetId && m.noAgenda !== targetAgenda);
+      localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
 
-    const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
-    const updatedUnsynced = unsyncedList.filter(s => s.id !== targetId && s.noAgenda !== targetAgenda);
-    localStorage.setItem("unsynced_surat_keluar", JSON.stringify(updatedUnsynced));
+      const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+      const updatedUnsynced = unsyncedList.filter(m => m.id !== targetId && m.noAgenda !== targetAgenda);
+      localStorage.setItem("unsynced_surat_masuk", JSON.stringify(updatedUnsynced));
 
-    calculateNextSequence();
-    filterSuratKeluarData();
-    updateDashboardUI();
+      filterSuratMasukData();
+      updateDashboardUI();
 
-    if (modal) modal.classList.remove("show");
-    showToast(`✅ Data surat agenda ${targetAgenda} berhasil dihapus!`, "success");
+      if (modal) modal.classList.remove("show");
+      showToast(`✅ Data surat masuk "${targetAgenda}" berhasil dihapus!`, "success");
+    } else {
+      state.suratKeluar = state.suratKeluar.filter(s => s.id !== targetId && s.noAgenda !== targetAgenda);
+      localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+
+      const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+      const updatedUnsynced = unsyncedList.filter(s => s.id !== targetId && s.noAgenda !== targetAgenda);
+      localStorage.setItem("unsynced_surat_keluar", JSON.stringify(updatedUnsynced));
+
+      calculateNextSequence();
+      filterSuratKeluarData();
+      updateDashboardUI();
+
+      if (modal) modal.classList.remove("show");
+      showToast(`✅ Data surat keluar agenda ${targetAgenda} berhasil dihapus!`, "success");
+    }
   } catch (err) {
-    console.error("Gagal menghapus surat keluar:", err);
+    console.error("Gagal menghapus surat:", err);
     showToast(`⚠️ Gagal menghapus data: ${err.message || err}`, "error");
   } finally {
     btnExec.disabled = false;
@@ -3056,10 +3351,428 @@ async function handleExecuteDeleteRow() {
   }
 }
 
+/**
+ * Buka modal edit data surat keluar
+ */
+function openEditModalKeluar(id) {
+  const item = state.suratKeluar.find(s => s.id === id);
+  if (!item) {
+    showToast("Data surat keluar tidak ditemukan!", "error");
+    return;
+  }
+
+  const modal = document.getElementById("modalEditSuratKeluar");
+  const targetId = document.getElementById("editKeluarId");
+  const oldAgenda = document.getElementById("editKeluarOldAgenda");
+  const selKode = document.getElementById("editKeluarKodeKlasifikasi");
+  const customKode = document.getElementById("editKeluarCustomKode");
+  const txtNoAgenda = document.getElementById("editKeluarNoAgenda");
+  const dtTgl = document.getElementById("editKeluarTanggalSurat");
+  const txtPerihal = document.getElementById("editKeluarPerihal");
+  const txtKepada = document.getElementById("editKeluarKepada");
+  const txtDari = document.getElementById("editKeluarDari");
+  const txtPetugas = document.getElementById("editKeluarPetugas");
+  const txtKet = document.getElementById("editKeluarKeterangan");
+  const curFile = document.getElementById("editKeluarCurrentFileName");
+  const fileInput = document.getElementById("editKeluarUploadDrive");
+
+  if (targetId) targetId.value = item.id;
+  const noAgendaVal = item.noAgenda || item.noUrut || "";
+  if (oldAgenda) oldAgenda.value = noAgendaVal;
+  if (txtNoAgenda) txtNoAgenda.value = noAgendaVal;
+
+  const standardKodes = ["421.3", "421.7", "421.71", "422.1", "423.5", "423.7", "424", "425.11", "428", "800", "005", "090"];
+  const itemKode = item.kodeKlasifikasi || "421.3";
+  if (selKode) {
+    if (standardKodes.includes(itemKode)) {
+      selKode.value = itemKode;
+      if (customKode) {
+        customKode.style.display = "none";
+        customKode.value = "";
+      }
+    } else {
+      selKode.value = "custom";
+      if (customKode) {
+        customKode.style.display = "block";
+        customKode.value = itemKode;
+      }
+    }
+  }
+
+  if (dtTgl) {
+    dtTgl.value = formatDateToInput(item.tanggal);
+    updateDateBadgePreview("editKeluarTanggalSurat", "previewEditKeluarTgl");
+  }
+
+  if (txtPerihal) txtPerihal.value = item.perihal || "";
+  if (txtKepada) txtKepada.value = item.kepada || "";
+  if (txtDari) txtDari.value = item.dari || "Syarif Hasanudin, S.Pd., Gr., M.M.";
+  if (txtPetugas) txtPetugas.value = item.petugas || "";
+  if (txtKet) txtKet.value = item.keterangan || "";
+
+  if (curFile) {
+    const hasDrive = item.driveUrl || (item.lampiran && item.lampiran.includes("http"));
+    curFile.innerHTML = hasDrive 
+      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" class="text-emerald font-bold"><i class="fa-brands fa-google-drive"></i> Berkas Drive Tersedia</a>`
+      : `<span style="color: #64748b;">${escapeHtml(item.lampiran || "Belum ada berkas")}</span>`;
+  }
+  if (fileInput) fileInput.value = "";
+
+  if (modal) modal.classList.add("show");
+}
+
+/**
+ * Eksekusi simpan perubahan edit surat keluar
+ */
+async function handleExecuteEditSuratKeluar(e) {
+  e.preventDefault();
+
+  const targetId = document.getElementById("editKeluarId")?.value;
+  const oldAgenda = document.getElementById("editKeluarOldAgenda")?.value;
+  const selKode = document.getElementById("editKeluarKodeKlasifikasi");
+  const customKode = document.getElementById("editKeluarCustomKode");
+  const txtNoAgenda = document.getElementById("editKeluarNoAgenda");
+  const dtTgl = document.getElementById("editKeluarTanggalSurat");
+  const txtPerihal = document.getElementById("editKeluarPerihal");
+  const txtKepada = document.getElementById("editKeluarKepada");
+  const txtDari = document.getElementById("editKeluarDari");
+  const txtPetugas = document.getElementById("editKeluarPetugas");
+  const txtKet = document.getElementById("editKeluarKeterangan");
+  const fileInput = document.getElementById("editKeluarUploadDrive");
+  const btnSubmit = document.getElementById("btnSubmitEditKeluar");
+  const modal = document.getElementById("modalEditSuratKeluar");
+
+  const itemIndex = state.suratKeluar.findIndex(s => s.id === targetId || s.noAgenda === oldAgenda);
+  if (itemIndex === -1) {
+    showToast("Data surat yang akan diedit tidak ditemukan di daftar!", "error");
+    return;
+  }
+
+  let kode = selKode?.value === "custom" ? customKode?.value.trim() : selKode?.value;
+  if (!kode) kode = "421.3";
+  const noAgenda = txtNoAgenda?.value.trim() || oldAgenda;
+  const formattedTgl = formatDateIndo(dtTgl?.value);
+
+  let romanMonth = "X";
+  let tahun = "2026";
+  if (dtTgl && dtTgl.value) {
+    const parts = dtTgl.value.split("-");
+    tahun = parts[0];
+    const mIdx = parseInt(parts[1], 10) - 1;
+    if (mIdx >= 0 && mIdx < 12) romanMonth = ROMAN_MONTHS[mIdx];
+  }
+
+  const fullNumber = `${kode}/${noAgenda}/SMA YWKA/TU/${romanMonth}/${tahun}`.replace(/\/{2,}/g, "/");
+
+  const origBtnHtml = btnSubmit ? btnSubmit.innerHTML : "";
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan Perubahan...`;
+  }
+
+  let fileBase64 = "";
+  let fileName = "";
+  let fileMime = "";
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    try {
+      const file = fileInput.files[0];
+      fileBase64 = await readFileAsBase64(file);
+      fileName = file.name;
+      fileMime = file.type || "application/pdf";
+    } catch (err) {
+      console.warn("Gagal membaca file upload baru:", err);
+    }
+  }
+
+  const payload = {
+    action: "edit_surat_keluar",
+    old_no_agenda: oldAgenda,
+    no_agenda: noAgenda,
+    kode_klasifikasi: kode,
+    bulan_romawi: romanMonth,
+    tahun: tahun,
+    tanggal_surat: formattedTgl,
+    perihal: txtPerihal?.value.trim() || "",
+    dari: txtDari?.value.trim() || "Syarif Hasanudin, S.Pd., Gr., M.M.",
+    kepada: txtKepada?.value.trim() || "",
+    petugas: txtPetugas?.value.trim() || "",
+    keterangan: txtKet?.value.trim() || "",
+    fileBase64: fileBase64,
+    fileName: fileName,
+    fileMime: fileMime
+  };
+
+  let syncSuccess = false;
+  let driveUrl = state.suratKeluar[itemIndex].driveUrl || "";
+
+  if (state.appsScriptUrl) {
+    try {
+      const res = await fetch(state.appsScriptUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      });
+      const resJson = await res.json();
+      if (resJson && resJson.status === "success") {
+        syncSuccess = true;
+        if (resJson.drive_file_url) {
+          driveUrl = resJson.drive_file_url;
+        }
+      }
+    } catch (err) {
+      console.warn("Gagal sinkron edit ke Apps Script:", err);
+    }
+  }
+
+  // Update object di state.suratKeluar
+  const existing = state.suratKeluar[itemIndex];
+  existing.noUrut = noAgenda;
+  existing.noAgenda = noAgenda;
+  existing.kodeKlasifikasi = kode;
+  existing.nomorLengkap = fullNumber;
+  existing.bulanRomawi = romanMonth;
+  existing.tanggal = formattedTgl;
+  existing.perihal = payload.perihal;
+  existing.dari = payload.dari;
+  existing.kepada = payload.kepada;
+  existing.petugas = payload.petugas;
+  existing.keterangan = payload.keterangan;
+  if (driveUrl) {
+    existing.driveUrl = driveUrl;
+    existing.lampiran = driveUrl;
+    existing.status = true;
+  } else if (fileName) {
+    existing.lampiran = "Tersimpan (" + fileName + ")";
+  }
+
+  localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+
+  const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+  const unIdx = unsyncedList.findIndex(s => s.id === targetId || s.noAgenda === oldAgenda);
+  if (unIdx !== -1) {
+    unsyncedList[unIdx] = Object.assign({}, unsyncedList[unIdx], existing);
+    localStorage.setItem("unsynced_surat_keluar", JSON.stringify(unsyncedList));
+  }
+
+  filterSuratKeluarData();
+  updateDashboardUI();
+
+  if (btnSubmit) {
+    btnSubmit.disabled = false;
+    btnSubmit.innerHTML = origBtnHtml;
+  }
+  if (modal) modal.classList.remove("show");
+
+  if (syncSuccess) {
+    showToast(`✅ Perubahan Surat Keluar agenda ${noAgenda} berhasil disimpan ke Spreadsheet!`, "success");
+  } else if (!state.appsScriptUrl) {
+    showToast(`⚠️ Perubahan Surat Keluar agenda ${noAgenda} tersimpan di browser. Masukkan Web App URL di Pengaturan untuk sync ke Spreadsheet.`, "warning");
+  } else {
+    showToast(`⚠️ Perubahan tersimpan lokal di browser (Gagal koneksi ke Spreadsheet).`, "warning");
+  }
+}
+
+/**
+ * Buka modal edit data surat masuk
+ */
+function openEditModalMasuk(id) {
+  const item = state.suratMasuk.find(s => s.id === id);
+  if (!item) {
+    showToast("Data surat masuk tidak ditemukan!", "error");
+    return;
+  }
+
+  const modal = document.getElementById("modalEditSuratMasuk");
+  const targetId = document.getElementById("editMasukId");
+  const oldAgenda = document.getElementById("editMasukOldAgenda");
+  const oldNoUrut = document.getElementById("editMasukOldNoUrut");
+  const txtNoAgenda = document.getElementById("editMasukNoAgenda");
+  const dtTglSurat = document.getElementById("editMasukTglSurat");
+  const dtTglDiterima = document.getElementById("editMasukTglDiterima");
+  const txtPerihal = document.getElementById("editMasukPerihal");
+  const txtDari = document.getElementById("editMasukDari");
+  const txtKepada = document.getElementById("editMasukKepada");
+  const txtDisposisi = document.getElementById("editMasukDisposisi");
+  const selKode = document.getElementById("editMasukKodeKlasifikasi");
+  const curFile = document.getElementById("editMasukCurrentFileName");
+  const fileInput = document.getElementById("editMasukUploadDrive");
+
+  if (targetId) targetId.value = item.id;
+  if (oldAgenda) oldAgenda.value = item.noAgenda || "";
+  if (oldNoUrut) oldNoUrut.value = item.noUrut || "";
+  if (txtNoAgenda) txtNoAgenda.value = item.noAgenda || "";
+
+  if (dtTglSurat) {
+    dtTglSurat.value = formatDateToInput(item.tglSurat);
+    updateDateBadgePreview("editMasukTglSurat", "previewEditMasukTglSurat");
+  }
+  if (dtTglDiterima) {
+    dtTglDiterima.value = formatDateToInput(item.tglMasuk);
+    updateDateBadgePreview("editMasukTglDiterima", "previewEditMasukTglDiterima");
+  }
+
+  if (txtPerihal) txtPerihal.value = item.perihal || "";
+  if (txtDari) txtDari.value = item.dari || "";
+  if (txtKepada) txtKepada.value = item.kepada || "SMA YWKA";
+  if (txtDisposisi) txtDisposisi.value = item.keterangan || "";
+  if (selKode) selKode.value = item.kodeKlasifikasi || "";
+
+  if (curFile) {
+    const hasDrive = item.driveUrl || (item.lampiran && item.lampiran.includes("http"));
+    curFile.innerHTML = hasDrive
+      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" class="text-emerald font-bold"><i class="fa-brands fa-google-drive"></i> Berkas Scan Drive Tersedia</a>`
+      : `<span style="color: #64748b;">${escapeHtml(item.lampiran || "Belum ada berkas scan")}</span>`;
+  }
+  if (fileInput) fileInput.value = "";
+
+  if (modal) modal.classList.add("show");
+}
+
+/**
+ * Eksekusi simpan perubahan edit surat masuk
+ */
+async function handleExecuteEditSuratMasuk(e) {
+  e.preventDefault();
+
+  const targetId = document.getElementById("editMasukId")?.value;
+  const oldAgenda = document.getElementById("editMasukOldAgenda")?.value;
+  const oldNoUrut = document.getElementById("editMasukOldNoUrut")?.value;
+  const txtNoAgenda = document.getElementById("editMasukNoAgenda");
+  const dtTglSurat = document.getElementById("editMasukTglSurat");
+  const dtTglDiterima = document.getElementById("editMasukTglDiterima");
+  const txtPerihal = document.getElementById("editMasukPerihal");
+  const txtDari = document.getElementById("editMasukDari");
+  const txtKepada = document.getElementById("editMasukKepada");
+  const txtDisposisi = document.getElementById("editMasukDisposisi");
+  const selKode = document.getElementById("editMasukKodeKlasifikasi");
+  const fileInput = document.getElementById("editMasukUploadDrive");
+  const btnSubmit = document.getElementById("btnSubmitEditMasuk");
+  const modal = document.getElementById("modalEditSuratMasuk");
+
+  const itemIndex = state.suratMasuk.findIndex(m => m.id === targetId || m.noAgenda === oldAgenda);
+  if (itemIndex === -1) {
+    showToast("Data surat masuk yang akan diedit tidak ditemukan di daftar!", "error");
+    return;
+  }
+
+  const noAgenda = txtNoAgenda?.value.trim() || oldAgenda;
+  const formattedTglSurat = formatDateIndo(dtTglSurat?.value);
+  const formattedTglTerima = formatDateIndo(dtTglDiterima?.value);
+
+  const origBtnHtml = btnSubmit ? btnSubmit.innerHTML : "";
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan Perubahan...`;
+  }
+
+  let fileBase64 = "";
+  let fileName = "";
+  let fileMime = "";
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    try {
+      const file = fileInput.files[0];
+      fileBase64 = await readFileAsBase64(file);
+      fileName = file.name;
+      fileMime = file.type || "application/pdf";
+    } catch (err) {
+      console.warn("Gagal membaca file upload baru surat masuk:", err);
+    }
+  }
+
+  const payload = {
+    action: "edit_surat_masuk",
+    old_no_agenda: oldAgenda,
+    old_no_urut: oldNoUrut,
+    no_agenda: noAgenda,
+    no_urut: oldNoUrut || String(itemIndex + 1),
+    tanggal_surat: formattedTglSurat,
+    tanggal_diterima: formattedTglTerima,
+    perihal: txtPerihal?.value.trim() || "",
+    dari: txtDari?.value.trim() || "",
+    kepada: txtKepada?.value.trim() || "SMA YWKA",
+    kode_klasifikasi: selKode?.value || "",
+    keterangan: txtDisposisi?.value.trim() || "",
+    fileBase64: fileBase64,
+    fileName: fileName,
+    fileMime: fileMime
+  };
+
+  let syncSuccess = false;
+  let driveUrl = state.suratMasuk[itemIndex].driveUrl || "";
+
+  if (state.appsScriptUrl) {
+    try {
+      const res = await fetch(state.appsScriptUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      });
+      const resJson = await res.json();
+      if (resJson && resJson.status === "success") {
+        syncSuccess = true;
+        if (resJson.drive_file_url) {
+          driveUrl = resJson.drive_file_url;
+        }
+      }
+    } catch (err) {
+      console.warn("Gagal sinkron edit surat masuk ke Apps Script:", err);
+    }
+  }
+
+  // Update object di state.suratMasuk
+  const existing = state.suratMasuk[itemIndex];
+  existing.noAgenda = noAgenda;
+  existing.tglSurat = formattedTglSurat;
+  existing.tglMasuk = formattedTglTerima;
+  existing.perihal = payload.perihal;
+  existing.dari = payload.dari;
+  existing.kepada = payload.kepada;
+  existing.kodeKlasifikasi = payload.kode_klasifikasi;
+  existing.keterangan = payload.keterangan;
+  if (driveUrl) {
+    existing.driveUrl = driveUrl;
+    existing.lampiran = driveUrl;
+  } else if (fileName) {
+    existing.lampiran = "Tersimpan (" + fileName + ")";
+  }
+
+  localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
+
+  const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+  const unIdx = unsyncedList.findIndex(m => m.id === targetId || m.noAgenda === oldAgenda);
+  if (unIdx !== -1) {
+    unsyncedList[unIdx] = Object.assign({}, unsyncedList[unIdx], existing);
+    localStorage.setItem("unsynced_surat_masuk", JSON.stringify(unsyncedList));
+  }
+
+  filterSuratMasukData();
+  updateDashboardUI();
+
+  if (btnSubmit) {
+    btnSubmit.disabled = false;
+    btnSubmit.innerHTML = origBtnHtml;
+  }
+  if (modal) modal.classList.remove("show");
+
+  if (syncSuccess) {
+    showToast(`✅ Perubahan Surat Masuk "${noAgenda}" berhasil disimpan ke Spreadsheet!`, "success");
+  } else if (!state.appsScriptUrl) {
+    showToast(`⚠️ Perubahan Surat Masuk "${noAgenda}" tersimpan di browser. Masukkan Web App URL di Pengaturan untuk sync ke Spreadsheet.`, "warning");
+  } else {
+    showToast(`⚠️ Perubahan tersimpan lokal di browser (Gagal koneksi ke Spreadsheet).`, "warning");
+  }
+}
+
 // Ekspos fungsi ke window agar dapat dipanggil dari inline HTML onclick
+window.openEditModalKeluar = openEditModalKeluar;
+window.handleExecuteEditSuratKeluar = handleExecuteEditSuratKeluar;
+window.openEditModalMasuk = openEditModalMasuk;
+window.handleExecuteEditSuratMasuk = handleExecuteEditSuratMasuk;
 window.openUploadModalKeluar = openUploadModalKeluar;
+window.openUploadModalMasuk = openUploadModalMasuk;
 window.handleExecuteUploadRowDrive = handleExecuteUploadRowDrive;
 window.openDeleteModalKeluar = openDeleteModalKeluar;
+window.openDeleteModalMasuk = openDeleteModalMasuk;
 window.handleExecuteDeleteRow = handleExecuteDeleteRow;
 window.viewDisposisiKeluar = viewDisposisiKeluar;
 window.viewDisposisiMasuk = viewDisposisiMasuk;

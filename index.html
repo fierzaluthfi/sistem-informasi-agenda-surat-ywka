@@ -268,7 +268,7 @@
                     <th style="width: 160px;">Tujuan / Kepada</th>
                     <th style="width: 110px;">Petugas / PIC</th>
                     <th style="width: 110px; text-align: center;">Berkas Drive</th>
-                    <th style="width: 90px; text-align: center;">Aksi</th>
+                    <th style="width: 170px; text-align: center;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="tbodySuratKeluar">
@@ -386,7 +386,7 @@
                     <th style="width: 180px;">Dari (Pengirim)</th>
                     <th style="width: 110px;">Keterangan</th>
                     <th style="width: 110px; text-align: center;">Berkas Drive</th>
-                    <th style="width: 80px; text-align: center;">Aksi</th>
+                    <th style="width: 170px; text-align: center;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="tbodySuratMasuk">
@@ -815,6 +815,9 @@
                   <div class="form-group flex-1">
                     <label for="genTanggalSurat" class="form-label">Tanggal Surat <span class="text-danger">*</span></label>
                     <input type="date" id="genTanggalSurat" class="form-control" required>
+                    <div class="date-format-badge" id="badgeGenTanggalSurat">
+                      <i class="fa-regular fa-calendar-check text-emerald"></i> Format agenda: <strong id="previewGenTanggalSurat">26/10/2026</strong>
+                    </div>
                   </div>
                 </div>
 
@@ -1221,10 +1224,16 @@
             <div class="form-group flex-1">
               <label for="inMasukTglSurat" class="form-label">Tanggal Surat <span class="text-danger">*</span></label>
               <input type="date" id="inMasukTglSurat" class="form-control" required>
+              <div class="date-format-badge" id="badgeInMasukTglSurat">
+                <i class="fa-regular fa-calendar-check text-emerald"></i> Format: <strong id="previewInMasukTglSurat">-</strong>
+              </div>
             </div>
             <div class="form-group flex-1">
               <label for="inMasukTglDiterima" class="form-label">Tanggal Diterima <span class="text-danger">*</span></label>
               <input type="date" id="inMasukTglDiterima" class="form-control" required>
+              <div class="date-format-badge" id="badgeInMasukTglDiterima">
+                <i class="fa-regular fa-calendar-check text-emerald"></i> Format: <strong id="previewInMasukTglDiterima">-</strong>
+              </div>
             </div>
           </div>
 
@@ -1418,7 +1427,194 @@
     </div>
   </div>
 
-  <!-- Modal: Upload Berkas Drive Langsung per Agenda -->
+  <!-- ================= MODAL: EDIT DATA SURAT KELUAR ================= -->
+  <div class="modal-backdrop" id="modalEditSuratKeluar">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-pen-to-square text-primary"></i> Edit Data Surat Keluar</h3>
+        <button class="modal-close-btn" id="btnCloseModalEditKeluar" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="formEditSuratKeluar">
+        <div class="modal-body">
+          <input type="hidden" id="editKeluarId">
+          <input type="hidden" id="editKeluarOldAgenda">
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="editKeluarKodeKlasifikasi" class="form-label">Kode Klasifikasi <span class="text-danger">*</span></label>
+              <select id="editKeluarKodeKlasifikasi" class="form-control" required>
+                <option value="421.3">421.3 - Surat Umum & Undangan</option>
+                <option value="421.7">421.7 - Kegiatan Kesiswaan / Ekstrakurikuler</option>
+                <option value="421.71">421.71 - Izin Operasional / Dispensasi Siswa</option>
+                <option value="422.1">422.1 - Penerimaan Peserta Didik Baru (PPDB)</option>
+                <option value="423.5">423.5 - Kurikulum & Pembelajaran</option>
+                <option value="423.7">423.7 - Ujian Sekolah & Asesmen</option>
+                <option value="424">424 - Akreditasi & Kelembagaan</option>
+                <option value="425.11">425.11 - Sarana Prasarana & Pemeliharaan</option>
+                <option value="428">428 - Keuangan, SPP & BOSP</option>
+                <option value="800">800 - Kepegawaian, Guru & Karyawan</option>
+                <option value="005">005 - Undangan Resmi Eksternal</option>
+                <option value="090">090 - Perjalanan Dinas</option>
+                <option value="custom">-- Kustom / Kode Lainnya --</option>
+              </select>
+              <input type="text" id="editKeluarCustomKode" class="form-control" style="display: none; margin-top: 6px;" placeholder="Ketik kode kustom (misal: 421.9)">
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="editKeluarNoAgenda" class="form-label">No. Agenda <span class="text-danger">*</span></label>
+              <input type="text" id="editKeluarNoAgenda" class="form-control font-bold" required>
+              <small class="helper-text">Bisa diedit (misal: 609 atau 609.a)</small>
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="editKeluarTanggalSurat" class="form-label">Tanggal Surat <span class="text-danger">*</span></label>
+              <input type="date" id="editKeluarTanggalSurat" class="form-control" required>
+              <div class="date-format-badge" id="badgeEditKeluarTgl">
+                <i class="fa-regular fa-calendar-check text-emerald"></i> Format: <strong id="previewEditKeluarTgl">-</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="editKeluarPerihal" class="form-label">Prihal / Isi Ringkasan Surat <span class="text-danger">*</span></label>
+            <input type="text" id="editKeluarPerihal" class="form-control" placeholder="Isi ringkasan perihal surat" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="editKeluarKepada" class="form-label">Tujuan / Kepada <span class="text-danger">*</span></label>
+              <input type="text" id="editKeluarKepada" class="form-control" placeholder="Tujuan surat" required>
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="editKeluarDari" class="form-label">Dari (Pengirim / Penandatangan)</label>
+              <input type="text" id="editKeluarDari" class="form-control" value="Syarif Hasanudin, S.Pd., Gr., M.M.">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="editKeluarPetugas" class="form-label">Petugas / PIC / Pengelola</label>
+              <input type="text" id="editKeluarPetugas" class="form-control" placeholder="Contoh: BU ELVIRA / BU ADE">
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="editKeluarKeterangan" class="form-label">Keterangan Tambahan</label>
+              <input type="text" id="editKeluarKeterangan" class="form-control" placeholder="Catatan tambahan">
+            </div>
+          </div>
+
+          <div class="form-group drive-upload-group" style="margin-top: 10px;">
+            <label class="form-label font-bold">
+              <i class="fa-brands fa-google-drive text-emerald"></i> Ganti / Perbarui Berkas di Google Drive (Opsional)
+            </label>
+            <div id="editKeluarCurrentFileBox" style="font-size: 12px; margin-bottom: 6px; color: #475569;">
+              Berkas saat ini: <strong id="editKeluarCurrentFileName">-</strong>
+            </div>
+            <input type="file" id="editKeluarUploadDrive" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <small class="helper-text">Biarkan kosong jika tidak ingin mengubah berkas yang sudah ada.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelModalEditKeluar">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitEditKeluar">
+            <i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan Surat Keluar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDIT DATA SURAT MASUK ================= -->
+  <div class="modal-backdrop" id="modalEditSuratMasuk">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-pen-to-square text-emerald"></i> Edit Data Surat Masuk</h3>
+        <button class="modal-close-btn" id="btnCloseModalEditMasuk" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="formEditSuratMasuk">
+        <div class="modal-body">
+          <input type="hidden" id="editMasukId">
+          <input type="hidden" id="editMasukOldAgenda">
+          <input type="hidden" id="editMasukOldNoUrut">
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="editMasukNoAgenda" class="form-label">No. Surat Asal / No. Agenda <span class="text-danger">*</span></label>
+              <input type="text" id="editMasukNoAgenda" class="form-control font-bold" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="editMasukTglSurat" class="form-label">Tanggal Surat <span class="text-danger">*</span></label>
+              <input type="date" id="editMasukTglSurat" class="form-control" required>
+              <div class="date-format-badge" id="badgeEditMasukTglSurat">
+                <i class="fa-regular fa-calendar-check text-emerald"></i> Format: <strong id="previewEditMasukTglSurat">-</strong>
+              </div>
+            </div>
+            <div class="form-group flex-1">
+              <label for="editMasukTglDiterima" class="form-label">Tanggal Diterima <span class="text-danger">*</span></label>
+              <input type="date" id="editMasukTglDiterima" class="form-control" required>
+              <div class="date-format-badge" id="badgeEditMasukTglDiterima">
+                <i class="fa-regular fa-calendar-check text-emerald"></i> Format: <strong id="previewEditMasukTglDiterima">-</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="editMasukPerihal" class="form-label">Prihal / Isi Ringkasan Surat <span class="text-danger">*</span></label>
+            <textarea id="editMasukPerihal" class="form-control" rows="2" required></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="editMasukDari" class="form-label">Dari (Instansi Pengirim) <span class="text-danger">*</span></label>
+              <input type="text" id="editMasukDari" class="form-control" list="listPengirimUmum" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="editMasukKepada" class="form-label">Kepada (Penerima di Sekolah)</label>
+              <input type="text" id="editMasukKepada" class="form-control" value="SMA YWKA">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="editMasukDisposisi" class="form-label">Disposisi / Keterangan</label>
+              <input type="text" id="editMasukDisposisi" class="form-control" placeholder="Contoh: Kurikulum / Kesiswaan / Keuangan">
+            </div>
+            <div class="form-group flex-1">
+              <label for="editMasukKodeKlasifikasi" class="form-label">Kode Klasifikasi (Jika Ada)</label>
+              <select id="editMasukKodeKlasifikasi" class="form-control">
+                <option value="">-- Tanpa Kode --</option>
+                <option value="421.3">421.3 - Surat Umum</option>
+                <option value="421.7">421.7 - Kegiatan Siswa</option>
+                <option value="422.1">422.1 - PPDB / MPLS</option>
+                <option value="423.5">423.5 - Kurikulum</option>
+                <option value="423.7">423.7 - Ujian / Asesmen</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group drive-upload-group" style="margin-top: 10px;">
+            <label class="form-label font-bold">
+              <i class="fa-brands fa-google-drive text-emerald"></i> Ganti / Perbarui Berkas Drive (Opsional)
+            </label>
+            <div id="editMasukCurrentFileBox" style="font-size: 12px; margin-bottom: 6px; color: #475569;">
+              Berkas saat ini: <strong id="editMasukCurrentFileName">-</strong>
+            </div>
+            <input type="file" id="editMasukUploadDrive" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <small class="helper-text">Biarkan kosong jika tidak ingin mengubah berkas scan surat masuk yang sudah ada.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btnCancelModalEditMasuk">Batal</button>
+          <button type="submit" class="btn btn-emerald" id="btnSubmitEditMasuk">
+            <i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan Surat Masuk
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Upload Berkas Drive Langsung per Agenda (Mendukung Keluar & Masuk) -->
   <div class="modal-backdrop" id="modalUploadRowDrive">
     <div class="modal-dialog">
       <div class="modal-header">
@@ -1430,21 +1626,22 @@
       <form id="formUploadRowDrive">
         <div class="modal-body">
           <div class="info-callout" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-            <div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px;">SURAT KELUAR TARGET:</div>
+            <div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px;" id="uploadModalTypeLabel">SURAT TARGET:</div>
             <div style="font-weight: 700; color: #1e293b; font-size: 14px;" id="uploadModalNomorLengkap">-</div>
             <div style="font-size: 12.5px; color: #475569; margin-top: 4px;" id="uploadModalPerihal">-</div>
-            <div style="font-size: 11.5px; color: #059669; margin-top: 6px;">
-              <i class="fa-solid fa-folder-tree"></i> Tersimpan otomatis ke folder: <strong>Surat Keluar 2026</strong> & checkbox spreadsheet otomatis diceklis (☑)
+            <div style="font-size: 11.5px; color: #059669; margin-top: 6px;" id="uploadModalFolderInfo">
+              <i class="fa-solid fa-folder-tree"></i> Tersimpan otomatis ke folder Google Drive resmi SMA YWKA
             </div>
           </div>
 
           <input type="hidden" id="uploadModalTargetId" value="">
           <input type="hidden" id="uploadModalTargetAgenda" value="">
+          <input type="hidden" id="uploadModalTargetType" value="keluar">
 
           <div class="form-group">
             <label class="form-label font-bold">Pilih Berkas Lampiran Surat (PDF / DOCX / Gambar / Scan): <span class="text-danger">*</span></label>
             <input type="file" id="inputUploadRowFile" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
-            <small class="helper-text">Maksimal ukuran 15 MB. File akan diunggah langsung ke Google Drive SMA YWKA.</small>
+            <small class="helper-text">Maksimal ukuran 20 MB. File akan diunggah langsung ke Google Drive SMA YWKA.</small>
           </div>
         </div>
         <div class="modal-footer">
@@ -1457,33 +1654,34 @@
     </div>
   </div>
 
-  <!-- Modal: Konfirmasi Hapus Data Surat Keluar -->
+  <!-- Modal: Konfirmasi Hapus Data Surat (Mendukung Keluar & Masuk) -->
   <div class="modal-backdrop" id="modalConfirmDelete">
     <div class="modal-dialog">
       <div class="modal-header" style="background: #fff1f2; border-bottom: 1px solid #fecdd3;">
-        <h3 class="modal-title" style="color: #9f1239;">
-          <i class="fa-solid fa-triangle-exclamation" style="color: #e11d48;"></i> Konfirmasi Hapus Surat Keluar
+        <h3 class="modal-title" id="deleteModalTitle" style="color: #9f1239;">
+          <i class="fa-solid fa-triangle-exclamation" style="color: #e11d48;"></i> Konfirmasi Hapus Surat
         </h3>
         <button class="modal-close-btn" id="btnCloseConfirmDelete" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
-        <p style="font-size: 14px; color: #334155; margin-bottom: 12px; line-height: 1.6;">
-          Apakah Anda yakin ingin menghapus data surat keluar ini?
+        <p style="font-size: 14px; color: #334155; margin-bottom: 12px; line-height: 1.6;" id="deleteModalPromptText">
+          Apakah Anda yakin ingin menghapus data surat ini?
         </p>
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
           <div>No. Agenda: <strong id="deleteModalAgenda" style="color: #0f172a;">-</strong></div>
-          <div style="margin-top: 4px;">Nomor: <strong id="deleteModalNomor" style="color: #0284c7;">-</strong></div>
+          <div style="margin-top: 4px;">Nomor / Info: <strong id="deleteModalNomor" style="color: #0284c7;">-</strong></div>
           <div style="margin-top: 4px; font-size: 13px; color: #475569;" id="deleteModalPerihal">-</div>
         </div>
         <input type="hidden" id="deleteModalTargetId" value="">
         <input type="hidden" id="deleteModalTargetAgenda" value="">
-        <p style="font-size: 12px; color: #64748b;">
-          <i class="fa-solid fa-circle-info"></i> Baris di Spreadsheet akan di-reset (uncheck kotak & kosongkan perihal), dan data lokal browser akan dibersihkan.
+        <input type="hidden" id="deleteModalTargetType" value="keluar">
+        <p style="font-size: 12px; color: #64748b;" id="deleteModalNote">
+          <i class="fa-solid fa-circle-info"></i> Baris di Spreadsheet akan disinkronkan, dan data lokal browser akan dibersihkan.
         </p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="btnCancelConfirmDelete">Batal</button>
-        <button type="button" class="btn btn-danger" id="btnExecuteDeleteRow" style="background: #e11d48; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600;">
+        <button type="submit" class="btn btn-danger" id="btnExecuteDeleteRow" style="background: #e11d48; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600;">
           <i class="fa-solid fa-trash-can"></i> Ya, Hapus Surat Ini
         </button>
       </div>
