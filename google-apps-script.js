@@ -56,6 +56,69 @@ function createJsonResponse(data) {
  * Helper: Mengubah tanggal apapun menjadi format DD/MM/YYYY (contoh: 26/10/2026)
  * Mencegah Google Spreadsheet menampilkan format 2026-10-26 (strip)
  */
+/**
+ * Helper: Konversi nilai tanggal string (DD/MM/YYYY atau YYYY-MM-DD) menjadi objek Date resmi Google Sheets
+ * agar terbaca sebagai tipe date yang valid oleh Google Visualization API & CSV
+ */
+function parseDateForSheet(val) {
+  if (!val) return "";
+  if (val instanceof Date) return val;
+  var str = String(val).trim().replace(/^'+/, "");
+  if (!str || str === "-" || str === "null" || str === "undefined") return "";
+
+  var matchIso = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (matchIso) {
+    return new Date(parseInt(matchIso[1], 10), parseInt(matchIso[2], 10) - 1, parseInt(matchIso[3], 10));
+  }
+
+  var matchDmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (matchDmy) {
+    var p1 = parseInt(matchDmy[1], 10);
+    var p2 = parseInt(matchDmy[2], 10);
+    var y = parseInt(matchDmy[3], 10);
+    if (p2 > 12 && p1 <= 12) {
+      return new Date(y, p1 - 1, p2);
+    }
+    return new Date(y, p2 - 1, p1);
+  }
+
+  return str;
+}
+
+/**
+ * Otomatis perbaiki sel tanggal di spreadsheet yang sebelumnya tersimpan sebagai plain text string
+ * agar kembali menjadi objek Date bertipe dd/mm/yyyy yang bisa terbaca oleh GViz & Web
+ */
+function repairDateCells(sheet) {
+  if (!sheet) return;
+  try {
+    const lastRow = Math.min(sheet.getLastRow(), 310);
+    if (lastRow < 4) return;
+    const totalScan = lastRow - 3;
+    const range = sheet.getRange(4, 3, totalScan, 2);
+    const values = range.getValues();
+
+    for (let i = 0; i < totalScan; i++) {
+      const v1 = values[i][0];
+      const v2 = values[i][1];
+      if (typeof v1 === "string" && v1.trim() && v1.includes("/")) {
+        const d1 = parseDateForSheet(v1);
+        if (d1 instanceof Date) {
+          sheet.getRange(i + 4, 3).setValue(d1).setNumberFormat("dd/mm/yyyy");
+        }
+      }
+      if (typeof v2 === "string" && v2.trim() && v2.includes("/")) {
+        const d2 = parseDateForSheet(v2);
+        if (d2 instanceof Date) {
+          sheet.getRange(i + 4, 4).setValue(d2).setNumberFormat("dd/mm/yyyy");
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log("repairDateCells error: " + e.toString());
+  }
+}
+
 function formatToIndoDate(val) {
   if (!val) return "";
   if (val instanceof Date) {
@@ -105,6 +168,9 @@ function doGet(e) {
     const ss = getTargetSpreadsheet();
 
     if (action === "ping") {
+      try {
+        repairDateCells(ss.getSheetByName(SHEET_SURAT_MASUK));
+      } catch (e) {}
       return createJsonResponse({
         status: "success",
         message: "Koneksi Google Apps Script SMA YWKA Aktif & Siap!",
@@ -321,7 +387,10 @@ function doPost(e) {
 
       const lastRow = sheet.getLastRow();
       let targetRowIndex = -1;
-      if (lastRow >= 4) {
+      if (payload.row_index && Number(payload.row_index) >= 4 && Number(payload.row_index) <= lastRow) {
+        targetRowIndex = Number(payload.row_index);
+      }
+      if (targetRowIndex < 0 && lastRow >= 4) {
         const totalScan = lastRow - 3;
         const agendaColValues = sheet.getRange(4, 4, totalScan, 1).getValues();
         for (let i = 0; i < agendaColValues.length; i++) {
@@ -622,9 +691,13 @@ function doPost(e) {
 
       // Tulis tepat ke baris target yang seharusnya (BUKAN appendRow di paling bawah!)
       sheet.getRange(targetRowIndex, 1, 1, rowData.length).setValues([rowData]);
-      // Pastikan format tanggal plain text (@) agar Google Sheets tidak mengubah slash (/) ke strip (-)
-      sheet.getRange(targetRowIndex, 3).setNumberFormat("@").setValue(tglSuratMasuk);
-      sheet.getRange(targetRowIndex, 4).setNumberFormat("@").setValue(tglDiterimaMasuk);
+      var dObj1 = parseDateForSheet(payload.tanggal_surat || tglSuratMasuk);
+      var dObj2 = parseDateForSheet(payload.tanggal_diterima || tglDiterimaMasuk);
+      if (dObj1 instanceof Date) { sheet.getRange(targetRowIndex, 3).setValue(dObj1).setNumberFormat("dd/mm/yyyy"); }
+      else if (tglSuratMasuk) { sheet.getRange(targetRowIndex, 3).setValue(tglSuratMasuk); }
+      if (dObj2 instanceof Date) { sheet.getRange(targetRowIndex, 4).setValue(dObj2).setNumberFormat("dd/mm/yyyy"); }
+      else if (tglDiterimaMasuk) { sheet.getRange(targetRowIndex, 4).setValue(tglDiterimaMasuk); }
+      try { repairDateCells(sheet); } catch (e) {}
       try {
         sheet.getRange(targetRowIndex, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
       } catch (e) {}
@@ -665,7 +738,10 @@ function doPost(e) {
 
       const lastRow = Math.min(sheet.getLastRow(), 310);
       let foundRow = -1;
-      if (lastRow >= 4) {
+      if (payload.row_index && Number(payload.row_index) >= 4 && Number(payload.row_index) <= sheet.getLastRow()) {
+        foundRow = Number(payload.row_index);
+      }
+      if (foundRow < 0 && lastRow >= 4) {
         const totalScan = lastRow - 3;
         const dataScan = sheet.getRange(4, 1, totalScan, 5).getValues(); // Col A s/d E
 
@@ -725,8 +801,13 @@ function doPost(e) {
         ];
 
         sheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
-        sheet.getRange(foundRow, 3).setNumberFormat("@").setValue(tglSuratMasuk);
-        sheet.getRange(foundRow, 4).setNumberFormat("@").setValue(tglDiterimaMasuk);
+        var dEdit1 = parseDateForSheet(payload.tanggal_surat || tglSuratMasuk);
+        var dEdit2 = parseDateForSheet(payload.tanggal_diterima || tglDiterimaMasuk);
+        if (dEdit1 instanceof Date) { sheet.getRange(foundRow, 3).setValue(dEdit1).setNumberFormat("dd/mm/yyyy"); }
+        else if (tglSuratMasuk) { sheet.getRange(foundRow, 3).setValue(tglSuratMasuk); }
+        if (dEdit2 instanceof Date) { sheet.getRange(foundRow, 4).setValue(dEdit2).setNumberFormat("dd/mm/yyyy"); }
+        else if (tglDiterimaMasuk) { sheet.getRange(foundRow, 4).setValue(tglDiterimaMasuk); }
+        try { repairDateCells(sheet); } catch (e) {}
 
         return createJsonResponse({
           status: "success",
