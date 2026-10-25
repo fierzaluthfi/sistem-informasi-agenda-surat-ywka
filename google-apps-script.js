@@ -26,6 +26,23 @@ const SHEET_SURAT_KELUAR = "SURAT KELUAR 2026";
 const SHEET_SURAT_MASUK = "SURAT MASUK 2026";
 const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Utama Arsip SMA YWKA
 const FOLDER_DRIVE_UTAMA = "Arsip Surat SMA YWKA";
+const SPREADSHEET_ID = "1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k";
+
+/**
+ * Helper: Buka spreadsheet aktif atau buka via Spreadsheet ID secara otomatis
+ * Mencegah error null pointer jika script dipasang sebagai Standalone script
+ */
+function getTargetSpreadsheet() {
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (e) {}
+  try {
+    return SpreadsheetApp.openById(SPREADSHEET_ID);
+  } catch (e) {
+    throw new Error("Gagal membuka Spreadsheet SMA YWKA (ID: " + SPREADSHEET_ID + "): " + e.toString());
+  }
+}
 
 /**
  * Helper untuk response JSON
@@ -85,7 +102,7 @@ function formatToIndoDate(val) {
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) || "ping";
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getTargetSpreadsheet();
 
     if (action === "ping") {
       return createJsonResponse({
@@ -150,14 +167,14 @@ function doGet(e) {
 function doPost(e) {
   try {
     let payload = {};
-    if (e.postData && e.postData.contents) {
+    if (e && e.postData && e.postData.contents) {
       payload = JSON.parse(e.postData.contents);
     } else {
       payload = e.parameter || {};
     }
 
     const action = payload.action;
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getTargetSpreadsheet();
 
     // ==========================================
     // 1. SIMPAN SURAT KELUAR KE SPREADSHEET

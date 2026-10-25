@@ -1892,7 +1892,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
 function initEventListeners() {
   const btnRefresh = document.getElementById("btnRefreshData");
   if (btnRefresh) {
-    btnRefresh.addEventListener("click", () => loadDataFromSpreadsheet());
+    btnRefresh.addEventListener("click", () => { loadDataFromSpreadsheet(); syncAllPendingItems(); });
   }
 
   const genKode = document.getElementById("genKodeKlasifikasi");
@@ -2369,7 +2369,7 @@ async function loadDataFromSpreadsheet() {
     localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
     localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
 
-    updateConnectionStatus(true, "Terhubung ke Google Sheets (Live)");
+    updateConnectionStatus(true, "Terhubung ke Google Sheets (Live)"); syncAllPendingItems().catch(() => {});
   } catch (err) {
     console.warn("Sinkronisasi live lambat / offline, menggunakan cache:", err);
     // Jika state kosong, pastikan data cache/bawaan tetap tampil
@@ -3002,6 +3002,143 @@ function checkConnectionBanners() {
 /**
  * Handle Penyimpanan Surat Keluar Baru (Termasuk File Upload ke Google Drive)
  */
+
+/**
+ * Helper: Bersihkan dan validasi URL Web App Google Apps Script
+ * Otomatis memperbaiki URL /dev menjadi /exec dan menghapus spasi
+ */
+function getCleanAppsScriptUrl() {
+  let url = (state.appsScriptUrl || "").trim();
+  if (url.endsWith("/dev")) {
+    url = url.substring(0, url.length - 4) + "/exec";
+    state.appsScriptUrl = url;
+    localStorage.setItem("sma_ywka_apps_script_url", url);
+  }
+  return url;
+}
+
+/**
+ * Helper Terpusat: Kirim permintaan POST ke Google Apps Script dengan penanganan CORS & Redirect
+ */
+async function postToAppsScript(payload) {
+  const url = getCleanAppsScriptUrl();
+  if (!url) {
+    return { success: false, message: "URL Web App belum disetel di pengaturan." };
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+      redirect: "follow"
+    });
+
+    const resText = await res.text();
+    let resJson = null;
+    try {
+      resJson = JSON.parse(resText);
+    } catch (parseErr) {
+      if (resText.includes("ServiceLogin") || resText.includes("accounts.google.com")) {
+        return { success: false, message: "Akses Google Apps Script harus diatur ke 'Anyone' (Siapa saja)." };
+      }
+      if (resText.includes("Halaman Tidak Ditemukan") || resText.includes("tidak ada")) {
+        return { success: false, message: "URL Web App 404 (Tidak Ditemukan). Lakukan New Deployment di Apps Script." };
+      }
+      return { success: false, message: "Respons bukan format JSON (" + resText.substring(0, 50) + ")." };
+    }
+
+    if (resJson && resJson.status === "success") {
+      return { success: true, data: resJson };
+    } else {
+      return { success: false, message: (resJson && resJson.message) || "Gagal diproses oleh Google Apps Script." };
+    }
+  } catch (netErr) {
+    console.warn("Gagal komunikasi dengan Apps Script:", netErr);
+    const msg = String(netErr && netErr.message ? netErr.message : netErr);
+    if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror")) {
+      return {
+        success: false,
+        message: "Koneksi terblokir (Failed to fetch). Pastikan deployment Apps Script disetel dengan akses 'Anyone' (Siapa saja) dan URL berakhiran /exec."
+      };
+    }
+    return { success: false, message: msg || "Koneksi terputus." };
+  }
+}
+
+/**
+ * Otomatis sinkronkan semua surat lokal yang belum tersimpan ke Google Sheets
+ */
+async function syncAllPendingItems() {
+  if (!state.appsScriptUrl) return;
+
+  const unsyncedMasuk = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+  const unsyncedKeluar = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+
+  if (unsyncedMasuk.length === 0 && unsyncedKeluar.length === 0) return;
+
+  let syncedCount = 0;
+
+  if (unsyncedMasuk.length > 0) {
+    const remaining = [];
+    for (const item of unsyncedMasuk) {
+      const payload = {
+        action: "create_surat_masuk",
+        no_urut: item.noUrut,
+        no_agenda: item.noAgenda,
+        tanggal_surat: item.tglSurat,
+        tanggal_diterima: item.tglMasuk,
+        perihal: item.perihal,
+        dari: item.dari,
+        kepada: item.kepada,
+        keterangan: item.keterangan || "",
+        kode_klasifikasi: item.kodeKlasifikasi || ""
+      };
+      const res = await postToAppsScript(payload);
+      if (res && res.success) {
+        syncedCount++;
+        item.isUnsynced = false;
+      } else {
+        remaining.push(item);
+      }
+    }
+    localStorage.setItem("unsynced_surat_masuk", JSON.stringify(remaining));
+  }
+
+  if (unsyncedKeluar.length > 0) {
+    const remaining = [];
+    for (const item of unsyncedKeluar) {
+      const payload = {
+        action: "create_surat_keluar",
+        no_urut: item.noAgenda,
+        kode_klasifikasi: item.kodeKlasifikasi,
+        nomor_urut: item.noAgenda,
+        bulan_romawi: item.bulanRomawi,
+        tahun: "2026",
+        tanggal_surat: item.tanggal,
+        perihal: item.perihal,
+        dari: item.dari,
+        kepada: item.kepada,
+        petugas: item.petugas,
+        keterangan: item.keterangan || ""
+      };
+      const res = await postToAppsScript(payload);
+      if (res && res.success) {
+        syncedCount++;
+        item.isUnsynced = false;
+      } else {
+        remaining.push(item);
+      }
+    }
+    localStorage.setItem("unsynced_surat_keluar", JSON.stringify(remaining));
+  }
+
+  if (syncedCount > 0) {
+    showToast(`✅ Berhasil menyinkronkan ${syncedCount} surat tersimpan lokal langsung ke Google Spreadsheet!`, "success");
+    loadDataFromSpreadsheet().catch(() => {});
+  }
+}
+
 async function handleCreateSuratKeluar(e) {
   e.preventDefault();
 
@@ -3376,30 +3513,19 @@ async function executeSaveSuratMasuk(payload, newItem, origBtnContent) {
   let errorMsg = "";
 
   if (state.appsScriptUrl) {
-    try {
-      const res = await fetch(state.appsScriptUrl, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload)
-      });
-      const resJson = await res.json();
-      if (resJson && resJson.status === "success") {
-        syncSuccess = true;
-        if (resJson.no_urut) {
-          newItem.noUrut = String(resJson.no_urut);
-        }
-        if (resJson.drive_file_url) {
-          newItem.driveUrl = resJson.drive_file_url;
-          newItem.lampiran = resJson.drive_file_url;
-        }
-        newItem.isUnsynced = false;
-      } else {
-        errorMsg = resJson.message || "Gagal menyimpan ke Spreadsheet";
-        newItem.isUnsynced = true;
+    const res = await postToAppsScript(payload);
+    if (res && res.success) {
+      syncSuccess = true;
+      if (res.data.no_urut) {
+        newItem.noUrut = String(res.data.no_urut);
       }
-    } catch (err) {
-      console.error("Gagal sync surat masuk:", err);
-      errorMsg = err.message || "Koneksi terputus";
+      if (res.data.drive_file_url) {
+        newItem.driveUrl = res.data.drive_file_url;
+        newItem.lampiran = res.data.drive_file_url;
+      }
+      newItem.isUnsynced = false;
+    } else {
+      errorMsg = res.message || "Gagal menyimpan ke Spreadsheet";
       newItem.isUnsynced = true;
     }
   }
@@ -4489,24 +4615,14 @@ async function executeEditSuratMasuk(payload, itemIndex, origBtnHtml) {
   let errorMsg = "";
 
   if (state.appsScriptUrl) {
-    try {
-      const res = await fetch(state.appsScriptUrl, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload)
-      });
-      const resJson = await res.json();
-      if (resJson && resJson.status === "success") {
-        syncSuccess = true;
-        if (resJson.drive_file_url) {
-          driveUrl = resJson.drive_file_url;
-        }
-      } else {
-        errorMsg = resJson.message || "Gagal memperbarui di Spreadsheet";
+    const res = await postToAppsScript(payload);
+    if (res && res.success) {
+      syncSuccess = true;
+      if (res.data.drive_file_url) {
+        driveUrl = res.data.drive_file_url;
       }
-    } catch (err) {
-      console.warn("Gagal sinkron edit surat masuk ke Apps Script:", err);
-      errorMsg = err.message || "Koneksi terputus";
+    } else {
+      errorMsg = res.message || "Gagal memperbarui di Spreadsheet";
     }
   }
 
