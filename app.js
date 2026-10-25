@@ -725,22 +725,30 @@ const REAL_DRIVE_TEMPLATES = [
 // INISIALISASI HALAMAN
 // ===================================================================
 document.addEventListener("DOMContentLoaded", () => {
-  initDateDefaults();
-  initNavigation();
-  initTemplateChips();
-  initAppsScriptInstructions();
-  initFileUploadHandlers();
-  initEventListeners();
-  updateDriveLinksInUI();
-  checkConnectionBanners();
-  initAiTemplateGenerator();
-
   // 1. HIDRASI INSTAN (0 milidetik): Langsung tampilkan data dari cache lokal/bawaan
-  // Pengguna tidak perlu menunggu jaringan internet untuk melihat tabel dan statistik!
-  hydrateFromCacheOrBuiltin();
+  try {
+    hydrateFromCacheOrBuiltin();
+  } catch (err) {
+    console.error("Gagal hidrasi data awal:", err);
+  }
 
-  // 2. Sinkronisasi live di latar belakang (Background Revalidation)
-  loadDataFromSpreadsheet();
+  // 2. Inisialisasi Komponen UI dengan Pelindung Error (Safe Execution)
+  try { initDateDefaults(); } catch (e) { console.error("Error initDateDefaults:", e); }
+  try { initNavigation(); } catch (e) { console.error("Error initNavigation:", e); }
+  try { initTemplateChips(); } catch (e) { console.error("Error initTemplateChips:", e); }
+  try { initAppsScriptInstructions(); } catch (e) { console.error("Error initAppsScriptInstructions:", e); }
+  try { initFileUploadHandlers(); } catch (e) { console.error("Error initFileUploadHandlers:", e); }
+  try { initEventListeners(); } catch (e) { console.error("Error initEventListeners:", e); }
+  try { updateDriveLinksInUI(); } catch (e) { console.error("Error updateDriveLinksInUI:", e); }
+  try { checkConnectionBanners(); } catch (e) { console.error("Error checkConnectionBanners:", e); }
+  try { initAiTemplateGenerator(); } catch (e) { console.error("Error initAiTemplateGenerator:", e); }
+
+  // 3. Sinkronisasi live di latar belakang (Background Revalidation)
+  try {
+    loadDataFromSpreadsheet();
+  } catch (err) {
+    console.error("Gagal memulai loadDataFromSpreadsheet:", err);
+  }
 });
 
 /**
@@ -988,6 +996,7 @@ function initNavigation() {
     btnHeaderMasuk.addEventListener("click", () => openCreateModalMasuk());
   }
 
+  const modalMasuk = document.getElementById("modalSuratMasuk");
   const btnCloseModalMasuk = document.getElementById("btnCloseModalMasuk");
   const btnCancelModalMasuk = document.getElementById("btnCancelModalMasuk");
   if (btnCloseModalMasuk && modalMasuk) {
