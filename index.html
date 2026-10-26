@@ -18,7 +18,85 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-layout">
+  <!-- ================= PORTAL LOGIN RESMI SMAS YWKA ================= -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-bg-glow glow-1"></div>
+    <div class="login-bg-glow glow-2"></div>
+
+    <div class="login-card">
+      <div class="login-brand-header">
+        <div class="login-logo-wrapper">
+          <img src="logo-ywka.png" alt="Logo Resmi SMAS YWKA Bandung" class="login-logo-img">
+        </div>
+        <span class="login-foundation-tag">YAYASAN WANITA KERETA API (YWKA)</span>
+        <h1 class="login-main-title">SMAS YWKA BANDUNG</h1>
+        <p class="login-system-title">Sistem Informasi Agenda Surat Digital</p>
+        <div class="login-status-pill">
+          <i class="fa-solid fa-lock"></i>
+          <span>Portal Masuk Resmi Tata Usaha</span>
+        </div>
+      </div>
+
+      <form id="formLogin" class="login-form">
+        <div class="login-form-group">
+          <label for="loginUsername" class="login-field-label">
+            <i class="fa-solid fa-user"></i>
+            <span>Username</span>
+          </label>
+          <div class="login-input-container">
+            <input type="text" id="loginUsername" class="login-input" placeholder="Masukkan username (cth: admin)" required autocomplete="username" value="admin">
+          </div>
+        </div>
+
+        <div class="login-form-group">
+          <label for="loginPassword" class="login-field-label">
+            <i class="fa-solid fa-key"></i>
+            <span>Password</span>
+          </label>
+          <div class="login-input-container">
+            <input type="password" id="loginPassword" class="login-input" placeholder="Masukkan password (cth: ywka2026)" required autocomplete="current-password" value="ywka2026">
+            <button type="button" class="btn-toggle-login-pass" id="btnToggleLoginPass" title="Lihat / Sembunyikan Password" aria-label="Toggle password visibility">
+              <i class="fa-solid fa-eye" id="iconLoginEye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="login-options-row">
+          <label class="login-remember-checkbox">
+            <input type="checkbox" id="loginRememberMe" checked>
+            <span>Ingat Saya di Perangkat Ini</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-login-submit" id="btnLoginSubmit">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span>Masuk ke Sistem</span>
+        </button>
+
+        <!-- Live Demo Fast Access Box -->
+        <div class="login-demo-helper">
+          <div class="demo-helper-header">
+            <i class="fa-solid fa-bolt text-amber"></i>
+            <span>Akses Cepat Live Demo:</span>
+          </div>
+          <div class="demo-helper-body">
+            Username: <code>admin</code> &bull; Password: <code>ywka2026</code>
+          </div>
+          <button type="button" class="btn-autofill-demo" id="btnAutofillDemo">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Isi Otomatis & Masuk Langsung</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="login-card-footer">
+        <p>&copy; 2026 SMAS YWKA Bandung &bull; Terakreditasi "A" (Unggul)</p>
+        <small>Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat 40184</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-layout" id="appLayout">
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -94,9 +172,12 @@
         <div class="user-chip">
           <img src="logo-ywka.png" alt="Logo SMAS YWKA" style="width: 28px; height: 28px; object-fit: contain;">
           <div class="user-info">
-            <strong>Tata Usaha SMAS YWKA</strong>
-            <small>Jl. Elang II No. 3, Bandung</small>
+            <strong id="sidebarUserName">Admin Tata Usaha</strong>
+            <small>SMAS YWKA Bandung</small>
           </div>
+          <button class="btn-sidebar-logout" id="btnSidebarLogout" title="Keluar / Logout" aria-label="Keluar">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
         </div>
       </div>
     </aside>
@@ -137,6 +218,21 @@
             <i class="fa-solid fa-inbox"></i>
             <span>+ Catat Surat Masuk</span>
           </button>
+
+          <!-- User Profile & Logout -->
+          <div class="user-profile-topbar" id="topNavUserProfile">
+            <div class="user-avatar-badge" title="Akun Admin Aktif">
+              <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <div class="user-info-text">
+              <span class="user-name-title" id="topNavUserName">Admin TU</span>
+              <span class="user-online-pill"><i class="fa-solid fa-circle"></i> Online</span>
+            </div>
+            <button class="btn-logout" id="btnLogout" title="Keluar dari Aplikasi (Logout)" aria-label="Keluar">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+              <span class="logout-label">Keluar</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1192,6 +1288,31 @@
               <div class="security-note">
                 <i class="fa-solid fa-shield-halved text-emerald"></i>
                 <p>Otomatis membuat folder <strong>"Arsip Surat SMA YWKA"</strong> di Google Drive Anda secara aman & gratis.</p>
+              </div>
+
+              <!-- Card Keamanan & Akun Login -->
+              <div class="panel-card" style="margin-top: 18px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; background: #ffffff;">
+                <h3 class="side-card-title"><i class="fa-solid fa-user-shield text-primary"></i> Akun Login & Keamanan Portal</h3>
+                <div style="font-size: 13px; color: #475569; margin-bottom: 12px; line-height: 1.5;">
+                  Akun aktif: <strong>Admin Tata Usaha</strong> (Username: <code>admin</code>). Anda dapat mengubah password akun ini kapan saja di bawah ini.
+                </div>
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label font-bold" for="settingsAdminPassword">Password Admin:</label>
+                  <div class="input-with-button">
+                    <input type="password" id="settingsAdminPassword" class="form-control" placeholder="Password baru" value="ywka2026">
+                    <button type="button" class="btn btn-outline" id="btnToggleSettingsPass" title="Lihat / Sembunyikan Password">
+                      <i class="fa-solid fa-eye" id="iconSettingsPass"></i>
+                    </button>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnSaveAdminPassword">
+                    <i class="fa-solid fa-floppy-disk"></i> Simpan Password
+                  </button>
+                  <button type="button" class="btn btn-outline btn-sm" id="btnResetAdminPassword">
+                    <i class="fa-solid fa-rotate-left"></i> Reset ke 'ywka2026'
+                  </button>
+                </div>
               </div>
             </div>
           </div>

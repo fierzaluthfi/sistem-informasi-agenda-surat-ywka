@@ -726,9 +726,192 @@ const REAL_DRIVE_TEMPLATES = [
 ];
 
 // ===================================================================
+// MODUL AUTENTIKASI & KEAMANAN SMAS YWKA BANDUNG
+// ===================================================================
+const AUTH_CONFIG = {
+  defaultUsername: "admin",
+  defaultPassword: "ywka2026",
+  sessionKey: "sma_ywka_auth_session",
+  customPasswordKey: "sma_ywka_custom_password"
+};
+
+function getActiveAdminPassword() {
+  return localStorage.getItem(AUTH_CONFIG.customPasswordKey) || AUTH_CONFIG.defaultPassword;
+}
+
+function isAuthenticated() {
+  return !!(localStorage.getItem(AUTH_CONFIG.sessionKey) || sessionStorage.getItem(AUTH_CONFIG.sessionKey));
+}
+
+function checkAuthState() {
+  const loginScreen = document.getElementById("loginScreen");
+  const appLayout = document.getElementById("appLayout");
+  const loggedIn = isAuthenticated();
+
+  if (loggedIn) {
+    if (loginScreen) {
+      loginScreen.classList.add("hidden");
+    }
+    if (appLayout) {
+      appLayout.style.display = "flex";
+    }
+  } else {
+    if (loginScreen) {
+      loginScreen.classList.remove("hidden");
+    }
+    if (appLayout) {
+      appLayout.style.display = "none";
+    }
+  }
+}
+
+function initAuthModule() {
+  const formLogin = document.getElementById("formLogin");
+  const inputUsername = document.getElementById("loginUsername");
+  const inputPassword = document.getElementById("loginPassword");
+  const checkRemember = document.getElementById("loginRememberMe");
+  const btnTogglePass = document.getElementById("btnToggleLoginPass");
+  const iconEye = document.getElementById("iconLoginEye");
+  const btnAutofill = document.getElementById("btnAutofillDemo");
+  const loginCard = document.querySelector(".login-card");
+
+  const btnLogout = document.getElementById("btnLogout");
+  const btnSidebarLogout = document.getElementById("btnSidebarLogout");
+
+  // Settings Password Elements
+  const settingsPass = document.getElementById("settingsAdminPassword");
+  const btnSavePass = document.getElementById("btnSaveAdminPassword");
+  const btnResetPass = document.getElementById("btnResetAdminPassword");
+  const btnToggleSettingsPass = document.getElementById("btnToggleSettingsPass");
+  const iconSettingsPass = document.getElementById("iconSettingsPass");
+
+  if (settingsPass) {
+    settingsPass.value = getActiveAdminPassword();
+  }
+
+  // 1. Toggle Show / Hide Password di Form Login
+  if (btnTogglePass && inputPassword && iconEye) {
+    btnTogglePass.addEventListener("click", () => {
+      const isPass = inputPassword.type === "password";
+      inputPassword.type = isPass ? "text" : "password";
+      iconEye.className = isPass ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
+    });
+  }
+
+  // 2. Toggle Show / Hide Password di Form Pengaturan
+  if (btnToggleSettingsPass && settingsPass && iconSettingsPass) {
+    btnToggleSettingsPass.addEventListener("click", () => {
+      const isPass = settingsPass.type === "password";
+      settingsPass.type = isPass ? "text" : "password";
+      iconSettingsPass.className = isPass ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
+    });
+  }
+
+  // 3. Tombol Akses Cepat Live Demo (Autofill & Login Seketika)
+  if (btnAutofill && inputUsername && inputPassword && formLogin) {
+    btnAutofill.addEventListener("click", () => {
+      inputUsername.value = AUTH_CONFIG.defaultUsername;
+      inputPassword.value = getActiveAdminPassword();
+      if (checkRemember) checkRemember.checked = true;
+      showToast("⚡ Akses Demo Cepat diisi otomatis!", "info");
+      setTimeout(() => {
+        formLogin.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      }, 200);
+    });
+  }
+
+  // 4. Handle Submit Form Login
+  if (formLogin) {
+    formLogin.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const enteredUser = (inputUsername?.value || "").trim();
+      const enteredPass = inputPassword?.value || "";
+      const validPass = getActiveAdminPassword();
+
+      if (enteredUser.toLowerCase() === AUTH_CONFIG.defaultUsername && enteredPass === validPass) {
+        const isRemember = checkRemember ? checkRemember.checked : true;
+        if (isRemember) {
+          localStorage.setItem(AUTH_CONFIG.sessionKey, enteredUser);
+        } else {
+          sessionStorage.setItem(AUTH_CONFIG.sessionKey, enteredUser);
+        }
+
+        showToast("✅ Login Berhasil! Selamat datang, Admin Tata Usaha SMAS YWKA.", "success");
+        checkAuthState();
+      } else {
+        if (loginCard) {
+          loginCard.classList.add("shake");
+          setTimeout(() => loginCard.classList.remove("shake"), 500);
+        }
+        showToast("⚠️ Username atau password salah! (Username: admin, Password: " + validPass + ")", "error");
+      }
+    });
+  }
+
+  // 5. Handle Logout
+  function executeLogout() {
+    localStorage.removeItem(AUTH_CONFIG.sessionKey);
+    sessionStorage.removeItem(AUTH_CONFIG.sessionKey);
+    showToast("👋 Anda berhasil keluar (Logout) dari sistem.", "info");
+    checkAuthState();
+  }
+
+  if (btnLogout) {
+    btnLogout.addEventListener("click", () => {
+      if (confirm("Apakah Anda yakin ingin keluar dari sistem?")) {
+        executeLogout();
+      }
+    });
+  }
+
+  if (btnSidebarLogout) {
+    btnSidebarLogout.addEventListener("click", () => {
+      if (confirm("Apakah Anda yakin ingin keluar dari sistem?")) {
+        executeLogout();
+      }
+    });
+  }
+
+  // 6. Simpan Perubahan Password di Pengaturan
+  if (btnSavePass && settingsPass) {
+    btnSavePass.addEventListener("click", () => {
+      const newPass = settingsPass.value.trim();
+      if (!newPass) {
+        showToast("Password tidak boleh kosong!", "warning");
+        return;
+      }
+      localStorage.setItem(AUTH_CONFIG.customPasswordKey, newPass);
+      showToast("✅ Password admin berhasil diperbarui!", "success");
+    });
+  }
+
+  // 7. Reset Password ke Default
+  if (btnResetPass && settingsPass) {
+    btnResetPass.addEventListener("click", () => {
+      localStorage.removeItem(AUTH_CONFIG.customPasswordKey);
+      settingsPass.value = AUTH_CONFIG.defaultPassword;
+      showToast("🔄 Password dikembalikan ke bawaan: " + AUTH_CONFIG.defaultPassword, "info");
+    });
+  }
+
+  // Jalankan pemeriksaan status autentikasi pertama kali
+  checkAuthState();
+}
+window.initAuthModule = initAuthModule;
+window.checkAuthState = checkAuthState;
+window.isAuthenticated = isAuthenticated;
+
+// ===================================================================
 // INISIALISASI HALAMAN
 // ===================================================================
 document.addEventListener("DOMContentLoaded", () => {
+  // 0. Autentikasi Pengguna & Portal Login
+  try {
+    initAuthModule();
+  } catch (err) {
+    console.error("Gagal inisialisasi autentikasi:", err);
+  }
+
   // 1. HIDRASI INSTAN (0 milidetik): Langsung tampilkan data dari cache lokal/bawaan
   try {
     hydrateFromCacheOrBuiltin();
