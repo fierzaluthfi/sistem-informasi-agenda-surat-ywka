@@ -365,12 +365,18 @@
                 <div class="select-wrapper">
                   <select id="filterMasukPengirim" aria-label="Filter Pengirim">
                     <option value="">Semua Kategori Pengirim</option>
-                    <option value="CADISDIK">Cabang Dinas (Cadisdik Wil. VII)</option>
-                    <option value="YAYASAN">Yayasan Wanita Kereta Api (YWKA)</option>
-                    <option value="DINAS PENDIDIKAN">Dinas Pendidikan Provinsi</option>
-                    <option value="UNIVERSITAS">Universitas / Institut</option>
-                    <option value="SMP">SMPN / SMPS</option>
-                    <option value="LEMBAGA">Lembaga Eksternal</option>
+                    <option value="CABANG DINAS WIL.VII">Cabang Dinas (Cadisdik Wil. VII)</option>
+                    <option value="DINAS PENDIDIKAN PROVINSI JAWA BARAT">Dinas Pendidikan Provinsi Jawa Barat</option>
+                    <option value="YAYASAN WANITA KERETA API">Yayasan Wanita Kereta Api (YWKA)</option>
+                    <option value="UNIVERSITAS / INSTITUT">Universitas / Institut</option>
+                    <option value="LAIN-LAIN">Lain-Lain</option>
+                    <option value="SMPN / SMPS">SMPN / SMPS</option>
+                    <option value="INSTANSI PEMERINTAHAN WILAYAH">Instansi Pemerintahan Wilayah</option>
+                    <option value="KEMENTRIAN PENDIDIKAN">Kementrian Pendidikan</option>
+                    <option value="LEMBAGA EKSTERNAL">Lembaga Eksternal</option>
+                    <option value="PEMERINTAH KOTA BANDUNG">Pemerintah Kota Bandung</option>
+                    <option value="PEMERINTAH PROVINSI JAWA BARAT">Pemerintah Provinsi Jawa Barat</option>
+                    <option value="BBPMP Provinsi Jawa Barat">BBPMP Provinsi Jawa Barat</option>
                   </select>
                 </div>
               </div>
@@ -1126,12 +1132,15 @@
                 <div class="form-group">
                   <label for="inputAppsScriptUrl" class="form-label font-bold">4. URL Web App Google Apps Script (Wajib untuk Simpan Langsung ke Spreadsheet):</label>
                   <input type="url" id="inputAppsScriptUrl" class="form-control" placeholder="https://script.google.com/macros/s/AKfycbx.../exec">
-                  <small class="helper-text">URL ini didapat setelah menyalin skrip v2.5 di bawah ke Apps Script Google Sheets Anda lalu klik Deploy > Web App.</small>
+                  <small class="helper-text">URL ini didapat setelah menyalin skrip v2.8 di bawah ke Apps Script Google Sheets Anda lalu klik Deploy > Web App.</small>
                 </div>
 
                 <div class="form-actions-bar">
                   <button type="button" class="btn btn-secondary" id="btnTestConnection">
                     <i class="fa-solid fa-plug-circle-check"></i> Uji Koneksi
+                  </button>
+                  <button type="button" class="btn btn-outline" id="btnRelocateMisplacedRows" title="Pindahkan surat masuk di baris bawah ke slot urut 215, 216 yang benar dan bersihkan baris salah">
+                    <i class="fa-solid fa-arrow-up-short-wide" style="color: #10b981;"></i> Rapikan Baris Surat Masuk
                   </button>
                   <button type="button" class="btn btn-outline" id="btnCleanSpreadsheetDuplicates" title="Hapus baris ganda di Spreadsheet dan bersihkan tampilan">
                     <i class="fa-solid fa-broom" style="color: #f59e0b;"></i> Bersihkan Baris Ganda
@@ -1144,7 +1153,7 @@
 
               <div class="script-instruction-box">
                 <div class="script-header">
-                  <span><i class="fa-solid fa-code"></i> Kode Google Apps Script v2.5 (Mendukung Auto-Save, Anti-Duplikasi & Hapus Bersih)</span>
+                  <span><i class="fa-solid fa-code"></i> Kode Google Apps Script v2.8 (Auto-Relokasi Presisi Baris 302 ke Slot 214 & Anti-Penempatan Bawah)</span>
                   <button class="btn btn-outline btn-sm" id="btnCopyScriptCode">
                     <i class="fa-solid fa-copy"></i> Salin Skrip
                   </button>
@@ -1167,7 +1176,7 @@
                 <li>
                   <div class="step-num">2</div>
                   <div>
-                    <strong>Ganti Skrip dengan Kode v2.0</strong>
+                    <strong>Ganti Skrip dengan Kode v2.8</strong>
                     <p>Klik tombol <em>"Salin Skrip"</em> di sebelah kiri, lalu tempel di editor Apps Script dan klik Simpan.</p>
                   </div>
                 </li>
@@ -1272,18 +1281,25 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label for="inMasukDari" class="form-label">Dari (Instansi Pengirim) <span class="text-danger">*</span></label>
-              <input type="text" id="inMasukDari" class="form-control" list="listPengirimUmum" placeholder="Pilih atau ketik pengirim" required>
-              <datalist id="listPengirimUmum">
-                <option value="CABANG DINAS WIL.VII">
-                <option value="YAYASAN WANITA KERETA API">
-                <option value="DINAS PENDIDIKAN PROVINSI JAWA BARAT">
-                <option value="BBPMP Provinsi Jawa Barat">
-                <option value="KEMENTERIAN PENDIDIKAN">
-                <option value="INSTANSI PEMERINTAHAN WILAYAH">
-                <option value="UNIVERSITAS / INSTITUT">
-                <option value="SMPN / SMPS">
-                <option value="LEMBAGA EKSTERNAL">
-              </datalist>
+              <select id="inMasukDari" class="form-control font-bold" required>
+                <option value="" disabled selected>-- Pilih Pengirim (Sesuai Spreadsheet) --</option>
+                <option value="CABANG DINAS WIL.VII">CABANG DINAS WIL.VII</option>
+                <option value="DINAS PENDIDIKAN PROVINSI JAWA BARAT">DINAS PENDIDIKAN PROVINSI JAWA BARAT</option>
+                <option value="YAYASAN WANITA KERETA API">YAYASAN WANITA KERETA API</option>
+                <option value="UNIVERSITAS / INSTITUT">UNIVERSITAS / INSTITUT</option>
+                <option value="LAIN-LAIN">LAIN-LAIN</option>
+                <option value="SMPN / SMPS">SMPN / SMPS</option>
+                <option value="INSTANSI PEMERINTAHAN WILAYAH">INSTANSI PEMERINTAHAN WILAYAH</option>
+                <option value="KEMENTRIAN PENDIDIKAN">KEMENTRIAN PENDIDIKAN</option>
+                <option value="LEMBAGA EKSTERNAL">LEMBAGA EKSTERNAL</option>
+                <option value="PEMERINTAH KOTA BANDUNG">PEMERINTAH KOTA BANDUNG</option>
+                <option value="PEMERINTAH PROVINSI JAWA BARAT">PEMERINTAH PROVINSI JAWA BARAT</option>
+                <option value="BBPMP Provinsi Jawa Barat">BBPMP Provinsi Jawa Barat</option>
+                <option value="__CUSTOM__">+ Ketik Pengirim Kustom / Lainnya...</option>
+              </select>
+              <div id="inMasukDariCustomGroup" style="display: none; margin-top: 6px;">
+                <input type="text" id="inMasukDariCustom" class="form-control" placeholder="Ketik nama instansi pengirim kustom">
+              </div>
             </div>
 
             <div class="form-group flex-1">
@@ -1598,7 +1614,25 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label for="editMasukDari" class="form-label">Dari (Instansi Pengirim) <span class="text-danger">*</span></label>
-              <input type="text" id="editMasukDari" class="form-control" list="listPengirimUmum" required>
+              <select id="editMasukDari" class="form-control font-bold" required>
+                <option value="" disabled selected>-- Pilih Pengirim (Sesuai Spreadsheet) --</option>
+                <option value="CABANG DINAS WIL.VII">CABANG DINAS WIL.VII</option>
+                <option value="DINAS PENDIDIKAN PROVINSI JAWA BARAT">DINAS PENDIDIKAN PROVINSI JAWA BARAT</option>
+                <option value="YAYASAN WANITA KERETA API">YAYASAN WANITA KERETA API</option>
+                <option value="UNIVERSITAS / INSTITUT">UNIVERSITAS / INSTITUT</option>
+                <option value="LAIN-LAIN">LAIN-LAIN</option>
+                <option value="SMPN / SMPS">SMPN / SMPS</option>
+                <option value="INSTANSI PEMERINTAHAN WILAYAH">INSTANSI PEMERINTAHAN WILAYAH</option>
+                <option value="KEMENTRIAN PENDIDIKAN">KEMENTRIAN PENDIDIKAN</option>
+                <option value="LEMBAGA EKSTERNAL">LEMBAGA EKSTERNAL</option>
+                <option value="PEMERINTAH KOTA BANDUNG">PEMERINTAH KOTA BANDUNG</option>
+                <option value="PEMERINTAH PROVINSI JAWA BARAT">PEMERINTAH PROVINSI JAWA BARAT</option>
+                <option value="BBPMP Provinsi Jawa Barat">BBPMP Provinsi Jawa Barat</option>
+                <option value="__CUSTOM__">+ Ketik Pengirim Kustom / Lainnya...</option>
+              </select>
+              <div id="editMasukDariCustomGroup" style="display: none; margin-top: 6px;">
+                <input type="text" id="editMasukDariCustom" class="form-control" placeholder="Ketik nama instansi pengirim kustom">
+              </div>
             </div>
             <div class="form-group flex-1">
               <label for="editMasukKepada" class="form-label">Kepada (Penerima di Sekolah)</label>

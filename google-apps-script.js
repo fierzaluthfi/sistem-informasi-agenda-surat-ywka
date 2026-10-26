@@ -1,24 +1,25 @@
 /**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 2.6 (FITUR EDIT LENGKAP KELUAR & MASUK, FORMAT TANGGAL DD/MM/YYYY)
+ * VERSI 2.8 (AUTO-RELOKASI PRESISI BARIS 302 KE SLOT 214 & ANTI-PENEMPATAN DI BAWAH TEMPLATE)
  * ===================================================================
  * 
- * PANDUAN PEMASANGAN (AGAR DATA LANGSUNG TERSIMPAN KE SPREADSHEET):
+ * PANDUAN CEPAT PERBAIKAN:
  * 1. Buka Google Spreadsheet SMA YWKA Anda di browser:
- *    https://docs.google.com/spreadsheets/d/1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k/edit?gid=381566345#gid=381566345
+ *    https://docs.google.com/spreadsheets/d/1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k/edit?gid=1925080880#gid=1925080880
  * 2. Klik menu "Ekstensi" (Extensions) > "Apps Script".
- * 3. Hapus semua teks yang ada di editor Apps Script.
- * 4. Salin (Copy) seluruh isi file ini, lalu Tempel (Paste) ke editor tersebut.
- * 5. Klik ikon Simpan (Save).
- * 6. (PILIHAN) Pilih fungsi "setupDriveFolders" pada menu dropdown di atas editor, lalu klik "Run/Jalankan"
- *    untuk langsung membuat folder "Surat Keluar 2026" dan "Surat Masuk 2026" di Google Drive!
- * 7. Klik tombol "Deploy" (di kanan atas) > "Manage deployments" (atau "New deployment").
- * 8. Jika Manage deployments: klik ikon pensil (Edit), pilih Version: "New version",
- *    - Execute as: "Me" (email Anda)
+ * 3. Hapus semua teks di editor Apps Script, lalu Paste (Tempel) SELURUH isi file ini.
+ * 4. Klik ikon Simpan (Save).
+ * 5. (LANGKAH PENTING INSTAN):
+ *    Di menu dropdown fungsi di atas editor, pilih fungsi:
+ *    "perbaikiBarisSuratMasuk", lalu klik "Run / Jalankan".
+ *    Surat yang ada di baris 302 akan OTOMATIS dipindahkan ke baris 214 (No. Urut 215)
+ *    dan baris 302 liar di bawah akan otomatis dihapus bersih!
+ * 6. Klik tombol "Deploy" (di kanan atas) > "Manage deployments".
+ * 7. Klik ikon pensil (Edit):
+ *    - Version: "New version"
  *    - Who has access: "Anyone" (Siapa saja yang memiliki link) -> PENTING!
- * 9. Klik "Deploy", izinkan akses (Authorize access) Google Drive & Sheets.
- * 10. Salin "Web app URL" (akhiran /exec) dan tempelkan ke aplikasi web Anda di menu "Koneksi Spreadsheet"!
+ * 8. Klik "Deploy".
  */
 
 // Konstanta Nama Sheet sesuai berkas asli SMA YWKA
@@ -42,6 +43,123 @@ function getTargetSpreadsheet() {
   } catch (e) {
     throw new Error("Gagal membuka Spreadsheet SMA YWKA (ID: " + SPREADSHEET_ID + "): " + e.toString());
   }
+}
+
+/**
+ * ===================================================================
+ * FUNGSI PERBAIKAN MANDIRI (BISA LANGSUNG DIJALANKAN DARI APPS SCRIPT):
+ * ===================================================================
+ * Pilih fungsi ini di dropdown atas editor Apps Script lalu klik "Run/Jalankan":
+ * 1. Otomatis memindahkan surat No. Urut 215 di baris 302 ke baris 214 (slot template 215 yang benar).
+ * 2. Menghapus baris 302+ yang salah sehingga template rapi kembali ke 300 baris.
+ */
+function perbaikiBarisSuratMasuk() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
+  if (!sheet) {
+    Logger.log("Sheet tidak ditemukan: " + SHEET_SURAT_MASUK);
+    return "Sheet tidak ditemukan";
+  }
+  const hasil = autoRelocateMisplacedSuratMasuk(sheet);
+  Logger.log(hasil);
+  return hasil;
+}
+
+/**
+ * Otomatis memindahkan baris surat masuk yang tersimpan di baris bawah (baris >= 302)
+ * kembali ke baris slot template yang benar di atas (misal No. Urut 215 dipindahkan ke baris 214)
+ * dan menghapus baris salah/liar di bawah.
+ */
+function autoRelocateMisplacedSuratMasuk(sheet) {
+  if (!sheet) return "Sheet tidak valid";
+  const lastRow = sheet.getLastRow();
+  // Template SURAT MASUK 2026 berakhir di baris 301 (No. Urut 300)
+  if (lastRow <= 301) return "Tidak ada baris salah di bawah baris 301.";
+
+  const totalRows = lastRow - 1;
+  const values = sheet.getRange(2, 1, totalRows, 10).getValues();
+  let relocatedCount = 0;
+  let deletedCount = 0;
+
+  // Scan mundur dari baris terbawah ke baris 302 (indeks values >= 300)
+  for (let i = values.length - 1; i >= 300; i--) {
+    const curRow = i + 2; // Baris fisik di spreadsheet
+    const rowNoUrut = String(values[i][0]).trim();
+    const rowAgenda = String(values[i][1]).trim();
+    const rowPerihal = String(values[i][4]).trim();
+
+    // Jika baris bawah ini terisi agenda atau perihal (surat yang salah tempat)
+    if (rowAgenda || rowPerihal) {
+      let moved = false;
+      // 1. Cari baris template di atas (1..300 / baris 2..301) yang No. Urut-nya sama & masih kosong
+      for (let j = 0; j < Math.min(300, values.length); j++) {
+        const slotUrut = String(values[j][0]).trim();
+        const slotAgenda = String(values[j][1]).trim();
+        const slotPerihal = String(values[j][4]).trim();
+
+        if (slotUrut && rowNoUrut && slotUrut === rowNoUrut && !slotAgenda && !slotPerihal) {
+          const properRow = j + 2;
+          const dataToMove = values[i].slice();
+
+          sheet.getRange(properRow, 1, 1, dataToMove.length).setValues([dataToMove]);
+          sheet.getRange(properRow, 3).setNumberFormat("@").setValue(dataToMove[2]);
+          sheet.getRange(properRow, 4).setNumberFormat("@").setValue(dataToMove[3]);
+          try {
+            sheet.getRange(properRow, 1, 1, dataToMove.length).setBorder(true, true, true, true, true, true);
+          } catch (e) {}
+
+          values[j] = dataToMove;
+          try {
+            sheet.deleteRow(curRow);
+          } catch (e) {
+            sheet.getRange(curRow, 1, 1, 10).clearContent();
+          }
+          relocatedCount++;
+          moved = true;
+          break;
+        }
+      }
+
+      // 2. Jika tidak ada No. Urut yang sama persis, cari slot kosong pertama di atas
+      if (!moved) {
+        for (let j = 0; j < Math.min(300, values.length); j++) {
+          const slotUrut = String(values[j][0]).trim();
+          const slotAgenda = String(values[j][1]).trim();
+          const slotPerihal = String(values[j][4]).trim();
+
+          if (!slotAgenda && !slotPerihal) {
+            const properRow = j + 2;
+            const dataToMove = values[i].slice();
+            dataToMove[0] = slotUrut || dataToMove[0];
+
+            sheet.getRange(properRow, 1, 1, dataToMove.length).setValues([dataToMove]);
+            sheet.getRange(properRow, 3).setNumberFormat("@").setValue(dataToMove[2]);
+            sheet.getRange(properRow, 4).setNumberFormat("@").setValue(dataToMove[3]);
+            try {
+              sheet.getRange(properRow, 1, 1, dataToMove.length).setBorder(true, true, true, true, true, true);
+            } catch (e) {}
+
+            values[j] = dataToMove;
+            try {
+              sheet.deleteRow(curRow);
+            } catch (e) {
+              sheet.getRange(curRow, 1, 1, 10).clearContent();
+            }
+            relocatedCount++;
+            break;
+          }
+        }
+      }
+    } else {
+      // Hapus baris kosong di bawah baris 301
+      try {
+        sheet.deleteRow(curRow);
+        deletedCount++;
+      } catch (e) {}
+    }
+  }
+
+  return "Selesai! Berhasil memindahkan " + relocatedCount + " surat ke slot template yang benar dan merapikan " + deletedCount + " baris kosong di bawah.";
 }
 
 /**
@@ -188,6 +306,14 @@ function doGet(e) {
       });
     }
 
+    if (action === "auto_fix_masuk" || action === "relocate_misplaced" || action === "perbaiki_baris_masuk") {
+      const msg = perbaikiBarisSuratMasuk();
+      return createJsonResponse({
+        status: "success",
+        message: msg
+      });
+    }
+
     if (action === "get_data") {
       const type = (e.parameter && e.parameter.type) || "keluar";
       const sheetName = type === "masuk" ? SHEET_SURAT_MASUK : SHEET_SURAT_KELUAR;
@@ -197,8 +323,15 @@ function doGet(e) {
         return createJsonResponse({ status: "error", message: "Sheet tidak ditemukan: " + sheetName });
       }
 
+      // Otomatis rapikan baris jika ada data surat di bawah template
+      if (type === "masuk") {
+        try {
+          autoRelocateMisplacedSuratMasuk(sheet);
+        } catch (e) {}
+      }
+
       const rawValues = sheet.getDataRange().getValues();
-      const rows = rawValues.slice(3); // Data dimulai dari baris ke-4 (indeks 3)
+      const rows = type === "masuk" ? rawValues.slice(1) : rawValues.slice(3); // Surat Masuk data dari baris 2 (indeks 1), Surat Keluar dari baris 4 (indeks 3)
 
       // Pastikan tanggal selalu berformat DD/MM/YYYY
       const formattedRows = rows.map(function(row) {
@@ -241,6 +374,17 @@ function doPost(e) {
 
     const action = payload.action;
     const ss = getTargetSpreadsheet();
+
+    // ==========================================
+    // 0. PERBAIKI & RAPATKAN BARIS SURAT MASUK
+    // ==========================================
+    if (action === "auto_fix_masuk" || action === "relocate_misplaced" || action === "perbaiki_baris_masuk") {
+      const msg = perbaikiBarisSuratMasuk();
+      return createJsonResponse({
+        status: "success",
+        message: msg
+      });
+    }
 
     // ==========================================
     // 1. SIMPAN SURAT KELUAR KE SPREADSHEET
@@ -568,21 +712,8 @@ function doPost(e) {
         );
       }
 
-      const curLastRow = sheet.getLastRow();
-
-      // Bersihkan baris salah yang ter-append di bawah baris 302 template (misal baris 301/303 yang ter-append ke paling bawah)
-      if (curLastRow > 302) {
-        for (let r = curLastRow; r > 302; r--) {
-          const checkColA = String(sheet.getRange(r, 1).getValue()).trim();
-          const checkColB = String(sheet.getRange(r, 2).getValue()).trim();
-          // Jika baris di bawah 302 terisi data append yang salah (misal no urut di col B atau Col A kosong)
-          if (!checkColA || checkColB === "210" || checkColB.includes("/")) {
-            try {
-              sheet.deleteRow(r);
-            } catch (e) {}
-          }
-        }
-      }
+      // 1. Relokasi otomatis jika ada baris surat di bawah template (baris >= 302) ke slot yang benar di atas
+      autoRelocateMisplacedSuratMasuk(sheet);
 
       // Format Tanggal: DIJAMIN selalu DD/MM/YYYY (menggunakan /)
       const tglSuratMasuk = formatToIndoDate(payload.tanggal_surat || "");
@@ -599,8 +730,8 @@ function doPost(e) {
       // Kolom C (3): TGL SURAT
       // Kolom D (4): TGL SURAT MASUK
       // Kolom E (5): PRIHAL/ ISI RINGKASAN SURAT
-      // Kolom F (6): DARI
-      // Kolom G (7): KEPADA
+      // Kolom F (6): DARI (Dropdown Pilihan Instansi)
+      // Kolom G (7): KEPADA (SMA YWKA)
       // Kolom H (8): KODE KLASIFIKASI
       // Kolom I (9): KETERANGAN
       // Kolom J (10): Lampiran Fisik
@@ -612,67 +743,88 @@ function doPost(e) {
       let targetRowIndex = -1;
       let finalNoUrut = reqNoUrut;
 
-      const lastRow = Math.min(sheet.getLastRow(), 302);
-      if (lastRow >= 4) {
-        const totalRows = lastRow - 3;
-        const rangeData = sheet.getRange(4, 1, totalRows, 5).getValues(); // Ambil Col A s/d E
+      // Ambil seluruh data dari baris 2 sampai baris 301 (area template resmi 1..300)
+      const endRowScan = Math.max(sheet.getLastRow(), 301);
+      const totalScan = Math.max(endRowScan - 1, 1);
+      const rangeData = sheet.getRange(2, 1, totalScan, 5).getValues(); // Baris 2 adalah index 0
 
-        // 1.A. Cegah duplikasi: Cek apakah no_agenda atau perihal yang sama sudah ada
+      // 1.A. Cegah duplikasi: Cek apakah no_agenda yang sama sudah ada di dalam area template (baris <= 301)
+      if (reqNoAgenda && reqNoAgenda !== "-") {
         for (let i = 0; i < rangeData.length; i++) {
           const rowUrut = String(rangeData[i][0]).trim();
           const rowAgenda = String(rangeData[i][1]).trim();
-          const rowPerihal = String(rangeData[i][4]).trim();
-
-          if (reqNoAgenda && rowAgenda && rowAgenda.toLowerCase() === reqNoAgenda.toLowerCase()) {
-            targetRowIndex = i + 4;
-            finalNoUrut = rowUrut || finalNoUrut;
-            break;
-          }
-          if (reqPerihal && rowPerihal && reqPerihal.length > 15 && rowPerihal.toLowerCase() === reqPerihal.toLowerCase()) {
-            targetRowIndex = i + 4;
-            finalNoUrut = rowUrut || finalNoUrut;
-            break;
-          }
-        }
-
-        // 1.B. Jika belum ada, dan reqNoUrut ditentukan (misal 210), cari baris template dengan no_urut tersebut
-        if (targetRowIndex < 0 && reqNoUrut) {
-          for (let i = 0; i < rangeData.length; i++) {
-            const rowUrut = String(rangeData[i][0]).trim();
-            const rowAgenda = String(rangeData[i][1]).trim();
-            const rowPerihal = String(rangeData[i][4]).trim();
-
-            if (rowUrut === reqNoUrut) {
-              if (!rowAgenda && !rowPerihal) {
-                targetRowIndex = i + 4;
-                finalNoUrut = rowUrut;
-                break;
-              }
-            }
-          }
-        }
-
-        // 1.C. Jika masih belum ditemukan, cari BARIS KOSONG PERTAMA di dalam template (misal tepat setelah no. 209 adalah baris 210)
-        if (targetRowIndex < 0) {
-          for (let i = 0; i < rangeData.length; i++) {
-            const rowUrut = String(rangeData[i][0]).trim();
-            const rowAgenda = String(rangeData[i][1]).trim();
-            const rowPerihal = String(rangeData[i][4]).trim();
-
-            if (!rowAgenda && !rowPerihal) {
-              targetRowIndex = i + 4;
-              finalNoUrut = rowUrut || (finalNoUrut ? finalNoUrut : String(i + 1));
+          if (rowAgenda && rowAgenda.toLowerCase() === reqNoAgenda.toLowerCase()) {
+            if (i + 2 <= 301) {
+              targetRowIndex = i + 2;
+              finalNoUrut = rowUrut || finalNoUrut;
               break;
             }
           }
         }
       }
 
-      // 1.D. Fallback jika template 300 baris sudah terisi penuh
+      // 1.B. Cari baris template berdasarkan Nomor Urut yang diminta (misal No. Urut 215 -> cari baris dengan Col A = 215)
+      // Dibatasi HANYA di dalam area template (baris <= 301)
+      if (targetRowIndex < 0 && reqNoUrut) {
+        for (let i = 0; i < Math.min(300, rangeData.length); i++) {
+          const rowUrut = String(rangeData[i][0]).trim();
+          const rowAgenda = String(rangeData[i][1]).trim();
+          const rowPerihal = String(rangeData[i][4]).trim();
+
+          if (rowUrut === reqNoUrut) {
+            // Cocok dengan No. Urut template! Jika baris ini belum terisi agenda dan perihal, gunakan langsung baris ini
+            if (!rowAgenda && !rowPerihal) {
+              targetRowIndex = i + 2;
+              finalNoUrut = rowUrut;
+              break;
+            }
+          }
+        }
+      }
+
+      // 1.C. Jika belum ditemukan baris dengan No Urut tersebut, cari BARIS KOSONG PERTAMA di dalam template (baris <= 301)
       if (targetRowIndex < 0) {
-        targetRowIndex = sheet.getLastRow() + 1;
+        for (let i = 0; i < Math.min(300, rangeData.length); i++) {
+          const rowUrut = String(rangeData[i][0]).trim();
+          const rowAgenda = String(rangeData[i][1]).trim();
+          const rowPerihal = String(rangeData[i][4]).trim();
+
+          if (!rowAgenda && !rowPerihal) {
+            targetRowIndex = i + 2;
+            finalNoUrut = rowUrut || (finalNoUrut ? finalNoUrut : String(i + 1));
+            break;
+          }
+        }
+      }
+
+      // 1.D. Pengaman Ketat: Pastikan targetRowIndex TIDAK PERNAH melebihi baris 301 jika masih ada slot kosong
+      if (targetRowIndex < 0 || targetRowIndex > 301) {
+        for (let i = 0; i < Math.min(300, rangeData.length); i++) {
+          const rowUrut = String(rangeData[i][0]).trim();
+          const rowAgenda = String(rangeData[i][1]).trim();
+          const rowPerihal = String(rangeData[i][4]).trim();
+          if (!rowAgenda && !rowPerihal) {
+            targetRowIndex = i + 2;
+            finalNoUrut = rowUrut || finalNoUrut || String(i + 1);
+            break;
+          }
+        }
+      }
+
+      // 1.E. Fallback HANYA jika template 300 baris memang SUDAH BENAR-BENAR TERISI PENUH SELURUHNYA
+      if (targetRowIndex < 0) {
+        let lastFilledRow = 1;
+        for (let i = rangeData.length - 1; i >= 0; i--) {
+          const rowAgenda = String(rangeData[i][1]).trim();
+          const rowPerihal = String(rangeData[i][4]).trim();
+          if (rowAgenda || rowPerihal) {
+            lastFilledRow = i + 2;
+            break;
+          }
+        }
+        targetRowIndex = Math.max(lastFilledRow + 1, 302);
         if (!finalNoUrut) {
-          finalNoUrut = String(targetRowIndex - 3);
+          finalNoUrut = String(targetRowIndex - 1);
         }
       }
 
@@ -682,7 +834,7 @@ function doPost(e) {
         tglSuratMasuk,
         tglDiterimaMasuk,
         reqPerihal,
-        payload.dari || "",
+        payload.dari || "CABANG DINAS WIL.VII",
         payload.kepada || "SMA YWKA",
         payload.kode_klasifikasi || "",
         payload.keterangan || "",
@@ -736,45 +888,43 @@ function doPost(e) {
         );
       }
 
-      const lastRow = Math.min(sheet.getLastRow(), 310);
+      const scanLimit = Math.max(sheet.getLastRow(), 310);
       let foundRow = -1;
-      if (payload.row_index && Number(payload.row_index) >= 4 && Number(payload.row_index) <= sheet.getLastRow()) {
+      if (payload.row_index && Number(payload.row_index) >= 2 && Number(payload.row_index) <= sheet.getLastRow()) {
         foundRow = Number(payload.row_index);
       }
-      if (foundRow < 0 && lastRow >= 4) {
-        const totalScan = lastRow - 3;
-        const dataScan = sheet.getRange(4, 1, totalScan, 5).getValues(); // Col A s/d E
+      const totalScan = Math.max(scanLimit - 1, 1);
+      const dataScan = sheet.getRange(2, 1, totalScan, 5).getValues(); // Mulai dari baris 2!
 
-        // 1. Cari berdasarkan no agenda lama / baru
+      // 1. Cari berdasarkan no agenda lama / baru
+      for (let i = 0; i < totalScan; i++) {
+        const rowAgenda = String(dataScan[i][1]).trim();
+        if (oldAgendaStr && oldAgendaStr !== "-" && rowAgenda.toLowerCase() === oldAgendaStr.toLowerCase()) {
+          foundRow = i + 2;
+          break;
+        }
+      }
+
+      // 2. Jika belum ketemu, cari berdasarkan no urut
+      if (foundRow < 0 && (oldNoUrutStr || newNoUrutStr)) {
+        const searchUrut = oldNoUrutStr || newNoUrutStr;
         for (let i = 0; i < totalScan; i++) {
-          const rowAgenda = String(dataScan[i][1]).trim();
-          if (oldAgendaStr && rowAgenda.toLowerCase() === oldAgendaStr.toLowerCase()) {
-            foundRow = i + 4;
+          const rowUrut = String(dataScan[i][0]).trim();
+          if (rowUrut === searchUrut) {
+            foundRow = i + 2;
             break;
           }
         }
+      }
 
-        // 2. Jika belum ketemu, cari berdasarkan no urut
-        if (foundRow < 0 && (oldNoUrutStr || newNoUrutStr)) {
-          const searchUrut = oldNoUrutStr || newNoUrutStr;
-          for (let i = 0; i < totalScan; i++) {
-            const rowUrut = String(dataScan[i][0]).trim();
-            if (rowUrut === searchUrut) {
-              foundRow = i + 4;
-              break;
-            }
-          }
-        }
-
-        // 3. Jika belum ketemu, cari berdasarkan perihal
-        if (foundRow < 0 && payload.perihal) {
-          const searchPerihal = String(payload.perihal).trim().toLowerCase();
-          for (let i = 0; i < totalScan; i++) {
-            const rowPerihal = String(dataScan[i][4]).trim().toLowerCase();
-            if (rowPerihal && searchPerihal.length > 15 && rowPerihal === searchPerihal) {
-              foundRow = i + 4;
-              break;
-            }
+      // 3. Jika belum ketemu, cari berdasarkan perihal
+      if (foundRow < 0 && payload.perihal) {
+        const searchPerihal = String(payload.perihal).trim().toLowerCase();
+        for (let i = 0; i < totalScan; i++) {
+          const rowPerihal = String(dataScan[i][4]).trim().toLowerCase();
+          if (rowPerihal && searchPerihal.length > 15 && rowPerihal === searchPerihal) {
+            foundRow = i + 2;
+            break;
           }
         }
       }
@@ -793,7 +943,7 @@ function doPost(e) {
           tglSuratMasuk,
           tglDiterimaMasuk,
           payload.perihal || "",
-          payload.dari || "",
+          payload.dari || existingValues[5] || "CABANG DINAS WIL.VII",
           payload.kepada || "SMA YWKA",
           payload.kode_klasifikasi || "",
           payload.keterangan || "",
@@ -848,16 +998,16 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
       }
 
-      const lastRow = sheet.getLastRow();
+      const lastRow = Math.max(sheet.getLastRow(), 302);
       let foundRow = -1;
-      if (lastRow >= 4) {
-        const totalScan = lastRow - 3;
-        const agendaColValues = sheet.getRange(4, 2, totalScan, 1).getValues();
-        const urutColValues = sheet.getRange(4, 1, totalScan, 1).getValues();
+      if (lastRow >= 2) {
+        const totalScan = lastRow - 1;
+        const agendaColValues = sheet.getRange(2, 2, totalScan, 1).getValues();
+        const urutColValues = sheet.getRange(2, 1, totalScan, 1).getValues();
         for (let i = 0; i < totalScan; i++) {
           if ((noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr) ||
               (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
-            foundRow = i + 4;
+            foundRow = i + 2;
             break;
           }
         }
@@ -890,12 +1040,12 @@ function doPost(e) {
       const lastRow = sheet.getLastRow();
       const deletedRows = [];
 
-      // 1. Jika dikirim array row_indices (untuk menghapus semua baris duplikat sekaligus)
+      // 1. Jika dikirim array row_indices
       if (Array.isArray(payload.row_indices) && payload.row_indices.length > 0) {
         const sortedIndices = payload.row_indices
           .map(function(n) { return parseInt(n, 10); })
-          .filter(function(n) { return !isNaN(n) && n >= 4 && n <= sheet.getLastRow(); })
-          .sort(function(a, b) { return b - a; }); // Hapus dari baris terbawah agar index baris atas tidak bergeser!
+          .filter(function(n) { return !isNaN(n) && n >= 2 && n <= sheet.getLastRow(); })
+          .sort(function(a, b) { return b - a; });
 
         for (var d = 0; d < sortedIndices.length; d++) {
           try {
@@ -905,7 +1055,7 @@ function doPost(e) {
         }
       } else {
         const rowIndex = parseInt(payload.row_index, 10);
-        if (!isNaN(rowIndex) && rowIndex >= 4 && rowIndex <= lastRow) {
+        if (!isNaN(rowIndex) && rowIndex >= 2 && rowIndex <= lastRow) {
           sheet.deleteRow(rowIndex);
           deletedRows.push(rowIndex);
         }
@@ -914,12 +1064,12 @@ function doPost(e) {
       // 2. Jika delete_all_matching true atau masih ada baris duplikat dengan no_agenda yang sama
       if (noAgendaStr && (payload.delete_all_matching || deletedRows.length === 0)) {
         const curLast = sheet.getLastRow();
-        if (curLast >= 4) {
-          const totalScan = curLast - 3;
-          const vals = sheet.getRange(4, 2, totalScan, 1).getValues();
+        if (curLast >= 2) {
+          const totalScan = curLast - 1;
+          const vals = sheet.getRange(2, 2, totalScan, 1).getValues();
           for (var i = totalScan - 1; i >= 0; i--) {
             if (String(vals[i][0]).trim().toLowerCase() === noAgendaStr.toLowerCase()) {
-              var rTarget = i + 4;
+              var rTarget = i + 2;
               sheet.deleteRow(rTarget);
               deletedRows.push(rTarget);
             }
@@ -944,11 +1094,14 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_MASUK + " tidak ditemukan!" });
       }
 
+      // 1. Relokasi otomatis jika ada baris surat di bawah template ke slot yang benar di atas
+      autoRelocateMisplacedSuratMasuk(sheet);
+
       const lastRow = sheet.getLastRow();
       var removedCount = 0;
-      if (lastRow >= 5) {
-        const totalRows = lastRow - 3;
-        const data = sheet.getRange(4, 1, totalRows, 6).getValues();
+      if (lastRow >= 2) {
+        const totalRows = lastRow - 1;
+        const data = sheet.getRange(2, 1, totalRows, 6).getValues();
         const seenMap = {};
         const rowsToDelete = [];
 
@@ -956,7 +1109,7 @@ function doPost(e) {
         for (var i = 0; i < totalRows; i++) {
           var rowAgenda = String(data[i][1] || "").trim().toLowerCase();
           var rowPerihal = String(data[i][4] || "").trim().toLowerCase();
-          var actualRow = i + 4;
+          var actualRow = i + 2;
 
           var key = "";
           if (rowAgenda && rowAgenda !== "-") {
@@ -983,13 +1136,17 @@ function doPost(e) {
           } catch (e) {}
         }
 
-        // Hapus juga baris apapun di bawah 302 yang salah ter-append ke paling bawah
-        if (sheet.getLastRow() > 302) {
-          for (var ex = sheet.getLastRow(); ex > 302; ex--) {
-            try {
-              sheet.deleteRow(ex);
-              removedCount++;
-            } catch (e) {}
+        // Hapus juga baris apapun di bawah 301 yang salah ter-append ke paling bawah (agenda dan perihal kosong)
+        if (sheet.getLastRow() > 301) {
+          for (var ex = sheet.getLastRow(); ex > 301; ex--) {
+            const bVal = String(sheet.getRange(ex, 2).getValue()).trim();
+            const eVal = String(sheet.getRange(ex, 5).getValue()).trim();
+            if (!bVal && !eVal) {
+              try {
+                sheet.deleteRow(ex);
+                removedCount++;
+              } catch (e) {}
+            }
           }
         }
       }
