@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistem Informasi Agenda Surat | SMAS YWKA Bandung</title>
-  <meta name="description" content="Aplikasi Agenda Surat Keluar & Surat Masuk SMAS YWKA Bandung dengan generator nomor agenda otomatis, template surat dinas AI Claude, upload berkas ke Google Drive, dan sinkronisasi Google Spreadsheet.">
+  <meta name="description" content="Aplikasi Agenda Surat Keluar & Surat Masuk SMAS YWKA Bandung dengan generator nomor agenda otomatis, template dokumen resmi, upload berkas ke Google Drive, dan sinkronisasi Google Spreadsheet.">
   <link rel="icon" type="image/png" href="favicon.png">
 
   <!-- Progressive Web App (PWA) & Mobile Android Settings -->
@@ -151,11 +151,6 @@
           <span>Folder Drive Surat</span>
           <i class="fa-solid fa-arrow-up-right-from-square external-pill"></i>
         </a>
-        <button class="nav-item" data-tab="tab-claude-ai" id="navItemAiClaude">
-          <i class="fa-solid fa-wand-magic-sparkles" style="color: #ff5722;"></i>
-          <span>AI Template Claude</span>
-          <span class="badge-tag-ai">CLAUDE AI</span>
-        </button>
         <button class="nav-item" data-tab="tab-generator">
           <i class="fa-solid fa-file-signature"></i>
           <span>Generator No. Agenda</span>
@@ -212,10 +207,6 @@
         </div>
 
         <div class="top-nav-right">
-          <button class="btn-ai-topbar" id="btnTopAiClaude" title="Buka AI Template Generator Claude">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>AI Claude</span>
-          </button>
           <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-nav" id="topNavDriveKeluarBtn" title="Buka Folder Google Drive Surat Keluar SMA YWKA">
             <i class="fa-brands fa-google-drive"></i>
             <span>Drive Surat Keluar</span>
@@ -526,325 +517,7 @@
           </div>
         </section>
 
-        <!-- ================= TAB 3: AI TEMPLATE GENERATOR (CLAUDE AI) ================= -->
-        <section class="tab-pane" id="tab-claude-ai">
-          <!-- Hero Header AI -->
-          <div class="ai-hero-card">
-            <div class="ai-hero-header">
-              <div class="ai-hero-icon">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-              </div>
-              <div>
-                <h2 class="ai-hero-title">AI Template Generator Surat Keluar SMAS YWKA</h2>
-                <p class="ai-hero-desc">
-                  Didukung kecerdasan <strong>Claude AI</strong> yang telah mempelajari tata naskah dinas resmi sekolah, 12 kode klasifikasi, format penomoran agenda, serta seluruh pola arsip berkas di <strong>Google Drive Surat Keluar SMA YWKA</strong>.
-                </p>
-              </div>
-            </div>
-            <div class="ai-knowledge-badge-bar">
-              <span class="ai-badge-pill active-drive">
-                <i class="fa-brands fa-google-drive"></i> Terhubung Pola Arsip Google Drive (Folder ID: 1e3YGwqV...)
-              </span>
-              <span class="ai-badge-pill active-claude">
-                <i class="fa-solid fa-brain"></i> Engine: Claude 3.5 Sonnet / Smart School Engine
-              </span>
-              <span class="ai-badge-pill">
-                <i class="fa-solid fa-hashtag"></i> Format Penomoran: [Kode]/[Agenda]/SMA YWKA/TU/[Bulan]/[Tahun]
-              </span>
-            </div>
-          </div>
-
-          <div class="ai-generator-container">
-            <!-- Left Column: Input Kebutuhan Surat -->
-            <div class="ai-prompt-card">
-              <!-- Quick Preset Chips -->
-              <div class="ai-preset-box">
-                <div class="ai-preset-label">
-                  <i class="fa-solid fa-bolt text-amber"></i> Preset Cepat Template Surat (Berdasarkan Arsip Drive):
-                </div>
-                <div class="ai-chips-list">
-                  <button type="button" class="ai-preset-chip" data-preset="dispensasi">
-                    <i class="fa-solid fa-running text-emerald"></i> Dispensasi Siswa Lomba / Petugas (421.7)
-                  </button>
-                  <button type="button" class="ai-preset-chip" data-preset="tugas-guru">
-                    <i class="fa-solid fa-chalkboard-user text-primary"></i> Surat Tugas Guru / Pembina (422.1)
-                  </button>
-                  <button type="button" class="ai-preset-chip" data-preset="surat-masuk-tugas">
-                    <i class="fa-brands fa-google-drive text-emerald"></i> Surat Tugas Berdasarkan Surat Masuk Drive (422.1)
-                  </button>
-                  <button type="button" class="ai-preset-chip" data-preset="keterangan-siswa">
-                    <i class="fa-solid fa-graduation-cap text-purple"></i> Surat Keterangan Siswa Aktif (421.3)
-                  </button>
-                  <button type="button" class="ai-preset-chip" data-preset="pinjam-sarpras">
-                    <i class="fa-solid fa-building text-amber"></i> Peminjaman Lapangan / Sarpras (425.3)
-                  </button>
-                  <button type="button" class="ai-preset-chip" data-preset="undangan-ortu">
-                    <i class="fa-solid fa-envelope-open-text text-danger"></i> Undangan Rapat Orang Tua / Komite (421.3)
-                  </button>
-                  <button type="button" class="ai-preset-chip" data-preset="edaran-libur">
-                    <i class="fa-solid fa-calendar-check text-blue"></i> Pemberitahuan Hari Libur Sekolah (422.3)
-                  </button>
-                </div>
-              </div>
-
-              <!-- Form Input Kebutuhan -->
-              <form id="formAiClaudeGenerator" onsubmit="return false;">
-                <div class="form-group">
-                  <label for="aiPromptKebutuhan" class="form-label font-bold">
-                    <i class="fa-solid fa-pen-nib text-primary"></i> Deskripsikan Kebutuhan Surat Anda: <span class="text-danger">*</span>
-                  </label>
-                  <textarea id="aiPromptKebutuhan" class="ai-prompt-textarea" rows="4" placeholder="Contoh: Buatkan surat permohonan dispensasi untuk 3 orang siswa (1. Farhan Ramadhan XI-1, 2. Siti Sarah XI-2, 3. Aditya Pratama X-3) untuk mewakili SMAS YWKA Bandung mengikuti Seleksi Festival Lomba Seni Siswa Nasional (FLS2N) tingkat Kota Bandung pada hari Kamis, 29 Oktober 2026 di SMAN 3 Bandung..."></textarea>
-                  <small class="helper-text">
-                    <i class="fa-solid fa-circle-info"></i> Anda cukup mengetik secara bebas dalam bahasa Indonesia. Claude AI akan otomatis menyesuaikan struktur surat resmi, tabel nama (jika ada), kode klasifikasi, dan nomor agenda SMAS YWKA.
-                  </small>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group flex-1">
-                    <label for="aiSelectKode" class="form-label">Kode Klasifikasi</label>
-                    <select id="aiSelectKode" class="form-control">
-                      <option value="auto">✨ Otomatis Ditentukan oleh Claude AI</option>
-                      <option value="421.3">421.3 - Surat Umum / Keterangan</option>
-                      <option value="421.6">421.6 - Pelepasan / Wisuda</option>
-                      <option value="421.7">421.7 - Kegiatan Siswa / Dispensasi Lomba</option>
-                      <option value="421.71">421.71 - Reuni / Karya Wisata</option>
-                      <option value="422.1">422.1 - PPDB / MPLS / Tugas Kedinasan</option>
-                      <option value="422.3">422.3 - Pengumuman Hari Libur</option>
-                      <option value="422.5">422.5 - Beasiswa / Pelajar Teladan</option>
-                      <option value="423.5">423.5 - Kegiatan Kurikulum</option>
-                      <option value="423.7">423.7 - ASTS / ASAT / Ujian Sekolah</option>
-                      <option value="425.11">425.11 - Sarpras & Gedung Sekolah</option>
-                      <option value="425.2">425.2 - Sarpras Buku / Bahan Ajar</option>
-                      <option value="425.3">425.3 - Sarpras Perlengkapan Sekolah</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group flex-1">
-                    <label for="aiInputNoAgenda" class="form-label">No. Agenda Surat</label>
-                    <div class="input-with-button">
-                      <input type="text" id="aiInputNoAgenda" class="form-control stat-mono font-bold" value="609">
-                      <button type="button" class="btn btn-secondary btn-icon" id="btnAiRefreshAgenda" title="Ambil No. Agenda berikutnya dari sistem">
-                        <i class="fa-solid fa-arrows-rotate"></i>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="form-group flex-1">
-                    <label for="aiInputTanggal" class="form-label">Tanggal Surat</label>
-                    <input type="date" id="aiInputTanggal" class="form-control">
-                    <div class="date-format-badge" id="badgeAiInputTanggal">
-                      <i class="fa-regular fa-calendar-check text-emerald"></i> Format: <strong id="previewAiInputTanggal">-</strong> (<span id="previewAiRomanMonth">Bulan Romawi: X</span>)
-                    </div>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group flex-1">
-                    <label for="aiInputPenandatangan" class="form-label">Penandatangan Surat</label>
-                    <input type="text" id="aiInputPenandatangan" class="form-control" value="Syarif Hasanudin, S.Pd., Gr., M.M.">
-                  </div>
-                  <div class="form-group flex-1">
-                    <label for="aiInputJabatan" class="form-label">Jabatan</label>
-                    <input type="text" id="aiInputJabatan" class="form-control" value="Kepala SMAS YWKA Bandung">
-                  </div>
-                </div>
-
-                <!-- Accordion Pengaturan API Key Claude -->
-                <div class="ai-settings-toggle">
-                  <div class="ai-settings-summary" id="toggleAiSettings">
-                    <span><i class="fa-solid fa-sliders text-primary"></i> Pengaturan Claude AI & API Key (Opsional)</span>
-                    <i class="fa-solid fa-chevron-down" id="iconAiSettingsChevron"></i>
-                  </div>
-                  <div class="ai-settings-body" id="aiSettingsBody" style="display: none;">
-                    <div class="form-group">
-                      <label for="inputClaudeApiKey" class="form-label">Anthropic API Key (Claude AI):</label>
-                      <div class="input-with-button">
-                        <input type="password" id="inputClaudeApiKey" class="form-control" placeholder="sk-ant-api03-..." autocomplete="off">
-                        <button type="button" class="btn btn-secondary btn-icon" id="btnToggleApiKeyVisibility" title="Lihat/Sembunyikan Key">
-                          <i class="fa-solid fa-eye" id="iconApiKeyEye"></i>
-                        </button>
-                        <button type="button" class="btn btn-primary" id="btnSaveClaudeApiKey" title="Simpan key di browser">
-                          <i class="fa-solid fa-floppy-disk"></i> Simpan
-                        </button>
-                      </div>
-                      <small class="helper-text">
-                        API key tersimpan aman di <code>localStorage</code> peramban Anda. <strong>Belum punya API Key?</strong> Jangan khawatir! Anda tetap bisa klik tombol Generate, sistem akan otomatis menggunakan <em>Built-in Smart Template Engine</em> terlengkap berbasis arsip Google Drive SMAS YWKA secara gratis tanpa kendala!
-                      </small>
-                    </div>
-
-                    <div class="form-group">
-                      <label for="selectClaudeModel" class="form-label">Model Claude:</label>
-                      <select id="selectClaudeModel" class="form-control">
-                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Paling Cerdas & Presisi Naskah Dinas)</option>
-                        <option value="claude-3-haiku-20240307">Claude 3 Haiku (Sangat Cepat & Hemat Token)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Tombol Eksekusi AI -->
-                <button type="button" class="btn-generate-ai" id="btnRunAiClaude">
-                  <i class="fa-solid fa-wand-magic-sparkles"></i>
-                  <span id="btnRunAiClaudeText">✨ Generate Surat Keluar Resmi dengan Claude AI</span>
-                </button>
-              </form>
-            </div>
-
-            <!-- Right Column: Hasil Pratinjau Naskah Dinas & Tombol Integrasi -->
-            <div class="ai-result-panel">
-              <!-- Action Banner Atas Hasil -->
-              <div class="ai-action-banner" id="aiResultActionBanner">
-                <div class="ai-agenda-summary-pill">
-                  <div>
-                    <div style="font-size: 11px; color: #64748b; font-weight: 700;">HASIL AGENDA SURAT:</div>
-                    <span class="ai-agenda-badge" id="aiBadgeNomorSurat">421.7/609/SMA YWKA/TU/X/2026</span>
-                  </div>
-                </div>
-
-                <div class="ai-action-buttons">
-                  <button type="button" class="btn btn-outline" id="btnCopyAiLetterText" title="Salin teks isi surat untuk Word / Docs">
-                    <i class="fa-solid fa-copy"></i> Salin Teks
-                  </button>
-                  <button type="button" class="btn btn-primary" id="btnPrintAiLetterDoc" title="Cetak Surat Dinas Resmi (PDF)">
-                    <i class="fa-solid fa-print"></i> Cetak PDF
-                  </button>
-                  <button type="button" class="btn-apply-to-form" id="btnApplyAiToAgendaForm" title="Pindahkan data ini ke Form Generator Surat Keluar & Spreadsheet">
-                    <i class="fa-solid fa-file-arrow-up"></i>
-                    <span>Terapkan ke Form Surat Keluar</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Banner Rujukan Surat Masuk Google Drive -->
-              <div id="aiDriveSuratMasukRefBanner" style="display: none; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: #065f46; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-                <div id="aiDriveSuratMasukRefText">
-                  <i class="fa-brands fa-google-drive text-emerald" style="font-size: 15px; margin-right: 6px;"></i>
-                  <strong>Tersinkron Surat Masuk Drive:</strong> <span id="aiDriveSuratMasukRefDesc">-</span>
-                </div>
-                <a id="aiDriveSuratMasukRefLink" href="#" target="_blank" rel="noopener noreferrer" style="background: #059669; color: #fff; padding: 5px 12px; border-radius: 6px; font-weight: 600; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
-                  <i class="fa-brands fa-google-drive"></i> Buka Folder Drive Surat Masuk <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 10px;"></i>
-                </a>
-              </div>
-
-              <!-- Lembar Surat Dinas Resmi (Official Letter Sheet) -->
-              <div class="official-letter-wrapper" id="letterPrintContainer">
-                <div class="official-letter-sheet" id="officialLetterSheet">
-                  <!-- KOP SURAT RESMI SMAS YWKA -->
-                  <div class="kop-surat-resmi">
-                    <img src="logo-ywka.png" alt="Logo SMAS YWKA Bandung" class="kop-logo-img">
-                    <div class="kop-text-box">
-                      <div class="kop-yayasan">YAYASAN WANITA KERETA API</div>
-                      <div class="kop-sekolah">SMAS YWKA BANDUNG</div>
-                      <div class="kop-akreditasi">TERAKREDITASI 'A' (UNGGUL)</div>
-                      <div class="kop-alamat">Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat 40184</div>
-                      <div class="kop-kontak">Telp: (022) 6011740 | Email: smaywkabandung@gmail.com | NPSN: 20219736</div>
-                    </div>
-                  </div>
-                  <div class="kop-garis-ganda"></div>
-
-                  <!-- Metadata Surat -->
-                  <div class="letter-meta-row">
-                    <div class="letter-meta-left">
-                      <table>
-                        <tr>
-                          <td style="width: 75px;">Nomor</td>
-                          <td style="width: 10px;">:</td>
-                          <td><strong id="docPreviewNomor">421.7/609/SMA YWKA/TU/X/2026</strong></td>
-                        </tr>
-                        <tr>
-                          <td>Lampiran</td>
-                          <td>:</td>
-                          <td id="docPreviewLampiran">- (Satu Berkas)</td>
-                        </tr>
-                        <tr>
-                          <td>Perihal</td>
-                          <td>:</td>
-                          <td><strong id="docPreviewPerihal">Permohonan Dispensasi Siswa Mengikuti Seleksi FLS2N</strong></td>
-                        </tr>
-                      </table>
-                    </div>
-                    <div class="letter-meta-right">
-                      <span id="docPreviewTitiMangsaTop">Bandung, 22 Oktober 2026</span>
-                    </div>
-                  </div>
-
-                  <!-- Penerima Surat -->
-                  <div class="letter-recipient-block">
-                    <div>Kepada Yth.</div>
-                    <strong id="docPreviewKepada">Kepala Cabang Dinas Pendidikan Wilayah VII / Panitia Pelaksana FLS2N</strong><br>
-                    <span id="docPreviewAlamatTujuan">di Tempat</span>
-                  </div>
-
-                  <!-- Judul Surat Jika Format Surat Tugas / SK -->
-                  <div class="letter-title-center" id="docPreviewTitleBox" style="display: none;">
-                    <h3 id="docPreviewCenterTitle">SURAT TUGAS</h3>
-                    <div class="letter-title-number" id="docPreviewCenterNomor">Nomor: 422.1/609/SMA YWKA/TU/X/2026</div>
-                  </div>
-
-                  <!-- Isi Surat Resmi -->
-                  <div class="letter-body-content" id="docPreviewContent">
-                    <p class="no-indent">Dengan hormat,</p>
-                    <p>
-                      Sehubungan dengan surat edaran dari Dinas Pendidikan Provinsi Jawa Barat mengenai pelaksanaan Festival Lomba Seni Siswa Nasional (FLS2N) Tingkat SMA Kota Bandung Tahun 2026, bersama ini Kepala SMAS YWKA Bandung menerangkan sekaligus memberikan izin dispensasi belajar kepada siswa-siswi berprestasi kami untuk mengikuti tahapan seleksi lomba tersebut:
-                    </p>
-
-                    <!-- Tabel Peserta / Lampiran Formal -->
-                    <table class="letter-table-formal" id="docPreviewTable">
-                      <thead>
-                        <tr>
-                          <th style="width: 35px;">No</th>
-                          <th>Nama Lengkap Siswa</th>
-                          <th style="width: 120px;">Kelas / NISN</th>
-                          <th>Bidang Lomba / Keterangan</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style="text-align: center;">1</td>
-                          <td><strong>Farhan Ramadhan</strong></td>
-                          <td>XI MIPA 1 / 0072819201</td>
-                          <td>Vokal Solo Putra</td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">2</td>
-                          <td><strong>Siti Sarah</strong></td>
-                          <td>XI IPS 2 / 0073910294</td>
-                          <td>Cipta & Baca Puisi</td>
-                        </tr>
-                        <tr>
-                          <td style="text-align: center;">3</td>
-                          <td><strong>Aditya Pratama</strong></td>
-                          <td>X-3 / 0081290391</td>
-                          <td>Desain Poster Digital</td>
-                        </tr>
-                      </tbody>
-                    </table>
-
-                    <p>
-                      Kegiatan tersebut akan dilaksanakan pada hari <strong>Kamis, 29 Oktober 2026</strong> bertempat di SMAN 3 Bandung, mulai pukul 08.00 WIB s/d selesai. Kami mohon kepada Bapak/Ibu Guru untuk memberikan izin dispensasi dan tidak memperhitungkan ketidakhadiran siswa yang bersangkutan selama jam pelajaran berlangsung.
-                    </p>
-                    <p>
-                      Demikian surat dispensasi ini kami sampaikan, atas perhatian dan kerjasama yang baik dari Bapak/Ibu, kami haturkan terima kasih.
-                    </p>
-                  </div>
-
-                  <!-- Titi Mangsa & Tanda Tangan -->
-                  <div class="letter-signature-block">
-                    <div class="letter-sig-box">
-                      <div id="docPreviewTitiMangsaBottom">Bandung, 22 Oktober 2026</div>
-                      <div id="docPreviewJabatanSig">Kepala SMAS YWKA Bandung,</div>
-                      <div class="letter-sig-space"></div>
-                      <div class="letter-sig-name" id="docPreviewNamaSig">Syarif Hasanudin, S.Pd., Gr., M.M.</div>
-                      <div class="letter-sig-nip" id="docPreviewNipSig">NUPTK: 1234567890123456</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ================= TAB 4: GENERATOR & TEMPLATE ================= -->
+        <!-- ================= TAB 3: GENERATOR & TEMPLATE ================= -->
         <section class="tab-pane" id="tab-generator">
           <div class="generator-container">
             <!-- Left Column: Template Selector & Generator Form -->
@@ -867,15 +540,6 @@
                 <i class="fa-solid fa-circle-check"></i>
                 <div>
                   <strong>Terhubung ke Google Spreadsheet & Drive:</strong> Setiap pembuatan nomor surat baru akan langsung tersimpan permanen ke baris Google Spreadsheet dan berkas otomatis terupload ke Drive!
-                </div>
-              </div>
-
-              <!-- Banner Pintas AI Claude -->
-              <div class="conn-alert-banner" style="background: linear-gradient(135deg, #eef3ff 0%, #fff3e0 100%); border: 1px solid #ffccbc; color: #002b80; margin-bottom: 20px;">
-                <i class="fa-solid fa-wand-magic-sparkles" style="color: #ff5722; font-size: 22px;"></i>
-                <div style="flex: 1;">
-                  <strong>Fitur Baru: AI Template Generator (Claude AI):</strong> Butuh membuat naskah surat otomatis lengkap dengan kop resmi, isi formal, dan tabel peserta sesuai arsip Google Drive?
-                  <a href="javascript:void(0)" class="alert-action-link" id="linkGoToAiClaude" style="color: #ff5722; margin-left: 8px;">Buka AI Generator Claude &rarr;</a>
                 </div>
               </div>
 
