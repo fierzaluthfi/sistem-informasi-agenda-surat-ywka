@@ -1,0 +1,32 @@
+{
+  "name": "Sistem Informasi Agenda Surat SMAS YWKA Bandung",
+  "short_name": "SIAS YWKA",
+  "description": "Aplikasi Buku Agenda Surat Masuk & Keluar SMAS YWKA Bandung dengan Google Drive Upload & Template Surat Resmi.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#002b80",
+  "theme_color": "#002b80",
+  "categories": ["productivity", "education", "utilities"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

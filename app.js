@@ -929,6 +929,8 @@ document.addEventListener("DOMContentLoaded", () => {
   try { updateDriveLinksInUI(); } catch (e) { console.error("Error updateDriveLinksInUI:", e); }
   try { checkConnectionBanners(); } catch (e) { console.error("Error checkConnectionBanners:", e); }
   try { initAiTemplateGenerator(); } catch (e) { console.error("Error initAiTemplateGenerator:", e); }
+  try { initTemplateKosong(); } catch (e) { console.error("Error initTemplateKosong:", e); }
+  try { initPwaServiceWorker(); } catch (e) { console.error("Error initPwaServiceWorker:", e); }
 
   // 3. Sinkronisasi live di latar belakang (Background Revalidation)
   try {
@@ -6409,3 +6411,531 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+/**
+ * ===================================================================
+ * Modul Fitur: Template Dokumen Kosong (Format Naskah Dinas Resmi)
+ * Menyiapkan format draft dokumen resmi sesuai surat/kode yang ditentukan
+ * ===================================================================
+ */
+
+function initTemplateKosong() {
+  const btnTop = document.getElementById("btnOpenTopTemplateKosong");
+  const btnResult = document.getElementById("btnOpenTemplateKosong");
+  const btnClose = document.getElementById("btnCloseModalTemplateKosong");
+  const btnCloseFooter = document.getElementById("btnCloseTplKosongFooter");
+  const btnPrint = document.getElementById("btnPrintTplKosongDoc");
+  const btnCopy = document.getElementById("btnCopyTplKosongText");
+  const btnDownloadWord = document.getElementById("btnDownloadWordTplKosong");
+  const modal = document.getElementById("modalTemplateKosong");
+
+  if (btnTop) {
+    btnTop.addEventListener("click", () => openTemplateKosongModal());
+  }
+  if (btnResult) {
+    btnResult.addEventListener("click", () => openTemplateKosongModal());
+  }
+  if (btnClose && modal) {
+    btnClose.addEventListener("click", () => modal.classList.remove("show"));
+  }
+  if (btnCloseFooter && modal) {
+    btnCloseFooter.addEventListener("click", () => modal.classList.remove("show"));
+  }
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.classList.remove("show");
+    });
+  }
+
+  if (btnPrint) {
+    btnPrint.addEventListener("click", () => {
+      window.print();
+    });
+  }
+
+  if (btnCopy) {
+    btnCopy.addEventListener("click", () => {
+      const sheet = document.getElementById("tplKosongSheet");
+      if (!sheet) return;
+      const text = sheet.innerText || sheet.textContent;
+      copyText(text, "✅ Teks naskah format dokumen kosong berhasil disalin ke clipboard!");
+    });
+  }
+
+  if (btnDownloadWord) {
+    btnDownloadWord.addEventListener("click", () => {
+      const nomor = document.getElementById("tplDocNomor")?.textContent || "Surat_Dinas_YWKA";
+      const cleanNomor = nomor.replace(/[/\\?%*:|"<>]/g, "_");
+      downloadLetterAsWord(`Template_${cleanNomor}`, "tplKosongSheet");
+    });
+  }
+}
+
+/**
+ * Membuka Modal Template Dokumen Kosong dengan format terstruktur
+ */
+function openTemplateKosongModal() {
+  const modal = document.getElementById("modalTemplateKosong");
+  if (!modal) return;
+
+  // 1. Ambil data dari form Generator Surat Keluar
+  const selKode = document.getElementById("genKodeKlasifikasi");
+  const customKode = document.getElementById("genCustomKode");
+  let kodeVal = selKode ? selKode.value : "421.3";
+  if (kodeVal === "custom" && customKode && customKode.value.trim()) {
+    kodeVal = customKode.value.trim();
+  }
+
+  const fullNumber = document.getElementById("previewFullNumber")?.textContent || "421.3/609/SMA YWKA/TU/X/2026";
+  const inputTgl = document.getElementById("genTanggalSurat")?.value;
+  let formattedDateIndo = "27 Oktober 2026";
+  if (inputTgl) {
+    const parts = inputTgl.split("-");
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      formattedDateIndo = formatDateToIndonesianLong(d);
+    }
+  }
+
+  const perihalInput = document.getElementById("genPerihal")?.value.trim() || "";
+  const kepadaInput = document.getElementById("genKepada")?.value.trim() || "";
+  const dariInput = document.getElementById("genDari")?.value.trim() || "Syarif Hasanudin, S.Pd., Gr., M.M.";
+
+  // 2. Set Metadata Dokumen
+  const elBadge = document.getElementById("tplDocJenisBadge");
+  const elNomor = document.getElementById("tplDocNomor");
+  const elPerihal = document.getElementById("tplDocPerihal");
+  const elTitiTop = document.getElementById("tplDocTitiMangsaTop");
+  const elTitiBottom = document.getElementById("tplDocTitiMangsaBottom");
+  const elKepada = document.getElementById("tplDocKepada");
+  const elNamaSig = document.getElementById("tplDocNamaSig");
+  const titleBox = document.getElementById("tplDocCenterTitleBox");
+  const titleCenter = document.getElementById("tplDocCenterTitle");
+  const titleNomor = document.getElementById("tplDocCenterNomor");
+  const contentEl = document.getElementById("tplDocContent");
+
+  if (elNomor) elNomor.textContent = fullNumber;
+  if (elTitiTop) elTitiTop.textContent = `Bandung, ${formattedDateIndo}`;
+  if (elTitiBottom) elTitiBottom.textContent = `Bandung, ${formattedDateIndo}`;
+  if (elNamaSig) elNamaSig.textContent = dariInput;
+
+  // 3. Bangun Format Kerangka Draft Berdasarkan Kode
+  let labelKode = "Surat Umum";
+  let defaultPerihal = perihalInput || "Undangan Rapat Dinas Sekolah";
+  let defaultKepada = kepadaInput || "Bapak/Ibu Guru & Karyawan SMAS YWKA Bandung";
+  let showCenterTitle = false;
+  let centerTitleText = "SURAT DINAS";
+  let bodyHtml = "";
+
+  if (kodeVal.startsWith("421.6")) {
+    labelKode = "421.6 - Surat Pelepasan / Wisuda";
+    defaultPerihal = perihalInput || "Undangan & Pemberitahuan Wisuda / Pelepasan Siswa Kelas XII";
+    defaultKepada = kepadaInput || "Orang Tua / Wali Siswa Kelas XII SMAS YWKA Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Sehubungan dengan telah berakhirnya masa studi peserta didik Kelas XII Tahun Ajaran 2025/2026, bersama ini Kepala SMAS YWKA Bandung mengundang Bapak/Ibu Orang Tua/Wali Murid untuk menghadiri acara <strong>Pelepasan & Wisuda Siswa Kelas XII</strong> yang akan dilaksanakan pada:
+      </p>
+      <p style="margin-left: 20px;">
+        <strong>Hari / Tanggal</strong> : [Hari, Tanggal Pelaksanaan]<br>
+        <strong>Waktu</strong> : 08.00 WIB s/d Selesai<br>
+        <strong>Tempat</strong> : [Gedung Graha YWKA / Hotel Grand Pasundan Bandung]<br>
+        <strong>Pakaian</strong> : Formal / Bebas Rapi
+      </p>
+      <p>
+        Mengingat pentingnya agenda tersebut, kami sangat mengharapkan kehadiran Bapak/Ibu tepat pada waktunya.
+      </p>
+      <p>
+        Demikian undangan ini kami sampaikan, atas perhatian dan kehadiran Bapak/Ibu, kami ucapkan terima kasih.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("421.71")) {
+    labelKode = "421.71 - Kegiatan Reuni / Karya Wisata";
+    defaultPerihal = perihalInput || "Pemberitahuan Kegiatan Karya Wisata & Kunjungan Edukasi";
+    defaultKepada = kepadaInput || "Orang Tua / Wali Siswa SMAS YWKA Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Dalam rangka memperluas wawasan keilmuan, kepemimpinan, dan pengalaman belajar kontekstual siswa di luar kelas, SMAS YWKA Bandung akan menyelenggarakan kegiatan <strong>Karya Wisata & Kunjungan Edukasi</strong> dengan rincian sebagai berikut:
+      </p>
+      <p style="margin-left: 20px;">
+        <strong>Hari / Tanggal</strong> : [Hari, Tanggal Pelaksanaan]<br>
+        <strong>Tujuan Kunjungan</strong> : [Destinasi Kunjungan Edukasi / PT. KAI / Museum]<br>
+        <strong>Peserta</strong> : Siswa-Siswi Kelas [X / XI] Beserta Guru Pendamping<br>
+        <strong>Titik Kumpul</strong> : Kampus SMAS YWKA Bandung (Pukul 06.30 WIB)
+      </p>
+      <p>
+        Demikian pemberitahuan ini kami sampaikan. Atas perhatian, dukungan, dan kerja sama Bapak/Ibu Orang Tua/Wali Siswa, kami ucapkan terima kasih.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("421.7")) {
+    labelKode = "421.7 - Kegiatan Siswa (Dispensasi / Lomba / Ekskul)";
+    defaultPerihal = perihalInput || "Permohonan Dispensasi Belajar Siswa Mengikuti Lomba";
+    defaultKepada = kepadaInput || "Bapak/Ibu Guru Mata Pelajaran SMAS YWKA Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Sehubungan dengan keikutsertaan peserta didik SMAS YWKA Bandung pada kegiatan kompetisi / kegiatan kesiswaan [Nama Kegiatan / Lomba], bersama ini kami memohon izin dispensasi belajar bagi siswa-siswi berikut:
+      </p>
+      <table class="letter-table-formal">
+        <thead>
+          <tr>
+            <th style="width: 35px; text-align: center;">No</th>
+            <th>Nama Lengkap Siswa</th>
+            <th style="width: 140px; text-align: center;">Kelas / NISN</th>
+            <th>Cabang Lomba / Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: center;">1</td>
+            <td><strong>[Nama Lengkap Siswa 1]</strong></td>
+            <td style="text-align: center;">[Kelas / NISN]</td>
+            <td>[Cabang Kegiatan / Peserta]</td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">2</td>
+            <td><strong>[Nama Lengkap Siswa 2]</strong></td>
+            <td style="text-align: center;">[Kelas / NISN]</td>
+            <td>[Cabang Kegiatan / Peserta]</td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">3</td>
+            <td><strong>[Nama Lengkap Siswa 3]</strong></td>
+            <td style="text-align: center;">[Kelas / NISN]</td>
+            <td>[Cabang Kegiatan / Peserta]</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Kegiatan tersebut akan dilaksanakan pada hari <strong>[Hari, Tanggal]</strong> bertempat di <strong>[Lokasi Lomba / Kegiatan]</strong>. Kami mohon agar ketidakhadiran siswa bersangkutan selama jam pelajaran tidak diperhitungkan sebagai alpa.
+      </p>
+      <p>
+        Demikian surat dispensasi ini kami sampaikan, atas izin dan kerja sama yang baik, kami ucapkan terima kasih.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("422.1")) {
+    labelKode = "422.1 - PPDB dan MPLS";
+    defaultPerihal = perihalInput || "Surat Tugas Panitia Pelaksana PPDB & MPLS Tahun Ajaran 2026/2027";
+    defaultKepada = kepadaInput || "Bapak/Ibu Guru & Staf Tata Usaha Terlampir";
+    showCenterTitle = true;
+    centerTitleText = "SURAT TUGAS";
+    bodyHtml = `
+      <p class="no-indent">Yang bertanda tangan di bawah ini:</p>
+      <p style="margin-left: 20px;">
+        <strong>Nama</strong> : Syarif Hasanudin, S.Pd., Gr., M.M.<br>
+        <strong>Jabatan</strong> : Kepala SMAS YWKA Bandung
+      </p>
+      <p>
+        Dengan ini memberikan tugas kedinasan kepada Bapak/Ibu Guru dan Tenaga Kependidikan untuk bertindak sebagai <strong>Panitia Pelaksana Kegiatan PPDB & MPLS Tahun Ajaran 2026/2027</strong> yang bertugas mempersiapkan administrasi, sosialisasi, dan pembimbingan peserta didik baru.
+      </p>
+      <p>
+        Surat tugas ini berlaku sejak tanggal ditetapkan sampai dengan berakhirnya seluruh rangkaian kegiatan PPDB & MPLS. Harap dilaksanakan dengan penuh dedikasi dan rasa tanggung jawab.
+      </p>
+      <p>
+        Demikian surat tugas ini dibuat untuk dapat dipergunakan sebagaimana mestinya.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("422.3")) {
+    labelKode = "422.3 - Pengumuman Hari Libur";
+    defaultPerihal = perihalInput || "Pemberitahuan Hari Libur Nasional & Cuti Bersama";
+    defaultKepada = kepadaInput || "Bapak/Ibu Orang Tua/Wali Murid & Guru SMAS YWKA Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Menindaklanjuti Surat Keputusan Bersama (SKB) tentang Hari Libur Nasional dan Cuti Bersama serta Kalender Pendidikan Tahun Ajaran 2025/2026, bersama ini Kepala SMAS YWKA Bandung menyampaikan informasi libur sekolah:
+      </p>
+      <p style="margin-left: 20px;">
+        1. <strong>Mulai Libur</strong> : [Hari, Tanggal Dimulainya Libur]<br>
+        2. <strong>Masuk Kembali KBM</strong> : [Hari, Tanggal Mulai Masuk Sekolah]<br>
+        3. <strong>Agenda Saat Masuk</strong> : Kegiatan Belajar Mengajar (KBM) berjalan seperti biasa sesuai jadwal pelajaran.
+      </p>
+      <p>
+        Selama masa libur, kami menghimbau kepada orang tua/wali murid agar senantiasa membimbing putra-putrinya untuk mengisi waktu dengan kegiatan yang positif serta menjaga kesehatan dan keselamatan.
+      </p>
+      <p>
+        Demikian pemberitahuan ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("422.5")) {
+    labelKode = "422.5 - Beasiswa / Pelajar Teladan";
+    defaultPerihal = perihalInput || "Surat Keterangan Rekomendasi Siswa Penerima Beasiswa";
+    defaultKepada = kepadaInput || "Pimpinan Lembaga / Instansi Penyelenggara Beasiswa";
+    showCenterTitle = true;
+    centerTitleText = "SURAT KETERANGAN REKOMENDASI";
+    bodyHtml = `
+      <p class="no-indent">Yang bertanda tangan di bawah ini Kepala SMAS YWKA Bandung dengan ini menerangkan bahwa:</p>
+      <p style="margin-left: 20px;">
+        <strong>Nama Siswa</strong> : [Nama Lengkap Siswa]<br>
+        <strong>NIS / NISN</strong> : [Nomor Induk Siswa / NISN]<br>
+        <strong>Kelas</strong> : [Kelas Siswa]<br>
+        <strong>Tempat, Tgl Lahir</strong> : [Tempat, Tanggal Lahir]<br>
+        <strong>Nama Orang Tua</strong> : [Nama Ayah / Ibu]
+      </p>
+      <p>
+        Adalah benar siswa aktif yang sedang menempuh pendidikan di SMAS YWKA Bandung Tahun Pelajaran 2025/2026, berkelakuan baik, serta memiliki rekam jejak prestasi akademik yang memuaskan.
+      </p>
+      <p>
+        Surat keterangan ini diterbitkan sebagai rekomendasi permohonan <strong>Bantuan Beasiswa Pendidikan</strong>. Demikian surat keterangan ini kami buat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("423.5")) {
+    labelKode = "423.5 - Kegiatan Kurikulum";
+    defaultPerihal = perihalInput || "Pemberitahuan Pelaksanaan Supervisi Akademik & Kurikulum Merdeka";
+    defaultKepada = kepadaInput || "Bapak/Ibu Guru Mata Pelajaran SMAS YWKA Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Dalam rangka penjaminan mutu proses pembelajaran dan penguatan implementasi Kurikulum Merdeka di lingkungan SMAS YWKA Bandung, bersama ini disampaikan jadwal pelaksanaan kegiatan supervisi dan telaah modul ajar:
+      </p>
+      <p style="margin-left: 20px;">
+        <strong>Waktu Pelaksanaan</strong> : [Rentang Tanggal Pelaksanaan]<br>
+        <strong>Sasaran</strong> : Seluruh Guru Mata Pelajaran Kelas X, XI, dan XII<br>
+        <strong>Dokumen Persiapan</strong> : Modul Ajar, Alur Tujuan Pembelajaran (ATP), dan Instrumen Asesmen
+      </p>
+      <p>
+        Mohon Bapak/Ibu guru dapat mempersiapkan perangkat administrasi pembelajaran dengan sebaik-baiknya.
+      </p>
+      <p>
+        Demikian surat ini kami sampaikan, atas kerja sama yang baik kami ucapkan terima kasih.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("423.7")) {
+    labelKode = "423.7 - Ujian / Asesmen (PAT, PAS, UTS, PSAJ, ASTS)";
+    defaultPerihal = perihalInput || "Surat Edaran Pelaksanaan Asesmen Sumatif Akhir Jenjang (PSAJ) / Ujian";
+    defaultKepada = kepadaInput || "Orang Tua / Wali Siswa SMAS YWKA Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Berdasarkan program kerja Kurikulum SMAS YWKA Bandung Tahun Pelajaran 2025/2026, bersama ini kami memberitahukan kepada Bapak/Ibu Orang Tua/Wali Murid bahwa pelaksanaan <strong>Asesmen Sumatif / Ujian Sekolah</strong> akan diselenggarakan pada:
+      </p>
+      <p style="margin-left: 20px;">
+        <strong>Hari / Tanggal</strong> : [Hari, Tanggal Dimulai] s/d [Hari, Tanggal Selesai]<br>
+        <strong>Waktu</strong> : 07.30 WIB s/d Selesai<br>
+        <strong>Metode Asesmen</strong> : Computer Based Test (CBT) & Paper Based<br>
+        <strong>Syarat Peserta</strong> : Telah menyelesaikan administrasi kehadiran dan membawa kartu ujian.
+      </p>
+      <p>
+        Kami mohon kerja sama Bapak/Ibu untuk senantiasa mendampingi putra-putrinya belajar di rumah agar dapat mengikuti ujian dengan lancar dan memperoleh hasil yang optimal.
+      </p>
+      <p>
+        Demikian pemberitahuan ini kami sampaikan, atas perhatian dan kerja samanya kami ucapkan terima kasih.
+      </p>
+    `;
+  } else if (kodeVal.startsWith("425.11") || kodeVal.startsWith("425.2") || kodeVal.startsWith("425.3")) {
+    labelKode = `${kodeVal} - Sarana & Prasarana Sekolah`;
+    defaultPerihal = perihalInput || "Permohonan Pengadaan / Pemeliharaan Sarana dan Prasarana Sekolah";
+    defaultKepada = kepadaInput || "Pengurus Yayasan Wanita Kereta Api (YWKA) Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Sehubungan dengan program pemeliharaan berkala sarana dan prasarana penunjang kegiatan belajar mengajar di SMAS YWKA Bandung, bersama ini kami mengajukan permohonan pengadaan / pemeliharaan fasilitas sekolah sebagai berikut:
+      </p>
+      <table class="letter-table-formal">
+        <thead>
+          <tr>
+            <th style="width: 35px; text-align: center;">No</th>
+            <th>Uraian Sarana / Prasarana</th>
+            <th style="width: 100px; text-align: center;">Volume / Unit</th>
+            <th>Keperluan / Ruangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: center;">1</td>
+            <td>[Uraian Sarana / Perlengkapan / Perbaikan 1]</td>
+            <td style="text-align: center;">[... Unit / Pcs]</td>
+            <td>[Ruang Kelas / Laboratorium / TU]</td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">2</td>
+            <td>[Uraian Sarana / Perlengkapan / Perbaikan 2]</td>
+            <td style="text-align: center;">[... Unit / Pcs]</td>
+            <td>[Ruang Guru / Perpustakaan]</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Besar harapan kami kiranya permohonan ini dapat dipertimbangkan dan direalisasikan demi kenyamanan serta kelancaran operasional pendidikan di sekolah.
+      </p>
+      <p>
+        Demikian permohonan ini kami sampaikan, atas perhatian dan dukungan dari Bapak/Ibu Pengurus Yayasan, kami ucapkan terima kasih.
+      </p>
+    `;
+  } else {
+    // 421.3 atau Kustom Umum
+    labelKode = `${kodeVal} - Surat Dinas Umum`;
+    defaultPerihal = perihalInput || "Undangan Rapat Dinas Koordinasi Pendidik & Tenaga Kependidikan";
+    defaultKepada = kepadaInput || "Bapak/Ibu Pendidik dan Tenaga Kependidikan SMAS YWKA Bandung";
+    bodyHtml = `
+      <p class="no-indent">Dengan hormat,</p>
+      <p>
+        Sehubungan dengan koordinasi program kerja dan evaluasi pembelajaran di lingkungan SMAS YWKA Bandung, bersama ini Kepala Sekolah mengundang Bapak/Ibu untuk hadir pada rapat dinas yang akan dilaksanakan pada:
+      </p>
+      <p style="margin-left: 20px;">
+        <strong>Hari / Tanggal</strong> : [Hari, Tanggal Pelaksanaan]<br>
+        <strong>Waktu</strong> : 13.00 WIB s/d Selesai<br>
+        <strong>Tempat</strong> : Ruang Rapat Guru SMAS YWKA Bandung<br>
+        <strong>Agenda</strong> : Evaluasi Program Kerja & Koordinasi Layanan Akademik
+      </p>
+      <p>
+        Mengingat pentingnya agenda musyawarah tersebut, kami mengharapkan kehadiran Bapak/Ibu tepat pada waktunya.
+      </p>
+      <p>
+        Demikian undangan ini kami sampaikan, atas perhatian dan kerja sama yang baik kami ucapkan terima kasih.
+      </p>
+    `;
+  }
+
+  if (elBadge) elBadge.textContent = labelKode;
+  if (elPerihal) elPerihal.textContent = defaultPerihal;
+  if (elKepada) elKepada.textContent = defaultKepada;
+
+  if (showCenterTitle && titleBox && titleCenter && titleNomor) {
+    titleCenter.textContent = centerTitleText;
+    titleNomor.textContent = `Nomor: ${fullNumber}`;
+    titleBox.style.display = "block";
+  } else if (titleBox) {
+    titleBox.style.display = "none";
+  }
+
+  if (contentEl) {
+    contentEl.innerHTML = bodyHtml;
+  }
+
+  modal.classList.add("show");
+  showToast("📄 Format template dokumen kosong resmi berhasil disiapkan!", "info");
+}
+
+/**
+ * Download Naskah Dinas sebagai File Microsoft Word (.doc)
+ */
+function downloadLetterAsWord(filename, elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const contentHtml = el.innerHTML;
+  const fullHtml = `
+    <!DOCTYPE html>
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset="utf-8">
+      <title>${filename}</title>
+      <style>
+        @page { size: A4; margin: 2.5cm 2cm 2.5cm 2.5cm; }
+        body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.4; color: #000; margin: 0; padding: 0; }
+        .kop-surat-resmi { text-align: center; border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 16px; }
+        .kop-logo-img { display: none; }
+        .kop-yayasan { font-size: 13pt; font-weight: bold; }
+        .kop-sekolah { font-size: 17pt; font-weight: bold; }
+        .kop-akreditasi { font-size: 11pt; font-weight: bold; }
+        .kop-alamat, .kop-kontak { font-size: 9.5pt; }
+        .kop-garis-ganda { border-top: 1px solid #000; border-bottom: 3px solid #000; height: 3px; margin: 6px 0 16px 0; }
+        .letter-meta-row table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+        .letter-meta-row td { padding: 2px 4px; vertical-align: top; font-size: 12pt; }
+        .letter-recipient-block { margin-bottom: 16px; font-size: 12pt; }
+        .letter-title-center { text-align: center; margin: 16px 0; }
+        .letter-title-center h3 { font-size: 14pt; text-decoration: underline; margin: 0; }
+        .letter-title-number { font-size: 11pt; margin-top: 3px; }
+        .letter-table-formal { width: 100%; border-collapse: collapse; margin: 12px 0; }
+        .letter-table-formal th, .letter-table-formal td { border: 1px solid #000; padding: 6px 8px; font-size: 11pt; }
+        .letter-signature-block { margin-top: 25px; float: right; width: 280px; text-align: left; }
+        .letter-sig-space { height: 60px; }
+      </style>
+    </head>
+    <body>
+      ${contentHtml}
+    </body>
+    </html>
+  `;
+  const blob = new Blob(['\\ufeff' + fullHtml], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.doc') ? filename : filename + '.doc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("⬇️ Berkas template dokumen Word (.doc) berhasil diunduh!", "success");
+}
+
+/**
+ * Inisialisasi PWA Service Worker & Tombol Pasang di HP
+ */
+let deferredPwaPrompt = null;
+
+function initPwaServiceWorker() {
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("./sw.js")
+        .then((reg) => {
+          console.log("PWA Service Worker terdaftar dengan scope:", reg.scope);
+        })
+        .catch((err) => {
+          console.warn("Registrasi Service Worker dilewati:", err);
+        });
+    });
+  }
+
+  // Handle beforeinstallprompt (Android Chrome / Edge)
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPwaPrompt = e;
+    
+    // Tampilkan tombol install di sidebar & banner
+    const btnSidebarPwa = document.getElementById("btnSidebarInstallPwa");
+    if (btnSidebarPwa) btnSidebarPwa.style.display = "flex";
+
+    const banner = document.getElementById("pwaInstallBanner");
+    if (banner && !sessionStorage.getItem("pwa_banner_dismissed")) {
+      banner.style.display = "block";
+    }
+  });
+
+  const btnSidebarPwa = document.getElementById("btnSidebarInstallPwa");
+  if (btnSidebarPwa) {
+    btnSidebarPwa.addEventListener("click", () => {
+      triggerPwaInstall();
+    });
+  }
+
+  const btnBannerInstall = document.getElementById("btnPwaBannerInstall");
+  if (btnBannerInstall) {
+    btnBannerInstall.addEventListener("click", () => {
+      triggerPwaInstall();
+    });
+  }
+
+  const btnBannerDismiss = document.getElementById("btnPwaBannerDismiss");
+  if (btnBannerDismiss) {
+    btnBannerDismiss.addEventListener("click", () => {
+      const banner = document.getElementById("pwaInstallBanner");
+      if (banner) banner.style.display = "none";
+      sessionStorage.setItem("pwa_banner_dismissed", "true");
+    });
+  }
+
+  window.addEventListener("appinstalled", () => {
+    console.log("PWA SIAS YWKA berhasil di-install!");
+    showToast("🎉 Aplikasi SIAS YWKA berhasil dipasang di perangkat Anda!", "success");
+    deferredPwaPrompt = null;
+    const banner = document.getElementById("pwaInstallBanner");
+    if (banner) banner.style.display = "none";
+  });
+}
+
+function triggerPwaInstall() {
+  if (deferredPwaPrompt) {
+    deferredPwaPrompt.prompt();
+    deferredPwaPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === "accepted") {
+        showToast("Memasang aplikasi SIAS SMAS YWKA...", "info");
+      }
+      deferredPwaPrompt = null;
+    });
+  } else {
+    // Petunjuk manual jika sudah terinstall atau browser belum fire event
+    showToast("💡 Buka menu browser HP (titik tiga ⋮) lalu pilih 'Tambahkan ke Layar Utama' atau 'Install Aplikasi'.", "info");
+  }
+}

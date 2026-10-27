@@ -6,6 +6,15 @@
   <title>Sistem Informasi Agenda Surat | SMAS YWKA Bandung</title>
   <meta name="description" content="Aplikasi Agenda Surat Keluar & Surat Masuk SMAS YWKA Bandung dengan generator nomor agenda otomatis, template surat dinas AI Claude, upload berkas ke Google Drive, dan sinkronisasi Google Spreadsheet.">
   <link rel="icon" type="image/png" href="favicon.png">
+
+  <!-- Progressive Web App (PWA) & Mobile Android Settings -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#002b80">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SIAS YWKA">
+  <link rel="apple-touch-icon" href="icon-192.png">
   
   <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -165,6 +174,11 @@
         <button class="nav-item" data-tab="tab-vercel">
           <i class="fa-solid fa-cloud-arrow-up"></i>
           <span>Deploy ke Vercel</span>
+        </button>
+        <button class="nav-item btn-install-pwa" id="btnSidebarInstallPwa" style="background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); margin-top: 6px;">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+          <span>Install Aplikasi (HP)</span>
+          <span class="badge" style="background: #10b981; color: white;">APK / PWA</span>
         </button>
       </nav>
 
@@ -865,33 +879,20 @@
                 </div>
               </div>
 
-              <!-- Filter Kategori Template -->
-              <div class="template-selector-section">
-                <div class="template-header-bar">
-                  <label class="form-label font-bold"><i class="fa-solid fa-layer-group"></i> Filter Kategori Template (Berdasarkan Kode Surat):</label>
-                  <span class="badge-filter-count" id="tplFilteredCount">Menampilkan semua template</span>
+              <!-- Card Fitur Template Dokumen Kosong Otomatis -->
+              <div class="blank-template-card" style="background: linear-gradient(135deg, #f0f4ff 0%, #ffffff 100%); border: 1.5px solid #b3c7ee; border-radius: 12px; padding: 16px 20px; margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0, 43, 128, 0.06);">
+                <div style="display: flex; align-items: center; gap: 14px; flex: 1; min-width: 260px;">
+                  <div style="width: 44px; height: 44px; border-radius: 10px; background: #002b80; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0, 43, 128, 0.25);">
+                    <i class="fa-solid fa-file-invoice"></i>
+                  </div>
+                  <div>
+                    <h4 style="margin: 0 0 3px 0; font-size: 15px; font-weight: 700; color: #002b80;">Template Dokumen Kosong (Naskah Dinas Resmi)</h4>
+                    <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.4;">Format kerangka naskah dinas resmi siap pakai dengan Kop SMAS YWKA, nomor agenda otomatis, titi mangsa, dan tanda tangan kepala sekolah.</p>
+                  </div>
                 </div>
-                
-                <div class="category-pills-bar" id="categoryPillsBar">
-                  <button type="button" class="category-pill active" data-cat="all">Semua Kode</button>
-                  <button type="button" class="category-pill" data-cat="421.3">421.3 Umum</button>
-                  <button type="button" class="category-pill" data-cat="421.6">421.6 Wisuda</button>
-                  <button type="button" class="category-pill" data-cat="421.7">421.7 Siswa</button>
-                  <button type="button" class="category-pill" data-cat="421.71">421.71 Wisata</button>
-                  <button type="button" class="category-pill" data-cat="422.1">422.1 PPDB/MPLS</button>
-                  <button type="button" class="category-pill" data-cat="422.3">422.3 Libur</button>
-                  <button type="button" class="category-pill" data-cat="422.5">422.5 Beasiswa</button>
-                  <button type="button" class="category-pill" data-cat="423.5">423.5 Kurikulum</button>
-                  <button type="button" class="category-pill" data-cat="423.7">423.7 Ujian</button>
-                  <button type="button" class="category-pill" data-cat="425.11">425.11 Gedung</button>
-                  <button type="button" class="category-pill" data-cat="425.2">425.2 Buku</button>
-                  <button type="button" class="category-pill" data-cat="425.3">425.3 Sarpras</button>
-                </div>
-
-                <!-- Template Chips Grid -->
-                <div class="template-chips-grid" id="templateChipsGrid">
-                  <!-- Diisi secara dinamis oleh JavaScript -->
-                </div>
+                <button type="button" class="btn btn-primary" id="btnOpenTopTemplateKosong" style="background: #002b80; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(0, 43, 128, 0.2); cursor: pointer; color: #fff;">
+                  <i class="fa-solid fa-file-lines"></i> Buka Format Dokumen Kosong
+                </button>
               </div>
 
               <!-- Generator Form -->
@@ -1015,6 +1016,9 @@
                       </button>
                       <button type="button" class="btn btn-outline" id="btnPrintDisposisiMini">
                         <i class="fa-solid fa-print"></i> Lembar Disposisi
+                      </button>
+                      <button type="button" class="btn btn-primary" id="btnOpenTemplateKosong" style="background: #002b80; color: #fff;">
+                        <i class="fa-solid fa-file-invoice"></i> Template Dokumen Kosong
                       </button>
                     </div>
                   </div>
@@ -1871,6 +1875,137 @@
         <button type="button" class="btn btn-secondary" id="btnCancelConfirmDelete">Batal</button>
         <button type="submit" class="btn btn-danger" id="btnExecuteDeleteRow" style="background: #e11d48; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600;">
           <i class="fa-solid fa-trash-can"></i> Ya, Hapus Surat Ini
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Format Template Dokumen Kosong (Naskah Dinas Resmi) -->
+  <div class="modal-backdrop" id="modalTemplateKosong">
+    <div class="modal-dialog modal-xl" style="max-width: 900px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-file-invoice text-primary"></i> Format Template Dokumen Kosong (Naskah Dinas Resmi)
+        </h3>
+        <button class="modal-close-btn" id="btnCloseModalTemplateKosong" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="background: #f1f5f9; padding: 20px;">
+        <!-- Toolbar Kontrol Dokumen Kosong -->
+        <div class="doc-toolbar-bar" style="display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: #ffffff; padding: 12px 16px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 13px; font-weight: 700; color: #002b80;">
+              <i class="fa-solid fa-tag"></i> Jenis Surat: <span id="tplDocJenisBadge" class="badge" style="background: #eef3ff; color: #002b80; border: 1px solid #b3c7ee; font-size: 12px; padding: 3px 8px; border-radius: 6px;">421.3 - Surat Umum</span>
+            </span>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline btn-sm" id="btnCopyTplKosongText" title="Salin seluruh isi teks naskah dinas">
+              <i class="fa-solid fa-copy"></i> Salin Teks
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnDownloadWordTplKosong" title="Download berkas dalam format Microsoft Word (.doc)">
+              <i class="fa-solid fa-file-word" style="color: #2b579a;"></i> Unduh Word (.doc)
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnPrintTplKosongDoc" title="Cetak langsung ke printer atau Simpan PDF">
+              <i class="fa-solid fa-print"></i> Cetak / Simpan PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- Preview Lembar Kertas A4 Dokumen Kosong -->
+        <div class="official-letter-wrapper" id="tplKosongPrintArea">
+          <div class="official-letter-sheet" id="tplKosongSheet">
+            <!-- Kop Surat Resmi SMAS YWKA -->
+            <div class="kop-surat-resmi">
+              <img src="logo-ywka.png" alt="Logo SMAS YWKA Bandung" class="kop-logo-img">
+              <div class="kop-text-box">
+                <div class="kop-yayasan">YAYASAN WANITA KERETA API</div>
+                <div class="kop-sekolah">SMAS YWKA BANDUNG</div>
+                <div class="kop-akreditasi">TERAKREDITASI 'A' (UNGGUL)</div>
+                <div class="kop-alamat">Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat 40184</div>
+                <div class="kop-kontak">Telp: (022) 6011740 | Email: smaywkabandung@gmail.com | NPSN: 20219736</div>
+              </div>
+            </div>
+            <div class="kop-garis-ganda"></div>
+
+            <!-- Metadata Surat -->
+            <div class="letter-meta-row">
+              <div class="letter-meta-left">
+                <table>
+                  <tr>
+                    <td style="width: 75px;">Nomor</td>
+                    <td style="width: 10px;">:</td>
+                    <td><strong id="tplDocNomor">421.3/609/SMA YWKA/TU/X/2026</strong></td>
+                  </tr>
+                  <tr>
+                    <td>Lampiran</td>
+                    <td>:</td>
+                    <td id="tplDocLampiran">-</td>
+                  </tr>
+                  <tr>
+                    <td>Perihal</td>
+                    <td>:</td>
+                    <td><strong id="tplDocPerihal">Undangan Rapat Dinas Sekolah</strong></td>
+                  </tr>
+                </table>
+              </div>
+              <div class="letter-meta-right">
+                <span id="tplDocTitiMangsaTop">Bandung, 27 Oktober 2026</span>
+              </div>
+            </div>
+
+            <!-- Penerima Surat -->
+            <div class="letter-recipient-block">
+              <div>Kepada Yth.</div>
+              <strong id="tplDocKepada">Bapak/Ibu Guru & Karyawan SMAS YWKA Bandung</strong><br>
+              <span id="tplDocAlamatTujuan">di Tempat</span>
+            </div>
+
+            <!-- Judul Surat Khusus (Surat Tugas / Surat Keterangan / SK) -->
+            <div class="letter-title-center" id="tplDocCenterTitleBox" style="display: none;">
+              <h3 id="tplDocCenterTitle">SURAT TUGAS</h3>
+              <div class="letter-title-number" id="tplDocCenterNomor">Nomor: 421.3/609/SMA YWKA/TU/X/2026</div>
+            </div>
+
+            <!-- Isi Surat Format Template Kosong (Contenteditable agar dapat langsung diedit jika diinginkan) -->
+            <div class="letter-body-content" id="tplDocContent" contenteditable="true" style="outline: none; min-height: 250px; border: 1px dashed transparent; transition: all 0.2s;" title="Klik untuk mengedit teks secara langsung">
+              <!-- Diisi secara dinamis berdasarkan kode surat -->
+            </div>
+
+            <!-- Titi Mangsa & Tanda Tangan Resmi -->
+            <div class="letter-signature-block">
+              <div class="letter-sig-box">
+                <div id="tplDocTitiMangsaBottom">Bandung, 27 Oktober 2026</div>
+                <div id="tplDocJabatanSig">Kepala SMAS YWKA Bandung,</div>
+                <div class="letter-sig-space"></div>
+                <div class="letter-sig-name" id="tplDocNamaSig">Syarif Hasanudin, S.Pd., Gr., M.M.</div>
+                <div class="letter-sig-nip" id="tplDocNipSig">NUPTK: 1234567890123456</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span style="font-size: 12px; color: #64748b; margin-right: auto;">
+          <i class="fa-solid fa-pen-to-square"></i> Teks surat di atas dapat langsung diedit sebelum dicetak atau disalin.
+        </span>
+        <button type="button" class="btn btn-secondary" id="btnCloseTplKosongFooter">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PWA Install Floating Banner untuk Android & Mobile -->
+  <div class="pwa-install-banner" id="pwaInstallBanner" style="display: none;">
+    <div class="pwa-banner-card">
+      <img src="logo-ywka.png" alt="Logo SMAS YWKA" class="pwa-banner-logo">
+      <div class="pwa-banner-text">
+        <strong>Pasang Aplikasi SIAS SMAS YWKA</strong>
+        <span>Akses cepat & layar penuh di HP Android Anda</span>
+      </div>
+      <div class="pwa-banner-actions">
+        <button type="button" class="btn-pwa-install" id="btnPwaBannerInstall">
+          <i class="fa-solid fa-download"></i> Pasang
+        </button>
+        <button type="button" class="btn-pwa-dismiss" id="btnPwaBannerDismiss" aria-label="Tutup">
+          &times;
         </button>
       </div>
     </div>

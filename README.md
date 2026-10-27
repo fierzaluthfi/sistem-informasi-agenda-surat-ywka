@@ -35,25 +35,17 @@ Telah live di: **[sistem-informasi-agenda-surat-ywka.vercel.app](https://sistem-
    - **425.2** = untuk kegiatan Sarana dan Prasarana Buku / Bahan Ajar
    - **425.3** = untuk sarana dan prasarana perlengkapan sekolah dan lainnya
 
-4. **Template Surat Dibuat Ulang Berdasarkan Arsip Google Drive**:
-   - Dilengkapi filter kategori template (Pills 12 Kode).
-   - Template mencakup:
-     - *Surat Tugas MOU SPMB SMPN*
-     - *Keterangan Aktif Mengajar Guru*
-     - *Pengganti Ijazah / Ralat*
-     - *Siswa Aktif Bersekolah*
-     - *Undangan Pelepasan / Wisuda Kelas XII & SK Panitia*
-     - *Dispensasi Siswa Lomba & Surat Tugas Pendamping (O2SN/FLS2N)*
-     - *Pemberitahuan & Izin Tempat LDKS (PUSDIKKAV/PUSDIKJAS)*
-     - *Panggilan Orang Tua Siswa (BK) & Home Visit*
-     - *Field Trip PT. KAI & Peminjaman Bus Sekolah*
-     - *Pengumuman Libur Awal Ramadhan & Idul Fitri*
-     - *Siswa Eligible SNBP & Beasiswa Nilai Tertinggi*
-     - *Surat Keterangan Lulus (SKL) & SK Supervisi Guru (PKG)*
-     - *Edaran ASTS (UTS) & ASAT/PSAJ (PAT/PAS)*
-     - *Perbaikan Gedung / Kusen Jendela (Sarpras)*
-     - *Pengadaan Buku / Modul Ajar Perpustakaan*
-     - *Pengadaan Alat Olahraga & Perlengkapan UKS*
+4. **Fitur Template Dokumen Kosong (Format Naskah Dinas Resmi)**:
+   - Filter kategori chips lama yang tidak terpakai telah dibersihkan agar form lebih ringkas dan fokus.
+   - Disediakan tombol **"Template Dokumen Kosong"** yang otomatis menyusun naskah dinas resmi siap pakai sesuai kode surat yang dipilih.
+   - Dilengkapi Kop Resmi SMAS YWKA Bandung, nomor agenda otomatis, titi mangsa, dan tanda tangan Kepala Sekolah.
+   - Mendukung **🖨️ Cetak / Simpan PDF**, **📋 Salin Teks ke Word**, serta **💾 Unduh File Word (.doc)**.
+
+5. **Dukungan Mobile Android App (PWA & APK Ready)**:
+   - Dilengkapi `manifest.json` dan Service Worker (`sw.js`).
+   - Dapat diinstal langsung dari browser Chrome di HP Android via tombol **"Install Aplikasi (HP)"**.
+   - Berjalan layar penuh (*standalone*), ikon logo resmi YWKA, dan otomatis terupdate saat web Vercel diperbarui.
+   - Dapat di-package menjadi file fisik `.apk` melalui [PWABuilder](https://www.pwabuilder.com/).
 
 ---
 
@@ -63,9 +55,13 @@ Telah live di: **[sistem-informasi-agenda-surat-ywka.vercel.app](https://sistem-
 📁 Project/
 ├── 📄 index.html              # Halaman antarmuka utama (Dashboard, Generator, Tabel, & Drive Upload)
 ├── 📄 style.css               # Desain UI modern, responsif, dropzone upload, & print layout
-├── 📄 app.js                  # Logika aplikasi, tracking No. Agenda, 12 kode, template Drive, & FileReader Base64
+├── 📄 app.js                  # Logika aplikasi, tracking No. Agenda, 12 kode, template kosong, & PWA
+├── 📄 manifest.json           # Konfigurasi PWA & Android Mobile App
+├── 📄 sw.js                   # Service Worker PWA (Cache & Offline support)
+├── 📄 icon-192.png            # Icon PWA 192x192 px
+├── 📄 icon-512.png            # Icon PWA 512x512 px
 ├── 📄 google-apps-script.js   # Skrip backend Google Apps Script v2.0 (Auto-Save + Google Drive Upload)
-├── 📄 vercel.json             # Konfigurasi Vercel deployment
+├── 📄 vercel.json             # Konfigurasi Vercel deployment & PWA headers
 └── 📄 README.md               # Dokumentasi lengkap
 ```
 

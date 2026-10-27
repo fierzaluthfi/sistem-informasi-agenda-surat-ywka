@@ -37,7 +37,7 @@ function getTargetSpreadsheet() {
   try {
     const active = SpreadsheetApp.getActiveSpreadsheet();
     if (active) return active;
-  } catch (e) {}
+  } catch (e) { }
   try {
     return SpreadsheetApp.openById(SPREADSHEET_ID);
   } catch (e) {
@@ -106,7 +106,7 @@ function autoRelocateMisplacedSuratMasuk(sheet) {
           sheet.getRange(properRow, 4).setNumberFormat("@").setValue(dataToMove[3]);
           try {
             sheet.getRange(properRow, 1, 1, dataToMove.length).setBorder(true, true, true, true, true, true);
-          } catch (e) {}
+          } catch (e) { }
 
           values[j] = dataToMove;
           try {
@@ -137,7 +137,7 @@ function autoRelocateMisplacedSuratMasuk(sheet) {
             sheet.getRange(properRow, 4).setNumberFormat("@").setValue(dataToMove[3]);
             try {
               sheet.getRange(properRow, 1, 1, dataToMove.length).setBorder(true, true, true, true, true, true);
-            } catch (e) {}
+            } catch (e) { }
 
             values[j] = dataToMove;
             try {
@@ -155,7 +155,7 @@ function autoRelocateMisplacedSuratMasuk(sheet) {
       try {
         sheet.deleteRow(curRow);
         deletedCount++;
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
@@ -288,7 +288,7 @@ function doGet(e) {
     if (action === "ping") {
       try {
         repairDateCells(ss.getSheetByName(SHEET_SURAT_MASUK));
-      } catch (e) {}
+      } catch (e) { }
       return createJsonResponse({
         status: "success",
         message: "Koneksi Google Apps Script SMA YWKA Aktif & Siap!",
@@ -318,7 +318,7 @@ function doGet(e) {
       const type = (e.parameter && e.parameter.type) || "keluar";
       const sheetName = type === "masuk" ? SHEET_SURAT_MASUK : SHEET_SURAT_KELUAR;
       const sheet = ss.getSheetByName(sheetName);
-      
+
       if (!sheet) {
         return createJsonResponse({ status: "error", message: "Sheet tidak ditemukan: " + sheetName });
       }
@@ -327,14 +327,14 @@ function doGet(e) {
       if (type === "masuk") {
         try {
           autoRelocateMisplacedSuratMasuk(sheet);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const rawValues = sheet.getDataRange().getValues();
       const rows = type === "masuk" ? rawValues.slice(1) : rawValues.slice(3); // Surat Masuk data dari baris 2 (indeks 1), Surat Keluar dari baris 4 (indeks 3)
 
       // Pastikan tanggal selalu berformat DD/MM/YYYY
-      const formattedRows = rows.map(function(row) {
+      const formattedRows = rows.map(function (row) {
         const copy = row.slice();
         if (type === "masuk") {
           copy[2] = formatToIndoDate(copy[2]); // Tanggal Surat
@@ -409,7 +409,7 @@ function doPost(e) {
       const rawKode = payload.kode_klasifikasi || "421.3";
       const kodePrefix = rawKode.endsWith("/") ? rawKode : rawKode + "/";
       const tahunSuffix = payload.tahun ? "/" + payload.tahun.replace("/", "").trim() : "/2026";
-      
+
       const noAgendaStr = String(payload.no_agenda || payload.nomor_urut || "").trim();
       const bulanRomawi = payload.bulan_romawi || "X";
       const perihal = payload.perihal || "";
@@ -417,7 +417,7 @@ function doPost(e) {
       const kepada = payload.kepada || "";
       const petugas = payload.petugas || "";
       const keterangan = payload.keterangan || "";
-      
+
       // Format Tanggal: DIJAMIN selalu DD/MM/YYYY (contoh: 26/10/2026)
       const tglSurat = formatToIndoDate(payload.tanggal_surat || "");
 
@@ -518,7 +518,7 @@ function doPost(e) {
 
       const oldAgendaStr = String(payload.old_no_agenda || payload.no_agenda || "").trim();
       const newAgendaStr = String(payload.no_agenda || oldAgendaStr).trim();
-      
+
       let driveFileUrl = "";
       if (payload.fileBase64 && payload.fileName) {
         driveFileUrl = uploadFileToGoogleDrive(
@@ -557,7 +557,7 @@ function doPost(e) {
         const existingNoUrut = existingValues[0] || newAgendaStr;
         const existingChecked = existingValues[1];
         const existingLampiran = existingValues[13] || "Surat Keluar";
-        
+
         const finalLampiran = driveFileUrl || existingLampiran;
         const isChecked = Boolean(driveFileUrl || existingChecked || (finalLampiran && finalLampiran.includes("http")));
 
@@ -849,10 +849,10 @@ function doPost(e) {
       else if (tglSuratMasuk) { sheet.getRange(targetRowIndex, 3).setValue(tglSuratMasuk); }
       if (dObj2 instanceof Date) { sheet.getRange(targetRowIndex, 4).setValue(dObj2).setNumberFormat("dd/mm/yyyy"); }
       else if (tglDiterimaMasuk) { sheet.getRange(targetRowIndex, 4).setValue(tglDiterimaMasuk); }
-      try { repairDateCells(sheet); } catch (e) {}
+      try { repairDateCells(sheet); } catch (e) { }
       try {
         sheet.getRange(targetRowIndex, 1, 1, rowData.length).setBorder(true, true, true, true, true, true);
-      } catch (e) {}
+      } catch (e) { }
 
       return createJsonResponse({
         status: "success",
@@ -877,7 +877,7 @@ function doPost(e) {
       const oldNoUrutStr = String(payload.old_no_urut || payload.no_urut || "").trim();
       const newAgendaStr = String(payload.no_agenda || oldAgendaStr).trim();
       const newNoUrutStr = String(payload.no_urut || oldNoUrutStr).trim();
-      
+
       let driveFileUrl = "";
       if (payload.fileBase64 && payload.fileName) {
         driveFileUrl = uploadFileToGoogleDrive(
@@ -957,7 +957,7 @@ function doPost(e) {
         else if (tglSuratMasuk) { sheet.getRange(foundRow, 3).setValue(tglSuratMasuk); }
         if (dEdit2 instanceof Date) { sheet.getRange(foundRow, 4).setValue(dEdit2).setNumberFormat("dd/mm/yyyy"); }
         else if (tglDiterimaMasuk) { sheet.getRange(foundRow, 4).setValue(tglDiterimaMasuk); }
-        try { repairDateCells(sheet); } catch (e) {}
+        try { repairDateCells(sheet); } catch (e) { }
 
         return createJsonResponse({
           status: "success",
@@ -1006,7 +1006,7 @@ function doPost(e) {
         const urutColValues = sheet.getRange(2, 1, totalScan, 1).getValues();
         for (let i = 0; i < totalScan; i++) {
           if ((noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr) ||
-              (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
+            (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
             foundRow = i + 2;
             break;
           }
@@ -1043,15 +1043,15 @@ function doPost(e) {
       // 1. Jika dikirim array row_indices
       if (Array.isArray(payload.row_indices) && payload.row_indices.length > 0) {
         const sortedIndices = payload.row_indices
-          .map(function(n) { return parseInt(n, 10); })
-          .filter(function(n) { return !isNaN(n) && n >= 2 && n <= sheet.getLastRow(); })
-          .sort(function(a, b) { return b - a; });
+          .map(function (n) { return parseInt(n, 10); })
+          .filter(function (n) { return !isNaN(n) && n >= 2 && n <= sheet.getLastRow(); })
+          .sort(function (a, b) { return b - a; });
 
         for (var d = 0; d < sortedIndices.length; d++) {
           try {
             sheet.deleteRow(sortedIndices[d]);
             deletedRows.push(sortedIndices[d]);
-          } catch (e) {}
+          } catch (e) { }
         }
       } else {
         const rowIndex = parseInt(payload.row_index, 10);
@@ -1128,12 +1128,12 @@ function doPost(e) {
         }
 
         // Hapus dari bawah ke atas agar nomor baris tidak bergeser
-        rowsToDelete.sort(function(a, b) { return b - a; });
+        rowsToDelete.sort(function (a, b) { return b - a; });
         for (var r = 0; r < rowsToDelete.length; r++) {
           try {
             sheet.deleteRow(rowsToDelete[r]);
             removedCount++;
-          } catch (e) {}
+          } catch (e) { }
         }
 
         // Hapus juga baris apapun di bawah 301 yang salah ter-append ke paling bawah (agenda dan perihal kosong)
@@ -1145,7 +1145,7 @@ function doPost(e) {
               try {
                 sheet.deleteRow(ex);
                 removedCount++;
-              } catch (e) {}
+              } catch (e) { }
             }
           }
         }
@@ -1256,7 +1256,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
 
     try {
       driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    } catch (e) {}
+    } catch (e) { }
 
     return driveFile.getUrl();
   } catch (err) {
