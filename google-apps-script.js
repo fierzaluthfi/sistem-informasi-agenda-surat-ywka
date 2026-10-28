@@ -1,25 +1,24 @@
 /**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 2.8 (AUTO-RELOKASI PRESISI BARIS 302 KE SLOT 214 & ANTI-PENEMPATAN DI BAWAH TEMPLATE)
+ * VERSI 2.9 (PERBAIKAN OTOMATIS TANGGAL KELUAR & MASUK + RELOKASI PRESISI SURAT MASUK)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
  * 1. Buka Google Spreadsheet SMA YWKA Anda di browser:
- *    https://docs.google.com/spreadsheets/d/1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k/edit?gid=1925080880#gid=1925080880
+ *    https://docs.google.com/spreadsheets/d/1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k/edit?gid=381566345#gid=381566345
  * 2. Klik menu "Ekstensi" (Extensions) > "Apps Script".
- * 3. Hapus semua teks di editor Apps Script, lalu Paste (Tempel) SELURUH isi file ini.
- * 4. Klik ikon Simpan (Save).
- * 5. (LANGKAH PENTING INSTAN):
- *    Di menu dropdown fungsi di atas editor, pilih fungsi:
- *    "perbaikiBarisSuratMasuk", lalu klik "Run / Jalankan".
- *    Surat yang ada di baris 302 akan OTOMATIS dipindahkan ke baris 214 (No. Urut 215)
- *    dan baris 302 liar di bawah akan otomatis dihapus bersih!
- * 6. Klik tombol "Deploy" (di kanan atas) > "Manage deployments".
- * 7. Klik ikon pensil (Edit):
- *    - Version: "New version"
+ * 3. Hapus semua teks yang ada di editor Apps Script.
+ * 4. Salin (Copy) seluruh isi file ini, lalu Tempel (Paste) ke editor tersebut.
+ * 5. Klik ikon Simpan (Save).
+ * 6. (PILIHAN) Pilih fungsi "setupDriveFolders" pada menu dropdown di atas editor, lalu klik "Run/Jalankan"
+ *    untuk langsung membuat folder "Surat Keluar 2026" dan "Surat Masuk 2026" di Google Drive!
+ * 7. Klik tombol "Deploy" (di kanan atas) > "Manage deployments" (atau "New deployment").
+ * 8. Jika Manage deployments: klik ikon pensil (Edit), pilih Version: "New version",
+ *    - Execute as: "Me" (email Anda)
  *    - Who has access: "Anyone" (Siapa saja yang memiliki link) -> PENTING!
- * 8. Klik "Deploy".
+ * 9. Klik "Deploy", izinkan akses (Authorize access) Google Drive & Sheets.
+ * 10. Salin "Web app URL" (akhiran /exec) dan tempelkan ke aplikasi web Anda di menu "Koneksi Spreadsheet"!
  */
 
 // Konstanta Nama Sheet sesuai berkas asli SMA YWKA
@@ -204,31 +203,66 @@ function parseDateForSheet(val) {
 }
 
 /**
+ * FUNGSI UTAMA: PERBAIKI SEMUA FORMAT TANGGAL DI GOOGLE SPREADSHEET
+ * Klik dropdown di atas editor Apps Script, pilih "perbaikiSemuaTanggal", lalu klik "Run/Jalankan".
+ * Fungsi ini akan menormalkan semua tanggal di sheet "SURAT KELUAR 2026" dan "SURAT MASUK 2026"
+ * agar menjadi objek Date resmi Google Sheets (dd/mm/yyyy) sehingga langsung terbaca oleh Web App!
+ */
+function perbaikiSemuaTanggal() {
+  const ss = getTargetSpreadsheet();
+  repairDateCells(ss.getSheetByName(SHEET_SURAT_KELUAR), "keluar");
+  repairDateCells(ss.getSheetByName(SHEET_SURAT_MASUK), "masuk");
+  Logger.log("✅ Berhasil memperbaiki format tanggal di Surat Keluar & Surat Masuk!");
+}
+
+/**
  * Otomatis perbaiki sel tanggal di spreadsheet yang sebelumnya tersimpan sebagai plain text string
  * agar kembali menjadi objek Date bertipe dd/mm/yyyy yang bisa terbaca oleh GViz & Web
  */
-function repairDateCells(sheet) {
+function repairDateCells(sheet, type) {
   if (!sheet) return;
   try {
-    const lastRow = Math.min(sheet.getLastRow(), 310);
+    const lastRow = sheet.getLastRow();
     if (lastRow < 4) return;
     const totalScan = lastRow - 3;
-    const range = sheet.getRange(4, 3, totalScan, 2);
-    const values = range.getValues();
 
-    for (let i = 0; i < totalScan; i++) {
-      const v1 = values[i][0];
-      const v2 = values[i][1];
-      if (typeof v1 === "string" && v1.trim() && v1.includes("/")) {
-        const d1 = parseDateForSheet(v1);
-        if (d1 instanceof Date) {
-          sheet.getRange(i + 4, 3).setValue(d1).setNumberFormat("dd/mm/yyyy");
+    if (!type) {
+      type = sheet.getName().toLowerCase().includes("masuk") ? "masuk" : "keluar";
+    }
+
+    if (type === "masuk") {
+      // Surat Masuk: Kolom 3 (Tgl Surat) dan Kolom 4 (Tgl Diterima)
+      const range = sheet.getRange(4, 3, totalScan, 2);
+      const values = range.getValues();
+
+      for (let i = 0; i < totalScan; i++) {
+        const v1 = values[i][0];
+        const v2 = values[i][1];
+        if (typeof v1 === "string" && v1.trim() && v1.includes("/")) {
+          const d1 = parseDateForSheet(v1);
+          if (d1 instanceof Date) {
+            sheet.getRange(i + 4, 3).setValue(d1).setNumberFormat("dd/mm/yyyy");
+          }
+        }
+        if (typeof v2 === "string" && v2.trim() && v2.includes("/")) {
+          const d2 = parseDateForSheet(v2);
+          if (d2 instanceof Date) {
+            sheet.getRange(i + 4, 4).setValue(d2).setNumberFormat("dd/mm/yyyy");
+          }
         }
       }
-      if (typeof v2 === "string" && v2.trim() && v2.includes("/")) {
-        const d2 = parseDateForSheet(v2);
-        if (d2 instanceof Date) {
-          sheet.getRange(i + 4, 4).setValue(d2).setNumberFormat("dd/mm/yyyy");
+    } else {
+      // Surat Keluar: Kolom 8 (TGL SURAT / Kolom H)
+      const range = sheet.getRange(4, 8, totalScan, 1);
+      const values = range.getValues();
+
+      for (let i = 0; i < totalScan; i++) {
+        const v = values[i][0];
+        if (typeof v === "string" && v.trim() && v.includes("/")) {
+          const d = parseDateForSheet(v);
+          if (d instanceof Date) {
+            sheet.getRange(i + 4, 8).setValue(d).setNumberFormat("dd/mm/yyyy");
+          }
         }
       }
     }
@@ -285,13 +319,13 @@ function doGet(e) {
     const action = (e && e.parameter && e.parameter.action) || "ping";
     const ss = getTargetSpreadsheet();
 
-    if (action === "ping") {
+    if (action === "ping" || action === "repair_dates") {
       try {
         repairDateCells(ss.getSheetByName(SHEET_SURAT_MASUK));
       } catch (e) { }
       return createJsonResponse({
         status: "success",
-        message: "Koneksi Google Apps Script SMA YWKA Aktif & Siap!",
+        message: "Koneksi Google Apps Script SMA YWKA Aktif & Format Tanggal Diperbaiki!",
         timestamp: new Date().toISOString(),
         spreadsheetName: ss.getName()
       });
@@ -465,8 +499,13 @@ function doPost(e) {
         ];
 
         sheet.getRange(targetRowIndex, 1, 1, rowData.length).setValues([rowData]);
-        // Format teks plain (@) untuk kolom tanggal agar tidak diubah Google Sheets ke YYYY-MM-DD
-        sheet.getRange(targetRowIndex, 8).setNumberFormat("@").setValue(tglSurat);
+        // Simpan sebagai Date resmi dd/mm/yyyy agar dikenali GViz Google Sheets & Web App
+        const dObj = parseDateForSheet(tglSurat);
+        if (dObj instanceof Date) {
+          sheet.getRange(targetRowIndex, 8).setValue(dObj).setNumberFormat("dd/mm/yyyy");
+        } else {
+          sheet.getRange(targetRowIndex, 8).setValue(tglSurat || "");
+        }
       } else {
         const prevNoUrut = lastRow >= 4 ? Number(sheet.getRange(lastRow, 1).getValue()) || (lastRow - 3) : 1;
         const newNoUrut = prevNoUrut + 1;
@@ -491,7 +530,12 @@ function doPost(e) {
 
         sheet.appendRow(rowData);
         targetRowIndex = sheet.getLastRow();
-        sheet.getRange(targetRowIndex, 8).setNumberFormat("@").setValue(tglSurat);
+        const dObj = parseDateForSheet(tglSurat);
+        if (dObj instanceof Date) {
+          sheet.getRange(targetRowIndex, 8).setValue(dObj).setNumberFormat("dd/mm/yyyy");
+        } else {
+          sheet.getRange(targetRowIndex, 8).setValue(tglSurat || "");
+        }
       }
 
       const fullGenerated = `${kodePrefix}${noAgendaStr}/SMA YWKA/TU/${bulanRomawi}${tahunSuffix}`.replace(/\/{2,}/g, "/");
@@ -579,7 +623,12 @@ function doPost(e) {
         ];
 
         sheet.getRange(targetRowIndex, 1, 1, rowData.length).setValues([rowData]);
-        sheet.getRange(targetRowIndex, 8).setNumberFormat("@").setValue(tglSurat);
+        const dObj = parseDateForSheet(tglSurat);
+        if (dObj instanceof Date) {
+          sheet.getRange(targetRowIndex, 8).setValue(dObj).setNumberFormat("dd/mm/yyyy");
+        } else {
+          sheet.getRange(targetRowIndex, 8).setValue(tglSurat || "");
+        }
 
         const fullGenerated = `${kodePrefix}${newAgendaStr}/SMA YWKA/TU/${bulanRomawi}${tahunSuffix}`.replace(/\/{2,}/g, "/");
 
@@ -712,8 +761,21 @@ function doPost(e) {
         );
       }
 
-      // 1. Relokasi otomatis jika ada baris surat di bawah template (baris >= 302) ke slot yang benar di atas
-      autoRelocateMisplacedSuratMasuk(sheet);
+      const curLastRow = sheet.getLastRow();
+
+      // Bersihkan baris salah yang ter-append di bawah baris 302 template (misal baris 301/303 yang ter-append ke paling bawah)
+      if (curLastRow > 302) {
+        for (let r = curLastRow; r > 302; r--) {
+          const checkColA = String(sheet.getRange(r, 1).getValue()).trim();
+          const checkColB = String(sheet.getRange(r, 2).getValue()).trim();
+          // Jika baris di bawah 302 terisi data append yang salah (misal no urut di col B atau Col A kosong)
+          if (!checkColA || checkColB === "210" || checkColB.includes("/")) {
+            try {
+              sheet.deleteRow(r);
+            } catch (e) { }
+          }
+        }
+      }
 
       // Format Tanggal: DIJAMIN selalu DD/MM/YYYY (menggunakan /)
       const tglSuratMasuk = formatToIndoDate(payload.tanggal_surat || "");
@@ -1007,7 +1069,7 @@ function doPost(e) {
         for (let i = 0; i < totalScan; i++) {
           if ((noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr) ||
             (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
-            foundRow = i + 2;
+            foundRow = i + 4;
             break;
           }
         }
@@ -1044,8 +1106,8 @@ function doPost(e) {
       if (Array.isArray(payload.row_indices) && payload.row_indices.length > 0) {
         const sortedIndices = payload.row_indices
           .map(function (n) { return parseInt(n, 10); })
-          .filter(function (n) { return !isNaN(n) && n >= 2 && n <= sheet.getLastRow(); })
-          .sort(function (a, b) { return b - a; });
+          .filter(function (n) { return !isNaN(n) && n >= 4 && n <= sheet.getLastRow(); })
+          .sort(function (a, b) { return b - a; }); // Hapus dari baris terbawah agar index baris atas tidak bergeser!
 
         for (var d = 0; d < sortedIndices.length; d++) {
           try {
@@ -1136,17 +1198,13 @@ function doPost(e) {
           } catch (e) { }
         }
 
-        // Hapus juga baris apapun di bawah 301 yang salah ter-append ke paling bawah (agenda dan perihal kosong)
-        if (sheet.getLastRow() > 301) {
-          for (var ex = sheet.getLastRow(); ex > 301; ex--) {
-            const bVal = String(sheet.getRange(ex, 2).getValue()).trim();
-            const eVal = String(sheet.getRange(ex, 5).getValue()).trim();
-            if (!bVal && !eVal) {
-              try {
-                sheet.deleteRow(ex);
-                removedCount++;
-              } catch (e) { }
-            }
+        // Hapus juga baris apapun di bawah 302 yang salah ter-append ke paling bawah
+        if (sheet.getLastRow() > 302) {
+          for (var ex = sheet.getLastRow(); ex > 302; ex--) {
+            try {
+              sheet.deleteRow(ex);
+              removedCount++;
+            } catch (e) { }
           }
         }
       }

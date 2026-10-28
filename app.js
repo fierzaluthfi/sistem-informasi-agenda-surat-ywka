@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ===================================================================
  * APLIKASI AGENDA SURAT SMA YWKA BANDUNG
  * app.js - Controller, Drive Upload, 12 Kode Surat & No. Agenda
@@ -2909,6 +2909,24 @@ async function fetchSpreadsheetCsv(gvizUrl, exportUrl, timeoutMs = 6000) {
   throw new Error("Gagal mengambil data dari Google Spreadsheet");
 }
 
+async function fetchSingleCsv(url, timeoutMs = 6000) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { signal: controller.signal, credentials: "omit" });
+    clearTimeout(timer);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 60) {
+        return text;
+      }
+    }
+  } catch (err) {
+    console.warn("fetchSingleCsv gagal untuk URL " + url + ":", err);
+  }
+  return null;
+}
+
 /**
  * Muat Data dari Google Spreadsheet (Cepat & Paralel)
  */
@@ -2927,6 +2945,34 @@ async function loadDataFromSpreadsheet() {
     const liveMasuk = parseCsvMasuk(csvMasukText);
 
     if (liveKeluar && liveKeluar.length > 0) {
+      // PERBAIKAN OTOMATIS: Jika Google Sheets GViz mengosongkan tanggal akibat type-mismatch,
+      // ambil nilai teks asli langsung dari URL_EXPORT_KELUAR untuk melengkapi tanggal yang hilang!
+      const hasMissingDates = liveKeluar.some(k => (!k.tanggal || k.tanggal === "-") && k.perihal);
+      if (hasMissingDates) {
+        try {
+          const exportCsvText = await fetchSingleCsv(URL_EXPORT_KELUAR, 5000);
+          if (exportCsvText) {
+            const expItems = parseCsvKeluar(exportCsvText);
+            const dateMap = new Map();
+            expItems.forEach(item => {
+              if (item.noAgenda && item.tanggal && item.tanggal !== "-") {
+                dateMap.set(String(item.noAgenda).trim().toLowerCase(), item.tanggal);
+              }
+            });
+            liveKeluar.forEach(kItem => {
+              if (!kItem.tanggal || kItem.tanggal === "-") {
+                const filledDate = dateMap.get(String(kItem.noAgenda || "").trim().toLowerCase());
+                if (filledDate) {
+                  kItem.tanggal = filledDate;
+                }
+              }
+            });
+          }
+        } catch (expErr) {
+          console.warn("Cross-fetch export CSV Surat Keluar gagal:", expErr);
+        }
+      }
+
       liveKeluar.forEach(kItem => {
         const localItem = state.suratKeluar.find(s => s.noAgenda && kItem.noAgenda && s.noAgenda === kItem.noAgenda);
         if (localItem) {
@@ -2937,7 +2983,39 @@ async function loadDataFromSpreadsheet() {
       });
       state.suratKeluar = liveKeluar;
     }
+
     if (liveMasuk && liveMasuk.length > 0) {
+      const hasMissingDatesMasuk = liveMasuk.some(m => (!m.tglSurat || m.tglSurat === "-" || !m.tglMasuk || m.tglMasuk === "-") && m.perihal);
+      if (hasMissingDatesMasuk) {
+        try {
+          const exportMasukCsv = await fetchSingleCsv(URL_EXPORT_MASUK, 5000);
+          if (exportMasukCsv) {
+            const expMasukItems = parseCsvMasuk(exportMasukCsv);
+            const dateMapMasuk = new Map();
+            expMasukItems.forEach(item => {
+              const key = String(item.noAgenda || item.noUrut || "").trim().toLowerCase();
+              if (key) {
+                dateMapMasuk.set(key, { tglSurat: item.tglSurat, tglMasuk: item.tglMasuk });
+              }
+            });
+            liveMasuk.forEach(mItem => {
+              const key = String(mItem.noAgenda || mItem.noUrut || "").trim().toLowerCase();
+              if (key && dateMapMasuk.has(key)) {
+                const d = dateMapMasuk.get(key);
+                if ((!mItem.tglSurat || mItem.tglSurat === "-") && d.tglSurat && d.tglSurat !== "-") {
+                  mItem.tglSurat = d.tglSurat;
+                }
+                if ((!mItem.tglMasuk || mItem.tglMasuk === "-") && d.tglMasuk && d.tglMasuk !== "-") {
+                  mItem.tglMasuk = d.tglMasuk;
+                }
+              }
+            });
+          }
+        } catch (expErr) {
+          console.warn("Cross-fetch export CSV Surat Masuk gagal:", expErr);
+        }
+      }
+
       liveMasuk.forEach(mItem => {
         const localItem = state.suratMasuk.find(s => (s.noAgenda && mItem.noAgenda && s.noAgenda === mItem.noAgenda) || (s.noUrut && mItem.noUrut && s.noUrut === mItem.noUrut));
         if (localItem) {
