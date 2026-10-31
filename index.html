@@ -298,6 +298,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT KELUAR 2026</code> (gid: 381566345) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <button type="button" class="btn btn-warning btn-sm" id="btnHeaderBatchEditKeluar" title="Edit kode klasifikasi dan data banyak surat keluar sekaligus">
+                  <i class="fa-solid fa-pen-to-square"></i> Edit Batch
+                </button>
                 <button type="button" class="btn btn-emerald btn-sm" id="btnHeaderBatchUploadKeluar" title="Upload berkas banyak surat keluar sekaligus ke Google Drive">
                   <i class="fa-solid fa-cloud-arrow-up"></i> Upload Batch Drive
                 </button>
@@ -372,6 +375,9 @@
                 </button>
               </div>
               <div class="batch-bar-right">
+                <button type="button" class="btn btn-warning btn-sm" id="btnOpenBatchEditKeluarModal" title="Edit kode klasifikasi dan informasi surat yang dipilih">
+                  <i class="fa-solid fa-pen-to-square"></i> Edit Batch (<span id="batchEditBtnCount">0</span>)
+                </button>
                 <button type="button" class="btn btn-primary btn-sm" id="btnOpenBatchUploadKeluarModal">
                   <i class="fa-solid fa-cloud-arrow-up"></i> Upload Batch Berkas (<span id="batchKeluarBtnCount">0</span>)
                 </button>
@@ -1636,6 +1642,157 @@
         <button type="button" class="btn btn-secondary" id="btnCancelBatchUploadKeluar">Tutup</button>
         <button type="button" class="btn btn-primary" id="btnStartBatchUploadKeluar" disabled>
           <i class="fa-solid fa-cloud-arrow-up"></i> Mulai Upload Batch (<span id="batchReadyCount">0</span> Berkas Siap)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: EDIT BATCH SURAT KELUAR ================= -->
+  <div class="modal-backdrop" id="modalBatchEditKeluar">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-header" style="background: #fffbeb; border-bottom: 1px solid #fde68a;">
+        <h3 class="modal-title" style="color: #92400e;">
+          <i class="fa-solid fa-pen-to-square" style="color: #d97706;"></i> Edit Batch Data Surat Keluar
+        </h3>
+        <button class="modal-close-btn" id="btnCloseBatchEditKeluar" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Info Banner -->
+        <div class="batch-info-banner" style="background: #fffbeb; border-color: #fde68a;">
+          <div class="batch-info-icon"><i class="fa-solid fa-circle-info" style="color: #d97706;"></i></div>
+          <div class="batch-info-content">
+            <h4 style="color: #92400e;">Perbarui Banyak Surat Keluar Sekaligus</h4>
+            <p style="color: #78350f;">
+              Anda sedang memilih <strong id="batchEditKeluarCount">0</strong> surat keluar. Tentukan kolom yang ingin diubah di bawah ini (misalnya <strong>Kode Klasifikasi</strong>). Kolom yang dibiarkan <em>"(Tetap / Jangan Diubah)"</em> tidak akan mengubah data asli surat.
+            </p>
+          </div>
+        </div>
+
+        <!-- Form Pengaturan Perubahan Batch -->
+        <div class="batch-edit-controls-card">
+          <h4 class="batch-edit-subtitle"><i class="fa-solid fa-sliders"></i> Nilai Baru yang Diterapkan ke Semua Surat Terpilih:</h4>
+          
+          <div class="form-row-grid">
+            <!-- 1. Kode Klasifikasi -->
+            <div class="form-group">
+              <label for="batchEditKodeKlasifikasi" class="form-label" style="font-weight: 700; color: #1e293b;">
+                <i class="fa-solid fa-tags" style="color: #d97706;"></i> Kode Klasifikasi:
+              </label>
+              <select id="batchEditKodeKlasifikasi" class="form-select">
+                <option value="keep" selected>(Tetap / Jangan Diubah)</option>
+                <option value="421.3">421.3 - Penyelenggaraan KBM / Rapat / Ujian</option>
+                <option value="421.7">421.7 - Kesiswaan / Lomba / Dispensasi / Ekskul</option>
+                <option value="421.5">421.5 - Ketenagaan / Guru & Tendik</option>
+                <option value="422.1">422.1 - SPMB / PPDB</option>
+                <option value="421">421 - Kurikulum / Satuan Pendidikan</option>
+                <option value="005">005 - Undangan Resmi</option>
+                <option value="custom">Kode Khusus Lainnya...</option>
+              </select>
+              <input type="text" id="batchEditCustomKode" class="form-input" placeholder="Ketik kode klasifikasi (misal: 421.71)" style="display: none; margin-top: 8px;">
+              <small class="form-hint" style="color: #64748b; font-size: 11.5px; display: block; margin-top: 4px;">Kode Klasifikasi di Kolom C Spreadsheet & format nomor surat lengkap akan otomatis disesuaikan.</small>
+            </div>
+
+            <!-- 2. Tanggal Surat & Bulan Romawi -->
+            <div class="form-group">
+              <label class="form-label" style="font-weight: 700; color: #1e293b;">
+                <i class="fa-solid fa-calendar-days" style="color: #d97706;"></i> Tanggal Surat:
+              </label>
+              <select id="batchEditTanggalMode" class="form-select">
+                <option value="keep" selected>(Tetap / Jangan Diubah)</option>
+                <option value="change">Ubah ke Tanggal Tertentu...</option>
+              </select>
+              <input type="date" id="batchEditTanggalInput" class="form-input" style="display: none; margin-top: 8px;">
+              <small class="form-hint" style="color: #64748b; font-size: 11.5px; display: block; margin-top: 4px;">Bulan Romawi (Kolom F) dan Tahun (Kolom G) otomatis disesuaikan dengan tanggal ini.</small>
+            </div>
+          </div>
+
+          <div class="form-row-grid" style="margin-top: 14px;">
+            <!-- 3. Dari / Penandatangan -->
+            <div class="form-group">
+              <label for="batchEditDari" class="form-label" style="font-weight: 700; color: #1e293b;">
+                <i class="fa-solid fa-signature" style="color: #d97706;"></i> Dari (Penandatangan):
+              </label>
+              <select id="batchEditDari" class="form-select">
+                <option value="keep" selected>(Tetap / Jangan Diubah)</option>
+                <option value="Syarif Hasanudin, S.Pd., Gr., M.M.">Syarif Hasanudin, S.Pd., Gr., M.M. (Kepala Sekolah)</option>
+                <option value="custom">Nama Penandatangan Lain...</option>
+              </select>
+              <input type="text" id="batchEditDariCustom" class="form-input" placeholder="Nama lengkap penandatangan" style="display: none; margin-top: 8px;">
+            </div>
+
+            <!-- 4. Petugas Pembuat -->
+            <div class="form-group">
+              <label for="batchEditPetugasMode" class="form-label" style="font-weight: 700; color: #1e293b;">
+                <i class="fa-solid fa-user-pen" style="color: #d97706;"></i> Petugas Pembuat:
+              </label>
+              <select id="batchEditPetugasMode" class="form-select">
+                <option value="keep" selected>(Tetap / Jangan Diubah)</option>
+                <option value="change">Ganti Petugas...</option>
+              </select>
+              <input type="text" id="batchEditPetugasInput" class="form-input" placeholder="Nama petugas (misal: Bunda Ade)" style="display: none; margin-top: 8px;">
+            </div>
+          </div>
+
+          <div class="form-row-grid" style="margin-top: 14px;">
+            <!-- 5. Keterangan -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label for="batchEditKetMode" class="form-label" style="font-weight: 700; color: #1e293b;">
+                <i class="fa-solid fa-note-sticky" style="color: #d97706;"></i> Keterangan / Catatan:
+              </label>
+              <select id="batchEditKetMode" class="form-select" style="max-width: 320px;">
+                <option value="keep" selected>(Tetap / Jangan Diubah)</option>
+                <option value="change">Ubah Keterangan...</option>
+                <option value="clear">Kosongkan Keterangan</option>
+              </select>
+              <input type="text" id="batchEditKetInput" class="form-input" placeholder="Isi catatan / keterangan baru" style="display: none; margin-top: 8px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview Daftar Surat Terpilih -->
+        <div class="batch-list-wrapper" style="margin-top: 20px;">
+          <div class="batch-list-header">
+            <div>
+              <strong style="color: #1e293b; font-size: 13.5px;">Pratinjau Surat yang Akan Diperbarui:</strong>
+              <span class="batch-count-summary" id="batchEditPreviewStats">0 surat dipilih</span>
+            </div>
+          </div>
+
+          <div class="batch-table-scroll">
+            <table class="batch-items-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px; text-align: center;">No. Agenda</th>
+                  <th style="width: 170px;">Kode Klasifikasi</th>
+                  <th>Nomor Lengkap (Pratinjau)</th>
+                  <th style="width: 120px;">Tanggal</th>
+                  <th>Perihal</th>
+                  <th style="width: 50px; text-align: center;">Batal</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyBatchEditKeluarItems">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Progress Box -->
+        <div class="batch-progress-box" id="batchEditProgressBox" style="display: none; border-color: #fde68a; background: #fffdf5;">
+          <div class="batch-progress-header">
+            <span id="batchEditProgressStatusText"><i class="fa-solid fa-spinner fa-spin" style="color: #d97706;"></i> Menyimpan perubahan batch...</span>
+            <span id="batchEditProgressPercentage" class="stat-mono" style="color: #b45309;">0%</span>
+          </div>
+          <div class="batch-progress-track">
+            <div class="batch-progress-bar" id="batchEditProgressBar" style="width: 0%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+          </div>
+          <div class="batch-progress-details" id="batchEditProgressCurrentDetail">-</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCancelBatchEditKeluar">Batal</button>
+        <button type="button" class="btn btn-warning" id="btnSubmitBatchEditKeluar">
+          <i class="fa-solid fa-check-double"></i> Simpan Perubahan Batch (<span id="batchEditApplyCount">0</span>)
         </button>
       </div>
     </div>

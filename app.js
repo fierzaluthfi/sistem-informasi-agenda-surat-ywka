@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ===================================================================
  * APLIKASI AGENDA SURAT SMA YWKA BANDUNG
  * app.js - Controller, Drive Upload, 12 Kode Surat & No. Agenda
@@ -44,7 +44,8 @@ let state = {
   pendingKeluarData: null,
   pendingMasukData: null,
   selectedKeluarIds: new Set(),
-  batchKeluarItems: []
+  batchKeluarItems: [],
+  batchEditKeluarItems: []
 };
 
 // Bulan Romawi Converter
@@ -2875,6 +2876,89 @@ function initEventListeners() {
     btnOpenModalBatch.addEventListener("click", () => openBatchUploadModalKeluar());
   }
 
+  // Batch Edit Event Listeners
+  const btnHeaderBatchEdit = document.getElementById("btnHeaderBatchEditKeluar");
+  if (btnHeaderBatchEdit) {
+    btnHeaderBatchEdit.addEventListener("click", () => openBatchEditModalKeluar());
+  }
+
+  const btnOpenModalBatchEdit = document.getElementById("btnOpenBatchEditKeluarModal");
+  if (btnOpenModalBatchEdit) {
+    btnOpenModalBatchEdit.addEventListener("click", () => openBatchEditModalKeluar());
+  }
+
+  const modalBatchEdit = document.getElementById("modalBatchEditKeluar");
+  const btnCloseBatchEdit = document.getElementById("btnCloseBatchEditKeluar");
+  const btnCancelBatchEdit = document.getElementById("btnCancelBatchEditKeluar");
+
+  if (btnCloseBatchEdit && modalBatchEdit) {
+    btnCloseBatchEdit.addEventListener("click", () => modalBatchEdit.classList.remove("show"));
+  }
+  if (btnCancelBatchEdit && modalBatchEdit) {
+    btnCancelBatchEdit.addEventListener("click", () => modalBatchEdit.classList.remove("show"));
+  }
+
+  const selBatchKode = document.getElementById("batchEditKodeKlasifikasi");
+  const inputBatchCustomKode = document.getElementById("batchEditCustomKode");
+  if (selBatchKode) {
+    selBatchKode.addEventListener("change", () => {
+      if (inputBatchCustomKode) {
+        inputBatchCustomKode.style.display = selBatchKode.value === "custom" ? "block" : "none";
+      }
+      renderBatchEditPreview();
+    });
+  }
+  if (inputBatchCustomKode) {
+    inputBatchCustomKode.addEventListener("input", () => renderBatchEditPreview());
+  }
+
+  const selBatchTglMode = document.getElementById("batchEditTanggalMode");
+  const inputBatchTgl = document.getElementById("batchEditTanggalInput");
+  if (selBatchTglMode) {
+    selBatchTglMode.addEventListener("change", () => {
+      if (inputBatchTgl) {
+        inputBatchTgl.style.display = selBatchTglMode.value === "change" ? "block" : "none";
+        if (selBatchTglMode.value === "change" && !inputBatchTgl.value) {
+          const now = new Date();
+          inputBatchTgl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        }
+      }
+      renderBatchEditPreview();
+    });
+  }
+  if (inputBatchTgl) {
+    inputBatchTgl.addEventListener("change", () => renderBatchEditPreview());
+  }
+
+  const selBatchDari = document.getElementById("batchEditDari");
+  const inputBatchDariCustom = document.getElementById("batchEditDariCustom");
+  if (selBatchDari && inputBatchDariCustom) {
+    selBatchDari.addEventListener("change", () => {
+      inputBatchDariCustom.style.display = selBatchDari.value === "custom" ? "block" : "none";
+    });
+  }
+
+  const selBatchPetugasMode = document.getElementById("batchEditPetugasMode");
+  const inputBatchPetugas = document.getElementById("batchEditPetugasInput");
+  if (selBatchPetugasMode && inputBatchPetugas) {
+    selBatchPetugasMode.addEventListener("change", () => {
+      inputBatchPetugas.style.display = selBatchPetugasMode.value === "change" ? "block" : "none";
+    });
+  }
+
+  const selBatchKetMode = document.getElementById("batchEditKetMode");
+  const inputBatchKet = document.getElementById("batchEditKetInput");
+  if (selBatchKetMode && inputBatchKet) {
+    selBatchKetMode.addEventListener("change", () => {
+      inputBatchKet.style.display = selBatchKetMode.value === "change" ? "block" : "none";
+    });
+  }
+
+  const btnSubmitBatchEdit = document.getElementById("btnSubmitBatchEditKeluar");
+  if (btnSubmitBatchEdit) {
+    btnSubmitBatchEdit.addEventListener("click", () => executeBatchEditKeluar());
+  }
+
   const btnSelectAllNoDrive = document.getElementById("btnSelectAllNoDriveKeluar");
   if (btnSelectAllNoDrive) {
     btnSelectAllNoDrive.addEventListener("click", () => {
@@ -5032,10 +5116,16 @@ function updateBatchKeluarBar() {
   const bar = document.getElementById("batchKeluarBar");
   const countBadge = document.getElementById("batchKeluarCountBadge");
   const btnCount = document.getElementById("batchKeluarBtnCount");
+  const editBtnCount = document.getElementById("batchEditBtnCount");
+  const editCount = document.getElementById("batchEditKeluarCount");
+  const editApplyCount = document.getElementById("batchEditApplyCount");
   const count = state.selectedKeluarIds ? state.selectedKeluarIds.size : 0;
 
   if (countBadge) countBadge.textContent = count;
   if (btnCount) btnCount.textContent = count;
+  if (editBtnCount) editBtnCount.textContent = count;
+  if (editCount) editCount.textContent = count;
+  if (editApplyCount) editApplyCount.textContent = count;
 
   if (bar) {
     bar.style.display = count > 0 ? "flex" : "none";
@@ -5462,6 +5552,457 @@ async function executeBatchUploadKeluar() {
   if (failCount > 0) {
     showToast(`⚠️ Ada ${failCount} berkas yang gagal diunggah. Silakan periksa kembali berkas tersebut.`, "warning");
   }
+}
+
+/**
+ * =========================================================================
+ * BATCH EDIT SURAT KELUAR (UPDATE MASSAL KODE KLASIFIKASI, TANGGAL, DLL)
+ * =========================================================================
+ */
+
+/**
+ * Buka modal edit batch surat keluar
+ */
+function openBatchEditModalKeluar(targetIds = null) {
+  let idsToUse = [];
+  if (targetIds && targetIds.length > 0) {
+    idsToUse = targetIds;
+  } else if (state.selectedKeluarIds && state.selectedKeluarIds.size > 0) {
+    idsToUse = Array.from(state.selectedKeluarIds);
+  } else {
+    // Jika belum ada yang diceklis sama sekali, berikan opsi untuk memilih yang tampil di halaman ini
+    const currentSlice = getCurrentKeluarSlice();
+    if (currentSlice.length === 0) {
+      showToast("Tidak ada data surat keluar yang dapat diedit!", "warning");
+      return;
+    }
+    const confirmPick = confirm(`Anda belum menceklis surat keluar.\n\nApakah Anda ingin mengedit ${currentSlice.length} surat keluar di halaman yang sedang aktif ini?`);
+    if (confirmPick) {
+      currentSlice.forEach(item => state.selectedKeluarIds.add(item.id));
+      renderSuratKeluarTable();
+      updateBatchKeluarBar();
+      idsToUse = currentSlice.map(i => i.id);
+    } else {
+      showToast("Silakan centang satu atau lebih kotak ceklis surat keluar terlebih dahulu.", "info");
+      return;
+    }
+  }
+
+  // Kumpulkan objek surat
+  const selectedItems = state.suratKeluar.filter(s => idsToUse.includes(s.id));
+  if (selectedItems.length === 0) {
+    showToast("Surat yang dipilih tidak ditemukan dalam data!", "error");
+    return;
+  }
+
+  // Urutkan berdasarkan no agenda
+  selectedItems.sort((a, b) => {
+    const nA = parseInt(a.noAgenda || a.noUrut || 0, 10);
+    const nB = parseInt(b.noAgenda || b.noUrut || 0, 10);
+    if (!isNaN(nA) && !isNaN(nB)) return nA - nB;
+    return String(a.noAgenda).localeCompare(String(b.noAgenda));
+  });
+
+  state.batchEditKeluarItems = selectedItems;
+
+  // Reset form ke kondisi awal (keep)
+  const selKode = document.getElementById("batchEditKodeKlasifikasi");
+  const customKode = document.getElementById("batchEditCustomKode");
+  if (selKode) selKode.value = "keep";
+  if (customKode) {
+    customKode.value = "";
+    customKode.style.display = "none";
+  }
+
+  const selTglMode = document.getElementById("batchEditTanggalMode");
+  const inputTgl = document.getElementById("batchEditTanggalInput");
+  if (selTglMode) selTglMode.value = "keep";
+  if (inputTgl) {
+    inputTgl.value = "";
+    inputTgl.style.display = "none";
+  }
+
+  const selDari = document.getElementById("batchEditDari");
+  const inputDariCustom = document.getElementById("batchEditDariCustom");
+  if (selDari) selDari.value = "keep";
+  if (inputDariCustom) {
+    inputDariCustom.value = "";
+    inputDariCustom.style.display = "none";
+  }
+
+  const selPetugasMode = document.getElementById("batchEditPetugasMode");
+  const inputPetugas = document.getElementById("batchEditPetugasInput");
+  if (selPetugasMode) selPetugasMode.value = "keep";
+  if (inputPetugas) {
+    inputPetugas.value = "";
+    inputPetugas.style.display = "none";
+  }
+
+  const selKetMode = document.getElementById("batchEditKetMode");
+  const inputKet = document.getElementById("batchEditKetInput");
+  if (selKetMode) selKetMode.value = "keep";
+  if (inputKet) {
+    inputKet.value = "";
+    inputKet.style.display = "none";
+  }
+
+  // Sembunyikan progress box
+  const progressBox = document.getElementById("batchEditProgressBox");
+  if (progressBox) progressBox.style.display = "none";
+
+  const btnSubmit = document.getElementById("btnSubmitBatchEditKeluar");
+  if (btnSubmit) {
+    btnSubmit.disabled = false;
+    btnSubmit.innerHTML = `<i class="fa-solid fa-check-double"></i> Simpan Perubahan Batch (<span id="batchEditApplyCount">${state.batchEditKeluarItems.length}</span>)`;
+  }
+
+  // Update counter modal & render preview
+  const editCount = document.getElementById("batchEditKeluarCount");
+  if (editCount) editCount.textContent = state.batchEditKeluarItems.length;
+
+  renderBatchEditPreview();
+
+  const modal = document.getElementById("modalBatchEditKeluar");
+  if (modal) modal.classList.add("show");
+}
+
+/**
+ * Render tabel pratinjau perubahan batch surat keluar
+ */
+function renderBatchEditPreview() {
+  const tbody = document.getElementById("tbodyBatchEditKeluarItems");
+  const stats = document.getElementById("batchEditPreviewStats");
+  const applyCount = document.getElementById("batchEditApplyCount");
+  const editCount = document.getElementById("batchEditKeluarCount");
+
+  const total = state.batchEditKeluarItems ? state.batchEditKeluarItems.length : 0;
+  if (stats) stats.textContent = `${total} surat dipilih`;
+  if (applyCount) applyCount.textContent = total;
+  if (editCount) editCount.textContent = total;
+
+  if (!tbody) return;
+
+  if (total === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">Tidak ada surat yang dipilih.</td></tr>`;
+    return;
+  }
+
+  // Baca konfigurasi nilai baru yang dipilih
+  const selKode = document.getElementById("batchEditKodeKlasifikasi")?.value || "keep";
+  const customKode = document.getElementById("batchEditCustomKode")?.value.trim() || "";
+  let newKode = null;
+  if (selKode === "custom") {
+    newKode = customKode || null;
+  } else if (selKode !== "keep") {
+    newKode = selKode;
+  }
+
+  const selTglMode = document.getElementById("batchEditTanggalMode")?.value || "keep";
+  const inputTglVal = document.getElementById("batchEditTanggalInput")?.value || "";
+  let newTglIndo = null;
+  let newRomanMonth = null;
+  let newTahun = null;
+  if (selTglMode === "change" && inputTglVal) {
+    newTglIndo = formatDateIndo(inputTglVal);
+    const parts = inputTglVal.split("-");
+    if (parts.length === 3) {
+      newTahun = parts[0];
+      const mIdx = parseInt(parts[1], 10) - 1;
+      if (mIdx >= 0 && mIdx < 12) newRomanMonth = ROMAN_MONTHS[mIdx];
+    }
+  }
+
+  tbody.innerHTML = state.batchEditKeluarItems.map(item => {
+    const oldKode = item.kodeKlasifikasi || "421.3";
+    const targetKode = newKode || oldKode;
+    const isKodeChanged = Boolean(newKode && newKode !== oldKode);
+
+    const oldTgl = item.tanggal || "-";
+    const targetTgl = newTglIndo || oldTgl;
+    const isTglChanged = Boolean(newTglIndo && newTglIndo !== oldTgl);
+
+    const targetRoman = newRomanMonth || item.bulanRomawi || "X";
+    const targetThn = newTahun || item.tahun || "2026";
+    const targetNomor = `${targetKode}/${item.noAgenda}/SMA YWKA/TU/${targetRoman}/${targetThn}`.replace(/\/{2,}/g, "/");
+    const isNomorChanged = targetNomor !== item.nomorLengkap;
+
+    const kodeHtml = isKodeChanged
+      ? `<div class="badge-diff-wrapper">
+           <span class="badge-diff-old">${escapeHtml(oldKode)}</span>
+           <i class="fa-solid fa-arrow-right badge-diff-arrow"></i>
+           <span class="badge-diff-new">${escapeHtml(targetKode)}</span>
+         </div>`
+      : `<span class="badge-diff-unchanged">${escapeHtml(oldKode)}</span>`;
+
+    const nomorHtml = isNomorChanged
+      ? `<div class="nomor-preview-box highlight">${escapeHtml(targetNomor)}</div>`
+      : `<div class="nomor-preview-box">${escapeHtml(item.nomorLengkap || targetNomor)}</div>`;
+
+    const tglHtml = isTglChanged
+      ? `<div class="badge-diff-wrapper">
+           <span class="badge-diff-old" style="font-size: 11px;">${escapeHtml(oldTgl)}</span>
+           <span class="badge-diff-new" style="font-size: 11px;">${escapeHtml(targetTgl)}</span>
+         </div>`
+      : `<span style="font-size: 12px; color: #475569;">${escapeHtml(oldTgl)}</span>`;
+
+    return `
+      <tr>
+        <td style="text-align: center;">
+          <span class="stat-mono" style="font-weight: 700; color: #2563eb; font-size: 13px;">${escapeHtml(item.noAgenda || item.noUrut || "-")}</span>
+        </td>
+        <td>${kodeHtml}</td>
+        <td>${nomorHtml}</td>
+        <td>${tglHtml}</td>
+        <td>
+          <div style="font-size: 12.5px; color: #1e293b; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(item.perihal || '')}">
+            ${escapeHtml(item.perihal || '-')}
+          </div>
+          ${item.kepada ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;"><i class="fa-solid fa-paper-plane"></i> ${escapeHtml(item.kepada)}</div>` : ''}
+        </td>
+        <td style="text-align: center;">
+          <button type="button" class="btn-batch-remove-file" title="Keluarkan surat ini dari batch edit" onclick="removeBatchEditItem('${item.id}')">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+/**
+ * Hapus suatu surat dari daftar batch edit
+ */
+function removeBatchEditItem(itemId) {
+  state.batchEditKeluarItems = state.batchEditKeluarItems.filter(s => s.id !== itemId);
+  state.selectedKeluarIds.delete(itemId);
+  renderBatchEditPreview();
+  renderSuratKeluarTable();
+  updateBatchKeluarBar();
+
+  if (state.batchEditKeluarItems.length === 0) {
+    const modal = document.getElementById("modalBatchEditKeluar");
+    if (modal) modal.classList.remove("show");
+    showToast("Semua surat telah dikeluarkan dari batch edit.", "info");
+  }
+}
+
+/**
+ * Eksekusi Simpan Perubahan Batch Surat Keluar ke Spreadsheet & Cache Lokal
+ */
+async function executeBatchEditKeluar() {
+  if (!state.appsScriptUrl) {
+    showToast("URL Google Apps Script belum disetel! Harap simpan URL Web App di tab Pengaturan.", "warning");
+    return;
+  }
+
+  const items = state.batchEditKeluarItems;
+  if (!items || items.length === 0) {
+    showToast("Tidak ada surat yang dipilih untuk diedit!", "warning");
+    return;
+  }
+
+  // 1. Ambil opsi perubahan dari form
+  const selKode = document.getElementById("batchEditKodeKlasifikasi")?.value || "keep";
+  const customKode = document.getElementById("batchEditCustomKode")?.value.trim() || "";
+  let newKode = null;
+  if (selKode === "custom") {
+    newKode = customKode || null;
+  } else if (selKode !== "keep") {
+    newKode = selKode;
+  }
+
+  const selTglMode = document.getElementById("batchEditTanggalMode")?.value || "keep";
+  const inputTglVal = document.getElementById("batchEditTanggalInput")?.value || "";
+  let newTglIndo = null;
+  let newRomanMonth = null;
+  let newTahun = null;
+  if (selTglMode === "change" && inputTglVal) {
+    newTglIndo = formatDateIndo(inputTglVal);
+    const parts = inputTglVal.split("-");
+    if (parts.length === 3) {
+      newTahun = parts[0];
+      const mIdx = parseInt(parts[1], 10) - 1;
+      if (mIdx >= 0 && mIdx < 12) newRomanMonth = ROMAN_MONTHS[mIdx];
+    }
+  }
+
+  const selDari = document.getElementById("batchEditDari")?.value || "keep";
+  const customDari = document.getElementById("batchEditDariCustom")?.value.trim() || "";
+  let newDari = null;
+  if (selDari === "custom") {
+    newDari = customDari || null;
+  } else if (selDari !== "keep") {
+    newDari = selDari;
+  }
+
+  const selPetugasMode = document.getElementById("batchEditPetugasMode")?.value || "keep";
+  const inputPetugasVal = document.getElementById("batchEditPetugasInput")?.value.trim() || "";
+  let newPetugas = null;
+  if (selPetugasMode === "change") {
+    newPetugas = inputPetugasVal;
+  }
+
+  const selKetMode = document.getElementById("batchEditKetMode")?.value || "keep";
+  const inputKetVal = document.getElementById("batchEditKetInput")?.value.trim() || "";
+  let newKet = null;
+  if (selKetMode === "change") {
+    newKet = inputKetVal;
+  } else if (selKetMode === "clear") {
+    newKet = "";
+  }
+
+  // Validasi: Apakah ada kolom yang diubah?
+  if (!newKode && !newTglIndo && !newDari && newPetugas === null && newKet === null) {
+    showToast("⚠️ Anda belum memilih perubahan apapun! Tentukan setidaknya satu kolom yang ingin diubah (misalnya Kode Klasifikasi).", "warning");
+    return;
+  }
+
+  const confirmSubmit = confirm(`Anda akan memperbarui ${items.length} Surat Keluar terpilih sekaligus:\n${newKode ? `• Kode Klasifikasi Baru: ${newKode}\n` : ''}${newTglIndo ? `• Tanggal Surat Baru: ${newTglIndo}\n` : ''}${newDari ? `• Dari: ${newDari}\n` : ''}${newPetugas !== null ? `• Petugas: ${newPetugas || '(kosong)'}\n` : ''}${newKet !== null ? `• Keterangan: ${newKet || '(kosong)'}\n` : ''}\nLanjutkan pembaruan ke Spreadsheet?`);
+  if (!confirmSubmit) return;
+
+  const btnSubmit = document.getElementById("btnSubmitBatchEditKeluar");
+  const btnCancel = document.getElementById("btnCancelBatchEditKeluar");
+  const progressBox = document.getElementById("batchEditProgressBox");
+  const progressBar = document.getElementById("batchEditProgressBar");
+  const progressPercent = document.getElementById("batchEditProgressPercentage");
+  const progressStatus = document.getElementById("batchEditProgressStatusText");
+  const progressDetail = document.getElementById("batchEditProgressCurrentDetail");
+
+  if (btnSubmit) btnSubmit.disabled = true;
+  if (btnCancel) btnCancel.disabled = true;
+  if (progressBox) progressBox.style.display = "block";
+
+  // Siapkan payload batch updates
+  const updates = items.map(item => {
+    const upd = {
+      no_agenda: item.noAgenda,
+      old_no_agenda: item.noAgenda,
+      perihal: item.perihal || ""
+    };
+    if (newKode) upd.kode_klasifikasi = newKode;
+    if (newTglIndo) {
+      upd.tanggal_surat = newTglIndo;
+      upd.bulan_romawi = newRomanMonth || item.bulanRomawi || "X";
+      upd.tahun = newTahun || item.tahun || "2026";
+    }
+    if (newDari) upd.dari = newDari;
+    if (newPetugas !== null) upd.petugas = newPetugas;
+    if (newKet !== null) upd.keterangan = newKet;
+    return upd;
+  });
+
+  let isBatchActionSuccess = false;
+  let updatedCount = 0;
+
+  // 1. Coba eksekusi batch lewat action "batch_edit_surat_keluar"
+  if (progressBar) progressBar.style.width = "40%";
+  if (progressPercent) progressPercent.textContent = "40%";
+  if (progressStatus) progressStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="color: #d97706;"></i> Mengirim pembaruan massal ke Google Apps Script...`;
+  if (progressDetail) progressDetail.textContent = `Menyimpan ${updates.length} data surat ke Spreadsheet...`;
+
+  try {
+    const res = await fetch(state.appsScriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "batch_edit_surat_keluar",
+        updates: updates
+      })
+    });
+    const resJson = await res.json();
+    if (resJson && resJson.status === "success") {
+      isBatchActionSuccess = true;
+      updatedCount = resJson.updated_count || updates.length;
+    }
+  } catch (err) {
+    console.warn("Gagal mengeksekusi batch_edit_surat_keluar, mencoba fallback sequential:", err);
+  }
+
+  // 2. Fallback sequential jika Google Apps Script yang terpasang belum v3.2
+  if (!isBatchActionSuccess) {
+    if (progressStatus) progressStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="color: #d97706;"></i> Memproses pembaruan surat satu per satu (mode fallback)...`;
+    for (let i = 0; i < updates.length; i++) {
+      const u = updates[i];
+      const percent = Math.round(((i + 1) / updates.length) * 100);
+      if (progressBar) progressBar.style.width = `${percent}%`;
+      if (progressPercent) progressPercent.textContent = `${percent}%`;
+      if (progressDetail) progressDetail.textContent = `Memperbarui No. Agenda ${u.no_agenda} (${i + 1} dari ${updates.length})...`;
+
+      const singlePayload = {
+        action: "edit_surat_keluar",
+        old_no_agenda: u.no_agenda,
+        no_agenda: u.no_agenda,
+        perihal: u.perihal,
+        kode_klasifikasi: u.kode_klasifikasi || undefined,
+        tanggal_surat: u.tanggal_surat || undefined,
+        bulan_romawi: u.bulan_romawi || undefined,
+        tahun: u.tahun || undefined,
+        dari: u.dari || undefined,
+        petugas: u.petugas !== undefined ? u.petugas : undefined,
+        keterangan: u.keterangan !== undefined ? u.keterangan : undefined
+      };
+
+      try {
+        await fetch(state.appsScriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(singlePayload)
+        });
+        updatedCount++;
+      } catch (e) {
+        console.warn(`Gagal memperbarui agenda ${u.no_agenda}:`, e);
+      }
+    }
+  }
+
+  // 3. Tuntaskan progress bar
+  if (progressBar) progressBar.style.width = "100%";
+  if (progressPercent) progressPercent.textContent = "100%";
+  if (progressStatus) progressStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color: #059669;"></i> Pembaruan batch selesai!`;
+  if (progressDetail) progressDetail.textContent = `${updatedCount} Surat Keluar berhasil diperbarui di Spreadsheet!`;
+
+  // 4. Update data lokal di state.suratKeluar
+  items.forEach(target => {
+    const realItem = state.suratKeluar.find(k => k.id === target.id || k.noAgenda === target.noAgenda);
+    if (realItem) {
+      if (newKode) {
+        realItem.kodeKlasifikasi = newKode;
+      }
+      if (newTglIndo) {
+        realItem.tanggal = newTglIndo;
+        if (newRomanMonth) realItem.bulanRomawi = newRomanMonth;
+        if (newTahun) realItem.tahun = newTahun;
+      }
+      if (newDari) realItem.dari = newDari;
+      if (newPetugas !== null) realItem.petugas = newPetugas;
+      if (newKet !== null) realItem.keterangan = newKet;
+
+      // Rekalkulasi nomorLengkap
+      const kCode = realItem.kodeKlasifikasi || "421.3";
+      const bRom = realItem.bulanRomawi || "X";
+      const thn = realItem.tahun || "2026";
+      realItem.nomorLengkap = `${kCode}/${realItem.noAgenda}/SMA YWKA/TU/${bRom}/${thn}`.replace(/\/{2,}/g, "/");
+    }
+  });
+
+  // Simpan ke cache lokal
+  localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+
+  // Perbarui UI
+  filterSuratKeluarData();
+  updateDashboardUI();
+  updateBatchKeluarBar();
+
+  if (btnSubmit) btnSubmit.disabled = false;
+  if (btnCancel) btnCancel.disabled = false;
+
+  showToast(`✅ Berhasil memperbarui ${updatedCount} surat keluar sekaligus di Spreadsheet & Sistem!`, "success");
+
+  // Tutup modal setelah delay singkat agar pengguna melihat status 100%
+  setTimeout(() => {
+    const modal = document.getElementById("modalBatchEditKeluar");
+    if (modal) modal.classList.remove("show");
+  }, 900);
 }
 
 /**
@@ -6225,6 +6766,10 @@ window.handleExecuteUploadRowDrive = handleExecuteUploadRowDrive;
 window.openBatchUploadModalKeluar = openBatchUploadModalKeluar;
 window.removeBatchFile = removeBatchFile;
 window.removeBatchItem = removeBatchItem;
+window.openBatchEditModalKeluar = openBatchEditModalKeluar;
+window.renderBatchEditPreview = renderBatchEditPreview;
+window.removeBatchEditItem = removeBatchEditItem;
+window.executeBatchEditKeluar = executeBatchEditKeluar;
 window.openDeleteModalKeluar = openDeleteModalKeluar;
 window.openDeleteModalMasuk = openDeleteModalMasuk;
 window.handleExecuteDeleteRow = handleExecuteDeleteRow;
