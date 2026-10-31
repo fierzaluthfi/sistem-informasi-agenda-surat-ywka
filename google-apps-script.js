@@ -1,7 +1,7 @@
 /**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 3.2 (FITUR BATCH EDIT KODE KLASIFIKASI & DATA SURAT KELUAR + UPLOAD BATCH)
+ * VERSI 3.3 (FITUR AUTO-SINKRON BERKAS GOOGLE DRIVE KE SPREADSHEET + STATUS 'BERKAS DRIVE' LIVE)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -26,6 +26,8 @@
 const SHEET_SURAT_KELUAR = "SURAT KELUAR 2026";
 const SHEET_SURAT_MASUK = "SURAT MASUK 2026";
 const FOLDER_DRIVE_ID = "1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A"; // Folder Utama Arsip SMA YWKA
+const FOLDER_SURAT_KELUAR_ID = "15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5"; // Folder Surat Keluar 2026
+const FOLDER_SURAT_MASUK_ID = "11QCXz3fc9TCr993YIWIrH5JPwBr3my2W"; // Folder Surat Masuk 2026
 const FOLDER_DRIVE_UTAMA = "Arsip Surat SMA YWKA";
 const SPREADSHEET_ID = "1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k";
 
@@ -47,14 +49,285 @@ function getTargetSpreadsheet() {
 
 /**
  * ===================================================================
- * FUNGSI PERBAIKAN MANDIRI (BISA LANGSUNG DIJALANKAN DARI APPS SCRIPT):
+ * FUNGSI PERBAIKAN & SINKRONISASI (BISA DIJALANKAN DARI APPS SCRIPT):
  * ===================================================================
  * Pilih fungsi ini di dropdown atas editor Apps Script lalu klik "Run/Jalankan":
- * 1. "rapikanNomorAgendaKeluar": Otomatis memulihkan urutan nomor agenda 612 s/d 620 yang sempat acak-acakan/duplikat!
- * 2. "bersihkanDuplikatDrive": Otomatis membersihkan seluruh file duplikat lama di Google Drive,
- *    menyisakan 1 file versi terbaru untuk setiap nomor agenda & nama file.
- * 3. "perbaikiBarisSuratMasuk": Otomatis merelokasi surat No. Urut 215 di baris 302 ke baris 214.
+ * 1. "sinkronkanBerkasDriveKeSpreadsheet": Memindai folder Drive "Surat Keluar 2026" & "Surat Masuk 2026",
+ *    mencocokkan file PDF/Scan dengan Nomor Agenda, lalu mencentang Kolom B dan memasang link Drive ke Kolom N!
+ * 2. "rapikanNomorAgendaKeluar": Otomatis memulihkan urutan nomor agenda 612 s/d 620 yang sempat acak-acakan!
+ * 3. "bersihkanDuplikatDrive": Otomatis membersihkan seluruh file duplikat lama di Google Drive.
+ * 4. "perbaikiBarisSuratMasuk": Otomatis merelokasi surat No. Urut 215 di baris 302 ke baris 214.
  */
+
+/**
+ * Helper: Ekstrak nomor agenda dari nama file (contoh: "No. 487 Hasil Rapat...", "612 Surat Tugas.pdf", "613.pdf")
+ */
+function extractAgendaFromFileName(fileName) {
+  if (!fileName) return "";
+  const clean = String(fileName).replace(/\.[a-zA-Z0-9]+$/, "").trim();
+
+  // 1. Cek awalan "No. 487", "No 487", "Agenda 487", "Surat 487", "No.487"
+  const m1 = clean.match(/(?:no\.?|agenda|surat)\s*(\d{1,4})/i);
+  if (m1 && m1[1]) return String(parseInt(m1[1], 10));
+
+  // 2. Cek angka di awal file: "487 ...", "487-...", "487_..."
+  const m2 = clean.match(/^(\d{1,4})(?:[.\-_\s]|$)/);
+  if (m2 && m2[1]) return String(parseInt(m2[1], 10));
+
+  // 3. Cek pola kurung: "[487]" atau "(487)"
+  const m3 = clean.match(/[\[(](\d{1,4})[\])]/);
+  if (m3 && m3[1]) return String(parseInt(m3[1], 10));
+
+  // 4. Cari angka terpisah (bukan tahun 2024-2027)
+  const allNums = clean.match(/\b\d{1,4}\b/g);
+  if (allNums && allNums.length > 0) {
+    for (let k = 0; k < allNums.length; k++) {
+      const num = parseInt(allNums[k], 10);
+      if (num !== 2024 && num !== 2025 && num !== 2026 && num !== 2027) {
+        return String(num);
+      }
+    }
+  }
+
+  return "";
+}
+
+/**
+ * Helper: Dapatkan folder Surat Keluar 2026 secara presisi
+ */
+function getSuratKeluarFolder() {
+  if (FOLDER_SURAT_KELUAR_ID) {
+    try {
+      const f = DriveApp.getFolderById(FOLDER_SURAT_KELUAR_ID);
+      if (f) return f;
+    } catch (e) {
+      Logger.log("getFolderById FOLDER_SURAT_KELUAR_ID info: " + e.message);
+    }
+  }
+
+  try {
+    const parent = DriveApp.getFolderById(FOLDER_DRIVE_ID);
+    if (parent) {
+      if (parent.getName().indexOf("2026") !== -1) return parent;
+      const subIter = parent.getFoldersByName("Surat Keluar 2026");
+      if (subIter.hasNext()) return subIter.next();
+      return parent;
+    }
+  } catch (e) { }
+
+  const byName = DriveApp.getFoldersByName("Surat Keluar 2026");
+  if (byName.hasNext()) return byName.next();
+
+  return null;
+}
+
+/**
+ * Helper: Dapatkan folder Surat Masuk 2026 secara presisi
+ */
+function getSuratMasukFolder() {
+  if (FOLDER_SURAT_MASUK_ID) {
+    try {
+      const f = DriveApp.getFolderById(FOLDER_SURAT_MASUK_ID);
+      if (f) return f;
+    } catch (e) {
+      Logger.log("getFolderById FOLDER_SURAT_MASUK_ID info: " + e.message);
+    }
+  }
+
+  try {
+    const parent = DriveApp.getFolderById(FOLDER_DRIVE_ID);
+    if (parent) {
+      const subIter = parent.getFoldersByName("Surat Masuk 2026");
+      if (subIter.hasNext()) return subIter.next();
+    }
+  } catch (e) { }
+
+  const byName = DriveApp.getFoldersByName("Surat Masuk 2026");
+  if (byName.hasNext()) return byName.next();
+
+  return null;
+}
+
+/**
+ * ===================================================================
+ * FUNGSI UTAMA SINKRONISASI BERKAS DRIVE KE SPREADSHEET:
+ * ===================================================================
+ * Memindai berkas di Google Drive, mencocokkan nomor agenda dengan baris Spreadsheet:
+ * 1. Kolom B (Ceklis Berkas): Otomatis Dicentang (TRUE)
+ * 2. Kolom N (Kolom 14 - LAMPIRAN): Diisi URL Link Google Drive (https://drive.google.com/file/d/.../view)
+ * 3. Izin akses file otomatis disetel publik siapa saja yang punya link (View Only)
+ */
+function sinkronkanBerkasDriveKeSpreadsheet() {
+  const result = {
+    status: "success",
+    keluarScanned: 0,
+    keluarMatched: 0,
+    keluarUpdated: 0,
+    masukScanned: 0,
+    masukMatched: 0,
+    masukUpdated: 0,
+    matchedAgendas: [],
+    details: []
+  };
+
+  const ss = getTargetSpreadsheet();
+
+  // -------------------------------------------------------------
+  // 1. SINKRONISASI SURAT KELUAR 2026
+  // -------------------------------------------------------------
+  const fKeluar = getSuratKeluarFolder();
+  const sheetKeluar = ss ? ss.getSheetByName(SHEET_SURAT_KELUAR) : null;
+
+  if (fKeluar && sheetKeluar) {
+    const lastRow = sheetKeluar.getLastRow();
+    if (lastRow >= 4) {
+      const totalScan = lastRow - 3;
+      const rangeKeluar = sheetKeluar.getRange(4, 1, totalScan, 14);
+      const valuesKeluar = rangeKeluar.getValues();
+
+      // Buat pemetaan: no_agenda -> indeks baris di valuesKeluar
+      const agendaToIndices = {};
+      for (let i = 0; i < totalScan; i++) {
+        const rawAg = String(valuesKeluar[i][3] || "").trim(); // Kolom D (Index 3)
+        if (rawAg) {
+          if (!agendaToIndices[rawAg]) agendaToIndices[rawAg] = [];
+          agendaToIndices[rawAg].push(i);
+        }
+      }
+
+      Logger.log("📁 Memindai berkas di folder: \"" + fKeluar.getName() + "\" (" + fKeluar.getId() + ")");
+      const filesIter = fKeluar.getFiles();
+      let hasChanges = false;
+
+      while (filesIter.hasNext()) {
+        const file = filesIter.next();
+        if (file.isTrashed()) continue;
+        result.keluarScanned++;
+
+        const fileName = file.getName();
+        const fileId = file.getId();
+        const fileUrl = "https://drive.google.com/file/d/" + fileId + "/view?usp=drivesdk";
+
+        // Set sharing View bagi siapa saja yang memiliki tautan
+        try {
+          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        } catch (e) { }
+
+        const extractedAgenda = extractAgendaFromFileName(fileName);
+        if (!extractedAgenda) continue;
+
+        // Cari baris yang cocok di Spreadsheet
+        let targetIndices = agendaToIndices[extractedAgenda];
+        if (!targetIndices || targetIndices.length === 0) {
+          const numAg = parseInt(extractedAgenda, 10);
+          if (!isNaN(numAg)) {
+            targetIndices = agendaToIndices[String(numAg)] || agendaToIndices[String(numAg).padStart(3, "0")];
+          }
+        }
+
+        if (targetIndices && targetIndices.length > 0) {
+          result.keluarMatched++;
+          if (result.matchedAgendas.indexOf(extractedAgenda) === -1) {
+            result.matchedAgendas.push(extractedAgenda);
+          }
+
+          for (let k = 0; k < targetIndices.length; k++) {
+            const rIdx = targetIndices[k];
+            const curChecked = valuesKeluar[rIdx][1];
+            const curLampiran = String(valuesKeluar[rIdx][13] || "").trim();
+
+            if (!curChecked || !curLampiran.includes("drive.google.com") || curLampiran !== fileUrl) {
+              valuesKeluar[rIdx][1] = true; // Kolom B: Checkbox TRUE
+              valuesKeluar[rIdx][13] = fileUrl; // Kolom N: Link Drive
+              hasChanges = true;
+              result.keluarUpdated++;
+              const msg = "✅ [Surat Keluar Agenda " + extractedAgenda + "] Dipasangkan dengan \"" + fileName + "\"";
+              result.details.push(msg);
+              Logger.log(msg);
+            }
+          }
+        }
+      }
+
+      if (hasChanges) {
+        rangeKeluar.setValues(valuesKeluar);
+        SpreadsheetApp.flush();
+        Logger.log("💾 Kolom B dan Kolom N di Sheet " + SHEET_SURAT_KELUAR + " berhasil diperbarui!");
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2. SINKRONISASI SURAT MASUK 2026
+  // -------------------------------------------------------------
+  const fMasuk = getSuratMasukFolder();
+  const sheetMasuk = ss ? ss.getSheetByName(SHEET_SURAT_MASUK) : null;
+
+  if (fMasuk && sheetMasuk) {
+    const lastRowM = sheetMasuk.getLastRow();
+    if (lastRowM >= 2) {
+      const totalScanM = lastRowM - 1;
+      const rangeMasuk = sheetMasuk.getRange(2, 1, totalScanM, 10);
+      const valuesMasuk = rangeMasuk.getValues();
+
+      const masukMap = {};
+      for (let i = 0; i < totalScanM; i++) {
+        const noUrut = String(valuesMasuk[i][0] || "").trim(); // Kolom A (Index 0)
+        const noAgenda = String(valuesMasuk[i][1] || "").trim(); // Kolom B (Index 1)
+        if (noUrut && !masukMap[noUrut]) masukMap[noUrut] = i;
+        if (noAgenda && !masukMap[noAgenda]) masukMap[noAgenda] = i;
+      }
+
+      const filesIterM = fMasuk.getFiles();
+      let hasChangesM = false;
+
+      while (filesIterM.hasNext()) {
+        const file = filesIterM.next();
+        if (file.isTrashed()) continue;
+        result.masukScanned++;
+
+        const fileName = file.getName();
+        const fileId = file.getId();
+        const fileUrl = "https://drive.google.com/file/d/" + fileId + "/view?usp=drivesdk";
+
+        try {
+          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        } catch (e) { }
+
+        const extracted = extractAgendaFromFileName(fileName);
+        if (!extracted) continue;
+
+        let targetR = masukMap[extracted];
+        if (targetR === undefined) {
+          const num = parseInt(extracted, 10);
+          if (!isNaN(num)) {
+            targetR = masukMap[String(num)] !== undefined ? masukMap[String(num)] : masukMap[String(num).padStart(3, "0")];
+          }
+        }
+
+        if (targetR !== undefined) {
+          result.masukMatched++;
+          const curLampiranM = String(valuesMasuk[targetR][9] || "").trim();
+          if (!curLampiranM.includes("drive.google.com") || curLampiranM !== fileUrl) {
+            valuesMasuk[targetR][9] = fileUrl; // Kolom J (Index 9)
+            hasChangesM = true;
+            result.masukUpdated++;
+          }
+        }
+      }
+
+      if (hasChangesM) {
+        rangeMasuk.setValues(valuesMasuk);
+        SpreadsheetApp.flush();
+        Logger.log("💾 Kolom J di Sheet " + SHEET_SURAT_MASUK + " berhasil diperbarui!");
+      }
+    }
+  }
+
+  result.message = "Sinkronisasi selesai! Surat Keluar: " + result.keluarScanned + " file dipindai, " + result.keluarUpdated + " baris diperbarui ke 'Berkas Drive'. Surat Masuk: " + result.masukScanned + " file dipindai, " + result.masukUpdated + " baris diperbarui.";
+  Logger.log("🏁 " + result.message);
+  return result;
+}
 /**
  * ===================================================================
  * FUNGSI PEMBERSIH DUPLIKAT GOOGLE DRIVE (BISA DIJALANKAN MANDIRI DARI APPS SCRIPT):
@@ -600,6 +873,11 @@ function doGet(e) {
       });
     }
 
+    if (action === "sync_drive_files_to_sheet" || action === "sinkron_drive_ke_sheet" || action === "sync_drive") {
+      const resSync = sinkronkanBerkasDriveKeSpreadsheet();
+      return createJsonResponse(resSync);
+    }
+
     if (action === "auto_fix_masuk" || action === "relocate_misplaced" || action === "perbaiki_baris_masuk") {
       const msg = perbaikiBarisSuratMasuk();
       return createJsonResponse({
@@ -658,6 +936,11 @@ function doGet(e) {
       });
     }
 
+    if (action === "sync_drive_files_to_sheet" || action === "sinkron_drive_ke_sheet" || action === "sync_drive") {
+      const resSync = sinkronkanBerkasDriveKeSpreadsheet();
+      return createJsonResponse(resSync);
+    }
+
     if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar") {
       const msg = rapikanNomorAgendaKeluar();
       return createJsonResponse({
@@ -711,6 +994,11 @@ function doPost(e) {
                  resDedup.masukDibersihkan + " berkas surat masuk telah dibersihkan.",
         detail: resDedup
       });
+    }
+
+    if (action === "sync_drive_files_to_sheet" || action === "sinkron_drive_ke_sheet" || action === "sync_drive") {
+      const resSync = sinkronkanBerkasDriveKeSpreadsheet();
+      return createJsonResponse(resSync);
     }
 
     if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar") {

@@ -33,8 +33,8 @@ let state = {
     masukPerPage: 15
   },
   appsScriptUrl: localStorage.getItem("sma_ywka_apps_script_url") || DEFAULT_APPS_SCRIPT_URL,
-  driveKeluarUrl: localStorage.getItem("sma_ywka_drive_keluar_url") || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A",
-  driveMasukUrl: localStorage.getItem("sma_ywka_drive_masuk_url") || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A",
+  driveKeluarUrl: localStorage.getItem("sma_ywka_drive_keluar_url") || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5",
+  driveMasukUrl: localStorage.getItem("sma_ywka_drive_masuk_url") || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W",
   lastFilledAgendaNumber: "608",
   nextKeluarAgenda: "609",
   isSyncing: false,
@@ -2450,7 +2450,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
     btnCopyScript.addEventListener("click", () => {
       const codeToCopy = (codeArea && codeArea.value) ? codeArea.value : scriptCode;
       navigator.clipboard.writeText(codeToCopy);
-      showToast("Kode Google Apps Script v3.0 berhasil disalin!", "success");
+      showToast("Kode Google Apps Script v3.3 berhasil disalin ke clipboard!", "success");
     });
   }
 }
@@ -2711,6 +2711,22 @@ function initEventListeners() {
         btnCleanDrive.innerHTML = `<i class="fa-brands fa-google-drive" style="color: #3b82f6;"></i> Bersihkan Duplikat Drive`;
       }
     });
+  }
+
+  // Listener Tombol Sinkron Berkas Google Drive ke Spreadsheet
+  const btnSyncDriveAll = document.getElementById("btnSyncDriveAll");
+  if (btnSyncDriveAll) {
+    btnSyncDriveAll.addEventListener("click", () => handleSyncDriveToSpreadsheet(btnSyncDriveAll));
+  }
+
+  const btnSyncDriveKeluar = document.getElementById("btnSyncDriveKeluar");
+  if (btnSyncDriveKeluar) {
+    btnSyncDriveKeluar.addEventListener("click", () => handleSyncDriveToSpreadsheet(btnSyncDriveKeluar));
+  }
+
+  const btnSyncDriveMasuk = document.getElementById("btnSyncDriveMasuk");
+  if (btnSyncDriveMasuk) {
+    btnSyncDriveMasuk.addEventListener("click", () => handleSyncDriveToSpreadsheet(btnSyncDriveMasuk));
   }
 
   const btnRapikanKeluar = document.getElementById("btnRapikanAgendaKeluar");
@@ -3749,9 +3765,10 @@ function renderSuratKeluarTable() {
   currentSlice.forEach((item, idx) => {
     const rowNum = start + idx + 1;
     const isSelected = state.selectedKeluarIds ? state.selectedKeluarIds.has(item.id) : false;
-    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")));
+    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
+    const targetDriveHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveKeluarUrl || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5"));
     const driveLinkHtml = hasDriveFile
-      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Buka berkas di Google Drive">
+      ? `<a href="${targetDriveHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Buka berkas di Google Drive">
            <i class="fa-brands fa-google-drive"></i> Berkas Drive
          </a>`
       : `<button type="button" class="btn-upload-direct" title="Upload berkas ke Google Drive Surat Keluar" onclick="openUploadModalKeluar('${item.id}')">
@@ -3890,9 +3907,10 @@ function renderSuratMasukTable() {
   let html = "";
   currentSlice.forEach((item, idx) => {
     const rowNum = start + idx + 1;
-    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")));
+    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
+    const targetDriveMasukHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveMasukUrl || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W"));
     const driveLinkHtml = hasDriveFile
-      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Buka berkas scan di Google Drive">
+      ? `<a href="${targetDriveMasukHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Buka berkas scan di Google Drive">
            <i class="fa-brands fa-google-drive"></i> Berkas Drive
          </a>`
       : `<button type="button" class="btn-upload-direct" title="Upload berkas scan ke Google Drive Surat Masuk" onclick="openUploadModalMasuk('${item.id}')">
@@ -6006,6 +6024,92 @@ async function executeBatchEditKeluar() {
 }
 
 /**
+ * =========================================================================
+ * SINKRONISASI BERKAS GOOGLE DRIVE KE SPREADSHEET
+ * =========================================================================
+ * Memindai berkas di folder Drive Surat Keluar 2026 & Surat Masuk 2026,
+ * mencocokkan nomor agenda, mencentang Kolom B dan memasang Link Drive di Spreadsheet.
+ * Mengubah status tombol dari "Upload Drive" menjadi "Berkas Drive".
+ */
+async function handleSyncDriveToSpreadsheet(triggerBtn = null) {
+  if (!state.appsScriptUrl) {
+    showToast("URL Google Apps Script belum disetel! Harap simpan URL Web App di tab Pengaturan.", "warning");
+    return;
+  }
+
+  const confirmRun = confirm(
+    "Apakah Anda ingin memindai folder Google Drive Surat Keluar 2026 & Surat Masuk 2026?\n\n" +
+    "Sistem akan:\n" +
+    "1. Mendeteksi seluruh file PDF/Scan yang sudah ada di folder Drive\n" +
+    "2. Mencocokkan nomor agenda file dengan baris di Spreadsheet\n" +
+    "3. Mencentang Kolom B dan memasang Link Berkas di Kolom N\n" +
+    "4. Mengubah status tombol di website menjadi 'Berkas Drive'!\n\n" +
+    "Lanjutkan sinkronisasi?"
+  );
+  if (!confirmRun) return;
+
+  let origHtml = "";
+  if (triggerBtn) {
+    origHtml = triggerBtn.innerHTML;
+    triggerBtn.disabled = true;
+    triggerBtn.innerHTML = `<i class="fa-solid fa-arrows-rotate fa-spin"></i> Menyinkronkan Drive...`;
+  }
+
+  showToast("🔍 Memindai folder Google Drive & mencocokkan ke Spreadsheet...", "info");
+
+  try {
+    const res = await fetch(state.appsScriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "sync_drive_files_to_sheet" })
+    });
+    const resJson = await res.json();
+
+    if (resJson && resJson.status === "success") {
+      // 1. Bersihkan cache lokal agar data fresh diambil dari Sheets
+      localStorage.removeItem("cache_surat_keluar_2026");
+      localStorage.removeItem("cache_surat_masuk_2026");
+
+      // 2. Jika Apps Script mengembalikan daftar agenda yang cocok, update state lokal langsung
+      if (resJson.matchedAgendas && resJson.matchedAgendas.length > 0) {
+        const matchedSet = new Set(resJson.matchedAgendas.map(a => String(a).trim()));
+        state.suratKeluar.forEach(k => {
+          if (matchedSet.has(String(k.noAgenda).trim()) || matchedSet.has(String(k.noUrut).trim())) {
+            k.status = true;
+            if (!k.driveUrl || !k.driveUrl.includes("http")) {
+              k.driveUrl = state.driveKeluarUrl || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5";
+              k.lampiran = k.driveUrl;
+            }
+          }
+        });
+      }
+
+      // 3. Muat ulang data live dari Google Sheets
+      await loadLiveSheetData();
+
+      // 4. Render ulang tabel & dashboard
+      filterSuratKeluarData();
+      filterSuratMasukData();
+      updateDashboardUI();
+
+      const msg = resJson.message || `Berhasil menyinkronkan berkas dari Google Drive ke Spreadsheet!`;
+      showToast(`✅ ${msg}`, "success");
+      alert(`✅ Sinkronisasi Google Drive Selesai!\n\n${msg}\n\nStatus tombol di tabel kini telah diperbarui menjadi "Berkas Drive".`);
+    } else {
+      showToast(`Gagal sinkronisasi Drive: ${resJson?.message || "Terjadi kesalahan"}`, "danger");
+    }
+  } catch (err) {
+    console.error("Gagal sinkron drive ke sheet:", err);
+    showToast("Terjadi kendala saat menghubungi Google Apps Script: " + err.message, "danger");
+  } finally {
+    if (triggerBtn) {
+      triggerBtn.disabled = false;
+      triggerBtn.innerHTML = origHtml;
+    }
+  }
+}
+
+/**
  * Buka modal konfirmasi hapus data surat keluar
  */
 function openDeleteModalKeluar(id) {
@@ -6770,6 +6874,7 @@ window.openBatchEditModalKeluar = openBatchEditModalKeluar;
 window.renderBatchEditPreview = renderBatchEditPreview;
 window.removeBatchEditItem = removeBatchEditItem;
 window.executeBatchEditKeluar = executeBatchEditKeluar;
+window.handleSyncDriveToSpreadsheet = handleSyncDriveToSpreadsheet;
 window.openDeleteModalKeluar = openDeleteModalKeluar;
 window.openDeleteModalMasuk = openDeleteModalMasuk;
 window.handleExecuteDeleteRow = handleExecuteDeleteRow;

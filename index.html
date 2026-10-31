@@ -298,6 +298,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT KELUAR 2026</code> (gid: 381566345) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="btnSyncDriveKeluar" title="Pindai Google Drive dan otomatis perbarui status menjadi 'Berkas Drive' di Spreadsheet">
+                  <i class="fa-solid fa-arrows-rotate"></i> Sinkron Berkas Drive
+                </button>
                 <button type="button" class="btn btn-warning btn-sm" id="btnHeaderBatchEditKeluar" title="Edit kode klasifikasi dan data banyak surat keluar sekaligus">
                   <i class="fa-solid fa-pen-to-square"></i> Edit Batch
                 </button>
@@ -477,6 +480,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT MASUK 2026</code> (gid: 1925080880) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <button type="button" class="btn btn-outline btn-sm" id="btnSyncDriveMasuk" title="Pindai Google Drive Surat Masuk dan pasangkan ke Spreadsheet">
+                  <i class="fa-solid fa-arrows-rotate text-emerald"></i> Sinkron Berkas Drive
+                </button>
                 <button class="btn btn-emerald btn-sm" id="btnOpenModalMasukHeader" title="Catat Surat Masuk Baru">
                   <i class="fa-solid fa-plus"></i> Catat Surat Masuk
                 </button>
@@ -946,6 +952,9 @@
                   <button type="button" class="btn btn-outline" id="btnCleanSpreadsheetDuplicates" title="Hapus baris ganda di Spreadsheet dan bersihkan tampilan">
                     <i class="fa-solid fa-broom" style="color: #f59e0b;"></i> Bersihkan Baris Ganda
                   </button>
+                  <button type="button" class="btn btn-emerald" id="btnSyncDriveAll" title="Pindai seluruh folder Google Drive dan otomatis pasangkan link berkas ke Spreadsheet agar status berubah menjadi 'Berkas Drive'">
+                    <i class="fa-solid fa-arrows-rotate"></i> Sinkron Berkas Drive ke Sheet
+                  </button>
                   <button type="button" class="btn btn-outline" id="btnCleanDriveDuplicates" title="Pindai dan bersihkan seluruh file duplikat ganda di Google Drive dan sisakan 1 versi terbaru">
                     <i class="fa-brands fa-google-drive" style="color: #3b82f6;"></i> Bersihkan Duplikat Drive
                   </button>
@@ -957,7 +966,7 @@
 
               <div class="script-instruction-box">
                 <div class="script-header">
-                  <span><i class="fa-solid fa-code"></i> Kode Google Apps Script v3.1 (Pencegahan Total Overwrite Edit Surat + Auto-Rapikan 612-620)</span>
+                  <span><i class="fa-solid fa-code"></i> Kode Google Apps Script v3.3 (Auto-Sinkron Berkas Drive ke Spreadsheet & Status 'Berkas Drive' Live)</span>
                   <button class="btn btn-outline btn-sm" id="btnCopyScriptCode">
                     <i class="fa-solid fa-copy"></i> Salin Skrip
                   </button>
