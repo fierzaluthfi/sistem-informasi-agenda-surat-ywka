@@ -175,8 +175,9 @@ function sinkronkanBerkasDriveKeSpreadsheet() {
   // -------------------------------------------------------------
   // 1. SINKRONISASI SURAT KELUAR 2026
   // -------------------------------------------------------------
-  const fKeluar = getSuratKeluarFolder();
-  const sheetKeluar = ss ? ss.getSheetByName(SHEET_SURAT_KELUAR) : null;
+  try {
+    const fKeluar = getSuratKeluarFolder();
+    const sheetKeluar = ss ? ss.getSheetByName(SHEET_SURAT_KELUAR) : null;
 
   if (fKeluar && sheetKeluar) {
     const lastRow = sheetKeluar.getLastRow();
@@ -250,78 +251,91 @@ function sinkronkanBerkasDriveKeSpreadsheet() {
       }
 
       if (hasChanges) {
-        rangeKeluar.setValues(valuesKeluar);
+        // Tulis HANYA Kolom B (Kolom 2) dan Kolom N (Kolom 14) secara presisi agar tidak menyentuh kolom lain
+        const colBValues = valuesKeluar.map(r => [r[1]]);
+        const colNValues = valuesKeluar.map(r => [r[13]]);
+        sheetKeluar.getRange(4, 2, totalScan, 1).setValues(colBValues);
+        sheetKeluar.getRange(4, 14, totalScan, 1).setValues(colNValues);
         SpreadsheetApp.flush();
         Logger.log("💾 Kolom B dan Kolom N di Sheet " + SHEET_SURAT_KELUAR + " berhasil diperbarui!");
       }
     }
   }
+} catch (errKeluar) {
+    Logger.log("⚠️ Kendala sinkronisasi Surat Keluar: " + errKeluar.toString());
+  }
 
   // -------------------------------------------------------------
   // 2. SINKRONISASI SURAT MASUK 2026
   // -------------------------------------------------------------
-  const fMasuk = getSuratMasukFolder();
-  const sheetMasuk = ss ? ss.getSheetByName(SHEET_SURAT_MASUK) : null;
+  try {
+    const fMasuk = getSuratMasukFolder();
+    const sheetMasuk = ss ? ss.getSheetByName(SHEET_SURAT_MASUK) : null;
 
-  if (fMasuk && sheetMasuk) {
-    const lastRowM = sheetMasuk.getLastRow();
-    if (lastRowM >= 2) {
-      const totalScanM = lastRowM - 1;
-      const rangeMasuk = sheetMasuk.getRange(2, 1, totalScanM, 10);
-      const valuesMasuk = rangeMasuk.getValues();
+    if (fMasuk && sheetMasuk) {
+      const lastRowM = sheetMasuk.getLastRow();
+      if (lastRowM >= 2) {
+        const totalScanM = lastRowM - 1;
+        const rangeMasuk = sheetMasuk.getRange(2, 1, totalScanM, 10);
+        const valuesMasuk = rangeMasuk.getValues();
 
-      const masukMap = {};
-      for (let i = 0; i < totalScanM; i++) {
-        const noUrut = String(valuesMasuk[i][0] || "").trim(); // Kolom A (Index 0)
-        const noAgenda = String(valuesMasuk[i][1] || "").trim(); // Kolom B (Index 1)
-        if (noUrut && !masukMap[noUrut]) masukMap[noUrut] = i;
-        if (noAgenda && !masukMap[noAgenda]) masukMap[noAgenda] = i;
-      }
+        const masukMap = {};
+        for (let i = 0; i < totalScanM; i++) {
+          const noUrut = String(valuesMasuk[i][0] || "").trim(); // Kolom A (Index 0)
+          const noAgenda = String(valuesMasuk[i][1] || "").trim(); // Kolom B (Index 1)
+          if (noUrut && !masukMap[noUrut]) masukMap[noUrut] = i;
+          if (noAgenda && !masukMap[noAgenda]) masukMap[noAgenda] = i;
+        }
 
-      const filesIterM = fMasuk.getFiles();
-      let hasChangesM = false;
+        const filesIterM = fMasuk.getFiles();
+        let hasChangesM = false;
 
-      while (filesIterM.hasNext()) {
-        const file = filesIterM.next();
-        if (file.isTrashed()) continue;
-        result.masukScanned++;
+        while (filesIterM.hasNext()) {
+          const file = filesIterM.next();
+          if (file.isTrashed()) continue;
+          result.masukScanned++;
 
-        const fileName = file.getName();
-        const fileId = file.getId();
-        const fileUrl = "https://drive.google.com/file/d/" + fileId + "/view?usp=drivesdk";
+          const fileName = file.getName();
+          const fileId = file.getId();
+          const fileUrl = "https://drive.google.com/file/d/" + fileId + "/view?usp=drivesdk";
 
-        try {
-          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        } catch (e) { }
+          try {
+            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          } catch (e) { }
 
-        const extracted = extractAgendaFromFileName(fileName);
-        if (!extracted) continue;
+          const extracted = extractAgendaFromFileName(fileName);
+          if (!extracted) continue;
 
-        let targetR = masukMap[extracted];
-        if (targetR === undefined) {
-          const num = parseInt(extracted, 10);
-          if (!isNaN(num)) {
-            targetR = masukMap[String(num)] !== undefined ? masukMap[String(num)] : masukMap[String(num).padStart(3, "0")];
+          let targetR = masukMap[extracted];
+          if (targetR === undefined) {
+            const num = parseInt(extracted, 10);
+            if (!isNaN(num)) {
+              targetR = masukMap[String(num)] !== undefined ? masukMap[String(num)] : masukMap[String(num).padStart(3, "0")];
+            }
+          }
+
+          if (targetR !== undefined) {
+            result.masukMatched++;
+            const curLampiranM = String(valuesMasuk[targetR][9] || "").trim();
+            if (!curLampiranM.includes("drive.google.com") || curLampiranM !== fileUrl) {
+              valuesMasuk[targetR][9] = fileUrl; // Kolom J (Index 9)
+              hasChangesM = true;
+              result.masukUpdated++;
+            }
           }
         }
 
-        if (targetR !== undefined) {
-          result.masukMatched++;
-          const curLampiranM = String(valuesMasuk[targetR][9] || "").trim();
-          if (!curLampiranM.includes("drive.google.com") || curLampiranM !== fileUrl) {
-            valuesMasuk[targetR][9] = fileUrl; // Kolom J (Index 9)
-            hasChangesM = true;
-            result.masukUpdated++;
-          }
+        if (hasChangesM) {
+          // Tulis HANYA Kolom J (Kolom 10) secara presisi agar TIDAK memicu aturan validasi data di Kolom F (sel F8)
+          const colJValues = valuesMasuk.map(r => [r[9]]);
+          sheetMasuk.getRange(2, 10, totalScanM, 1).setValues(colJValues);
+          SpreadsheetApp.flush();
+          Logger.log("💾 Kolom J di Sheet " + SHEET_SURAT_MASUK + " berhasil diperbarui!");
         }
-      }
-
-      if (hasChangesM) {
-        rangeMasuk.setValues(valuesMasuk);
-        SpreadsheetApp.flush();
-        Logger.log("💾 Kolom J di Sheet " + SHEET_SURAT_MASUK + " berhasil diperbarui!");
       }
     }
+  } catch (errMasuk) {
+    Logger.log("⚠️ Kendala sinkronisasi Surat Masuk (diabaikan agar Surat Keluar tetap aman): " + errMasuk.toString());
   }
 
   result.message = "Sinkronisasi selesai! Surat Keluar: " + result.keluarScanned + " file dipindai, " + result.keluarUpdated + " baris diperbarui ke 'Berkas Drive'. Surat Masuk: " + result.masukScanned + " file dipindai, " + result.masukUpdated + " baris diperbarui.";
@@ -930,8 +944,8 @@ function doGet(e) {
       return createJsonResponse({
         status: "success",
         message: "Pembersihan berkas duplikat di Google Drive berhasil! " +
-                 resDedup.keluarDibersihkan + " berkas surat keluar dan " +
-                 resDedup.masukDibersihkan + " berkas surat masuk telah dibersihkan.",
+          resDedup.keluarDibersihkan + " berkas surat keluar dan " +
+          resDedup.masukDibersihkan + " berkas surat masuk telah dibersihkan.",
         detail: resDedup
       });
     }
@@ -990,8 +1004,8 @@ function doPost(e) {
       return createJsonResponse({
         status: "success",
         message: "Pembersihan berkas duplikat di Google Drive berhasil! " +
-                 resDedup.keluarDibersihkan + " berkas surat keluar dan " +
-                 resDedup.masukDibersihkan + " berkas surat masuk telah dibersihkan.",
+          resDedup.keluarDibersihkan + " berkas surat keluar dan " +
+          resDedup.masukDibersihkan + " berkas surat masuk telah dibersihkan.",
         detail: resDedup
       });
     }
@@ -1171,7 +1185,7 @@ function doPost(e) {
             const rowAgenda = String(agendaColValues[i][0]).trim();
             const rowPerihal = String(perihalColValues[i][0]).trim().toLowerCase();
             if (rowAgenda === oldAgendaStr && rowPerihal &&
-               (rowPerihal.indexOf(payloadPerihal.substring(0, 15)) !== -1 || payloadPerihal.indexOf(rowPerihal.substring(0, 15)) !== -1)) {
+              (rowPerihal.indexOf(payloadPerihal.substring(0, 15)) !== -1 || payloadPerihal.indexOf(rowPerihal.substring(0, 15)) !== -1)) {
               targetRowIndex = i + 4;
               break;
             }
@@ -1336,7 +1350,7 @@ function doPost(e) {
             const rowAgenda = String(allValues[i][3]).trim();
             const rowPerihal = String(allValues[i][8]).trim().toLowerCase();
             if (rowAgenda === targetAgenda && rowPerihal &&
-                (rowPerihal.indexOf(payloadPerihal.substring(0, 15)) !== -1 || payloadPerihal.indexOf(rowPerihal.substring(0, 15)) !== -1)) {
+              (rowPerihal.indexOf(payloadPerihal.substring(0, 15)) !== -1 || payloadPerihal.indexOf(rowPerihal.substring(0, 15)) !== -1)) {
               targetIdx = i;
               break;
             }
