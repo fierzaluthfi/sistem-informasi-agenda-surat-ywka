@@ -2954,5 +2954,318 @@ body {
   }
 }
 
+/* ==========================================================================
+   FITUR BATCH UPLOAD SURAT KELUAR & CHECKBOX TABEL
+   ========================================================================== */
+.table-checkbox {
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  accent-color: #2563eb;
+  vertical-align: middle;
+  border-radius: 4px;
+}
+
+.batch-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  animation: slideUp 0.2s ease-in-out;
+  flex-wrap: wrap;
+  gap: 10px;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.06);
+}
+
+.batch-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.batch-badge-count {
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+
+.batch-bar-text {
+  font-weight: 700;
+  color: #1e3a8a;
+  font-size: 13.5px;
+}
+
+.batch-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-xl {
+  max-width: 920px;
+}
+
+.batch-info-banner {
+  display: flex;
+  gap: 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+
+.batch-info-icon {
+  font-size: 26px;
+  line-height: 1;
+  color: #10b981;
+}
+
+.batch-info-content h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #166534;
+  font-weight: 700;
+}
+
+.batch-info-content p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #15803d;
+  line-height: 1.5;
+}
+
+.batch-info-content code {
+  background: #dcfce7;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: #14532d;
+}
+
+.batch-dropzone {
+  border: 2px dashed #93c5fd;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 16px;
+}
+
+.batch-dropzone:hover,
+.batch-dropzone.dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+}
+
+.batch-dropzone-inner {
+  pointer-events: none;
+}
+
+.batch-dropzone-inner button {
+  pointer-events: auto;
+}
+
+.batch-dropzone-icon {
+  font-size: 38px;
+  color: #3b82f6;
+  margin-bottom: 8px;
+}
+
+.batch-dropzone h4 {
+  font-size: 15px;
+  color: #1e293b;
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.batch-dropzone p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 14px;
+}
+
+.batch-dropzone-subtext {
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin-top: 10px;
+}
+
+.batch-list-wrapper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.batch-list-header {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.batch-count-summary {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.batch-list-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.batch-table-scroll {
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.batch-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.batch-items-table th {
+  background: #f1f5f9;
+  padding: 9px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: left;
+}
+
+.batch-items-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.batch-file-matched {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  max-width: 280px;
+}
+
+.batch-file-name {
+  font-weight: 600;
+  color: #166534;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.batch-file-size {
+  font-size: 11px;
+  color: #65a30d;
+}
+
+.btn-remove-matched-file {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.btn-remove-matched-file:hover {
+  color: #ef4444;
+}
+
+.batch-file-unmatched {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-no-file-text {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.batch-progress-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.batch-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.batch-progress-track {
+  height: 9px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.batch-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #10b981);
+  transition: width 0.3s ease;
+}
+
+.batch-progress-details {
+  font-size: 12px;
+  color: #64748b;
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 768px) {
+  .batch-action-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .batch-bar-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+
 
 

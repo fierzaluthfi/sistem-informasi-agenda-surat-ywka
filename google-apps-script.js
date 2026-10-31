@@ -1,7 +1,7 @@
-/**
+﻿/**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 2.9 (PERBAIKAN OTOMATIS TANGGAL KELUAR & MASUK + RELOKASI PRESISI SURAT MASUK)
+ * VERSI 3.1 (PENCEGAHAN TOTAL SALAH BARIS EDIT + AUTO-RAPIKAN AGENDA 612-620)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -11,14 +11,15 @@
  * 3. Hapus semua teks yang ada di editor Apps Script.
  * 4. Salin (Copy) seluruh isi file ini, lalu Tempel (Paste) ke editor tersebut.
  * 5. Klik ikon Simpan (Save).
- * 6. (PILIHAN) Pilih fungsi "setupDriveFolders" pada menu dropdown di atas editor, lalu klik "Run/Jalankan"
- *    untuk langsung membuat folder "Surat Keluar 2026" dan "Surat Masuk 2026" di Google Drive!
- * 7. Klik tombol "Deploy" (di kanan atas) > "Manage deployments" (atau "New deployment").
- * 8. Jika Manage deployments: klik ikon pensil (Edit), pilih Version: "New version",
+ * 6. (PILIHAN 1): Pilih fungsi "rapikanNomorAgendaKeluar" lalu klik "Run/Jalankan"
+ *    untuk langsung memulihkan susunan nomor agenda 612 s/d 620 yang sempat acak-acakan!
+ * 7. (PILIHAN 2): Pilih fungsi "bersihkanDuplikatDrive" untuk otomatis membersihkan duplikat Drive!
+ * 8. Klik tombol "Deploy" (di kanan atas) > "Manage deployments" (atau "New deployment").
+ * 9. Jika Manage deployments: klik ikon pensil (Edit), pilih Version: "New version",
  *    - Execute as: "Me" (email Anda)
  *    - Who has access: "Anyone" (Siapa saja yang memiliki link) -> PENTING!
- * 9. Klik "Deploy", izinkan akses (Authorize access) Google Drive & Sheets.
- * 10. Salin "Web app URL" (akhiran /exec) dan tempelkan ke aplikasi web Anda di menu "Koneksi Spreadsheet"!
+ * 10. Klik "Deploy", izinkan akses (Authorize access) Google Drive & Sheets.
+ * 11. Salin "Web app URL" (akhiran /exec) dan tempelkan ke aplikasi web Anda di menu "Koneksi Spreadsheet"!
  */
 
 // Konstanta Nama Sheet sesuai berkas asli SMA YWKA
@@ -49,9 +50,268 @@ function getTargetSpreadsheet() {
  * FUNGSI PERBAIKAN MANDIRI (BISA LANGSUNG DIJALANKAN DARI APPS SCRIPT):
  * ===================================================================
  * Pilih fungsi ini di dropdown atas editor Apps Script lalu klik "Run/Jalankan":
- * 1. Otomatis memindahkan surat No. Urut 215 di baris 302 ke baris 214 (slot template 215 yang benar).
- * 2. Menghapus baris 302+ yang salah sehingga template rapi kembali ke 300 baris.
+ * 1. "rapikanNomorAgendaKeluar": Otomatis memulihkan urutan nomor agenda 612 s/d 620 yang sempat acak-acakan/duplikat!
+ * 2. "bersihkanDuplikatDrive": Otomatis membersihkan seluruh file duplikat lama di Google Drive,
+ *    menyisakan 1 file versi terbaru untuk setiap nomor agenda & nama file.
+ * 3. "perbaikiBarisSuratMasuk": Otomatis merelokasi surat No. Urut 215 di baris 302 ke baris 214.
  */
+/**
+ * ===================================================================
+ * FUNGSI PEMBERSIH DUPLIKAT GOOGLE DRIVE (BISA DIJALANKAN MANDIRI DARI APPS SCRIPT):
+ * ===================================================================
+ * Memindai folder "Surat Keluar 2026" dan "Surat Masuk 2026".
+ * Otomatis mendeteksi file yang terduplikasi (nama file sama persis atau nomor agenda sama).
+ * Menyimpan 1 file TERBARU (berdasarkan tanggal update), dan memindahkan file lama ke Sampah (Trash).
+ */
+function bersihkanDuplikatDrive() {
+  const result = {
+    keluarDibersihkan: 0,
+    masukDibersihkan: 0,
+    detail: []
+  };
+
+  let mainFolder;
+  try {
+    mainFolder = DriveApp.getFolderById(FOLDER_DRIVE_ID);
+  } catch (e) {
+    const folderIter = DriveApp.getFoldersByName(FOLDER_DRIVE_UTAMA);
+    if (folderIter.hasNext()) {
+      mainFolder = folderIter.next();
+    }
+  }
+
+  if (!mainFolder) {
+    Logger.log("Folder arsip utama SMA YWKA tidak ditemukan!");
+    return result;
+  }
+
+  const ss = getTargetSpreadsheet();
+
+  // 1. Bersihkan Folder Surat Keluar 2026
+  const folderKeluarIter = mainFolder.getFoldersByName("Surat Keluar 2026");
+  if (folderKeluarIter.hasNext()) {
+    const fKeluar = folderKeluarIter.next();
+    const sheetKeluar = ss ? ss.getSheetByName(SHEET_SURAT_KELUAR) : null;
+    result.keluarDibersihkan = dedupFolder(fKeluar, result.detail, "Surat Keluar 2026", sheetKeluar, "keluar");
+  }
+
+  // 2. Bersihkan Folder Surat Masuk 2026
+  const folderMasukIter = mainFolder.getFoldersByName("Surat Masuk 2026");
+  if (folderMasukIter.hasNext()) {
+    const fMasuk = folderMasukIter.next();
+    const sheetMasuk = ss ? ss.getSheetByName(SHEET_SURAT_MASUK) : null;
+    result.masukDibersihkan = dedupFolder(fMasuk, result.detail, "Surat Masuk 2026", sheetMasuk, "masuk");
+  }
+
+  Logger.log("=================================================");
+  Logger.log("🧹 HASIL PEMBERSIHAN DUPLIKAT GOOGLE DRIVE:");
+  Logger.log("📁 Surat Keluar duplikat dibuang ke Sampah: " + result.keluarDibersihkan);
+  Logger.log("📁 Surat Masuk duplikat dibuang ke Sampah : " + result.masukDibersihkan);
+  Logger.log("=================================================");
+
+  return result;
+}
+
+function dedupFolder(folder, detailLog, folderName, sheet, sheetType) {
+  let cleanedCount = 0;
+  const filesIter = folder.getFiles();
+  const fileGroups = {};
+
+  while (filesIter.hasNext()) {
+    const f = filesIter.next();
+    if (f.isTrashed()) continue;
+
+    const rawName = f.getName().trim();
+    const normName = rawName.toLowerCase();
+
+    // Deteksi nomor agenda di awal nama: "No. 619 ...", "No 619 ...", "619 - ..."
+    let agendaKey = "";
+    const agendaMatch = rawName.match(/^(?:no\.?|surat|agenda)?\s*([0-9]+(?:\.[a-z0-9]+)?)\b/i);
+    if (agendaMatch && agendaMatch[1]) {
+      agendaKey = "agenda_" + agendaMatch[1].toLowerCase();
+    }
+
+    const groupKey = agendaKey || normName;
+
+    if (!fileGroups[groupKey]) {
+      fileGroups[groupKey] = [];
+    }
+    fileGroups[groupKey].push({
+      file: f,
+      name: rawName,
+      lastUpdated: f.getLastUpdated().getTime(),
+      created: f.getDateCreated().getTime(),
+      id: f.getId(),
+      url: f.getUrl(),
+      agendaNumber: agendaMatch ? agendaMatch[1] : ""
+    });
+  }
+
+  // Proses setiap kelompok yang memiliki file ganda
+  for (const key in fileGroups) {
+    const group = fileGroups[key];
+    if (group.length > 1) {
+      // Urutkan dari yang paling baru diupdate ke yang lama
+      group.sort(function (a, b) {
+        return b.lastUpdated - a.lastUpdated;
+      });
+
+      const keptFile = group[0]; // Versi paling mutakhir dipertahankan
+
+      for (let i = 1; i < group.length; i++) {
+        const dup = group[i];
+        try {
+          dup.file.setTrashed(true);
+          cleanedCount++;
+          const logMsg = "[" + folderName + "] Membuang duplikat lama ke Sampah: \"" + dup.name + "\" (ID: " + dup.id + ") -> Menyisakan versi terbaru";
+          detailLog.push(logMsg);
+          Logger.log(logMsg);
+        } catch (err) {
+          Logger.log("Gagal membuang duplikat " + dup.name + ": " + err.toString());
+        }
+      }
+
+      // Sinkronkan kembali URL berkas terbaru ke Google Spreadsheet jika ada nomor agenda
+      if (sheet && keptFile.agendaNumber) {
+        try {
+          if (sheetType === "keluar") {
+            const lastRow = sheet.getLastRow();
+            if (lastRow >= 4) {
+              const colD = sheet.getRange(4, 4, lastRow - 3, 1).getValues();
+              for (let r = 0; r < colD.length; r++) {
+                if (String(colD[r][0]).trim().toLowerCase() === keptFile.agendaNumber.toLowerCase()) {
+                  sheet.getRange(r + 4, 2).setValue(true);
+                  sheet.getRange(r + 4, 14).setValue(keptFile.url);
+                  break;
+                }
+              }
+            }
+          } else if (sheetType === "masuk") {
+            const lastRow = sheet.getLastRow();
+            if (lastRow >= 2) {
+              const colB = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+              for (let r = 0; r < colB.length; r++) {
+                if (String(colB[r][0]).trim().toLowerCase() === keptFile.agendaNumber.toLowerCase()) {
+                  sheet.getRange(r + 2, 10).setValue(keptFile.url);
+                  break;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          Logger.log("Info sinkron link sheet setelah dedup: " + e.toString());
+        }
+      }
+    }
+  }
+
+  return cleanedCount;
+}
+
+/**
+ * ===================================================================
+ * FUNGSI PERBAIKAN URUTAN SURAT KELUAR (BISA DIJALANKAN MANDIRI DARI APPS SCRIPT):
+ * ===================================================================
+ * Memperbaiki nomor agenda Surat Keluar yang acak-acakan di baris 635 s/d 642:
+ * - Baris 635 (No. Urut 656) dikembalikan ke No. Agenda 613 (Pengawas Silang TKA)
+ * - Baris 636 (No. Urut 657) dipastikan No. Agenda 614 (Pengawas Silang TKA)
+ * - Baris 637 (No. Urut 658) dikembalikan ke No. Agenda 615 (Pengawas Silang TKA), bukan 617 ganda!
+ * - Baris 638 (No. Urut 659) dipastikan No. Agenda 616 (Surat Edaran ASAS)
+ * - Baris 639 (No. Urut 660) dipastikan No. Agenda 617 (Surat Dispensasi FinExpo)
+ * - Baris 640 s/d 642: No. Agenda 618, 619, 620
+ * Hasilnya: urutan kembali sempurna 612, 613, 614, 615, 616, 617, 618, 619, 620!
+ */
+function rapikanNomorAgendaKeluar() {
+  const ss = getTargetSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_SURAT_KELUAR);
+  if (!sheet) return "Sheet Surat Keluar tidak ditemukan!";
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 634) return "Data belum mencapai baris 634.";
+
+  // Koreksi langsung baris 635 s/d 639 sesuai data riil SMA YWKA
+  // 1. Baris 635 (No. Urut 656) -> Agenda 613 (Pengawas Silang TKA)
+  sheet.getRange(635, 1).setValue(656);
+  sheet.getRange(635, 2).setValue(true);
+  sheet.getRange(635, 3).setValue("421.3/");
+  sheet.getRange(635, 4).setValue("613");
+  sheet.getRange(635, 5).setValue("/SMA YWKA TU/ ");
+  sheet.getRange(635, 6).setValue("X");
+  sheet.getRange(635, 7).setValue("/2026");
+  sheet.getRange(635, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+  sheet.getRange(635, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
+  sheet.getRange(635, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+
+  // 2. Baris 636 (No. Urut 657) -> Agenda 614 (Pengawas Silang TKA)
+  sheet.getRange(636, 1).setValue(657);
+  sheet.getRange(636, 2).setValue(true);
+  sheet.getRange(636, 3).setValue("421.3/");
+  sheet.getRange(636, 4).setValue("614");
+  sheet.getRange(636, 5).setValue("/SMA YWKA TU/ ");
+  sheet.getRange(636, 6).setValue("X");
+  sheet.getRange(636, 7).setValue("/2026");
+  sheet.getRange(636, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+  sheet.getRange(636, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
+  sheet.getRange(636, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+
+  // 3. Baris 637 (No. Urut 658) -> Agenda 615 (Pengawas Silang TKA - membatalkan tertimpa 617)
+  sheet.getRange(637, 1).setValue(658);
+  sheet.getRange(637, 2).setValue(true);
+  sheet.getRange(637, 3).setValue("421.3/");
+  sheet.getRange(637, 4).setValue("615");
+  sheet.getRange(637, 5).setValue("/SMA YWKA TU/ ");
+  sheet.getRange(637, 6).setValue("X");
+  sheet.getRange(637, 7).setValue("/2026");
+  sheet.getRange(637, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+  sheet.getRange(637, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
+  sheet.getRange(637, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+
+  // 4. Baris 638 (No. Urut 659) -> Agenda 616 (Surat Edaran Kegiatan ASAS)
+  sheet.getRange(638, 1).setValue(659);
+  sheet.getRange(638, 3).setValue("421.3/");
+  sheet.getRange(638, 4).setValue("616");
+  sheet.getRange(638, 5).setValue("/SMA YWKA TU/ ");
+  sheet.getRange(638, 6).setValue("X");
+  sheet.getRange(638, 7).setValue("/2026");
+  sheet.getRange(638, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+  sheet.getRange(638, 9).setValue("Surat Edaran Kegiatan ASAS");
+
+  // 5. Baris 639 (No. Urut 660) -> Agenda 617 (Surat Dispensasi FinExpo Asli)
+  sheet.getRange(639, 1).setValue(660);
+  sheet.getRange(639, 2).setValue(true);
+  sheet.getRange(639, 3).setValue("421.7/");
+  sheet.getRange(639, 4).setValue("617");
+  sheet.getRange(639, 5).setValue("/SMA YWKA TU/ ");
+  sheet.getRange(639, 6).setValue("X");
+  sheet.getRange(639, 7).setValue("/2026");
+  sheet.getRange(639, 8).setValue(parseDateForSheet("29/10/2026")).setNumberFormat("dd/mm/yyyy");
+  sheet.getRange(639, 9).setValue("Surat Dispensasi untuk Lomba Cerdas Cermat SMP & SMA FINEXPO OJK2026");
+  sheet.getRange(639, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+
+  // 6. Baris 640 s/d 642 -> Pastikan Agenda 618, 619, 620
+  sheet.getRange(640, 1).setValue(661);
+  sheet.getRange(640, 4).setValue("618");
+  sheet.getRange(641, 1).setValue(662);
+  sheet.getRange(641, 4).setValue("619");
+  sheet.getRange(642, 1).setValue(663);
+  sheet.getRange(642, 4).setValue("620");
+
+  Logger.log("=================================================");
+  Logger.log("✅ BERHASIL MERAPIKAN URUTAN AGENDA SURAT KELUAR!");
+  Logger.log("Baris 634 (655): Agenda 612 (Pengawas Silang)");
+  Logger.log("Baris 635 (656): Agenda 613 (Pengawas Silang)");
+  Logger.log("Baris 636 (657): Agenda 614 (Pengawas Silang)");
+  Logger.log("Baris 637 (658): Agenda 615 (Pengawas Silang)");
+  Logger.log("Baris 638 (659): Agenda 616 (Surat Edaran ASAS)");
+  Logger.log("Baris 639 (660): Agenda 617 (Dispensasi FinExpo)");
+  Logger.log("Baris 640 (661): Agenda 618 (Guru Pendamping)");
+  Logger.log("Baris 641 (662): Agenda 619 (Guru Pendamping)");
+  Logger.log("Baris 642 (663): Agenda 620 (Pernyataan Peserta)");
+  Logger.log("=================================================");
+
+  return "Berhasil merapikan urutan Surat Keluar! Baris 634 s/d 642 kini tersusun rapi berurutan dari 612 hingga 620 tanpa duplikat.";
+}
+
 function perbaikiBarisSuratMasuk() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
@@ -387,6 +647,25 @@ function doGet(e) {
       });
     }
 
+    if (action === "clean_drive_duplicates" || action === "bersihkan_duplikat_drive") {
+      const resDedup = bersihkanDuplikatDrive();
+      return createJsonResponse({
+        status: "success",
+        message: "Pembersihan berkas duplikat di Google Drive berhasil! " +
+                 resDedup.keluarDibersihkan + " berkas surat keluar dan " +
+                 resDedup.masukDibersihkan + " berkas surat masuk telah dibersihkan.",
+        detail: resDedup
+      });
+    }
+
+    if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar") {
+      const msg = rapikanNomorAgendaKeluar();
+      return createJsonResponse({
+        status: "success",
+        message: msg
+      });
+    }
+
     return createJsonResponse({ status: "error", message: "Aksi tidak dikenal: " + action });
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
@@ -421,6 +700,28 @@ function doPost(e) {
     }
 
     // ==========================================
+    // 0.B. BERSIHKAN DUPLIKAT DI GOOGLE DRIVE (SURAT KELUAR & MASUK)
+    // ==========================================
+    if (action === "clean_drive_duplicates" || action === "bersihkan_duplikat_drive") {
+      const resDedup = bersihkanDuplikatDrive();
+      return createJsonResponse({
+        status: "success",
+        message: "Pembersihan berkas duplikat di Google Drive berhasil! " +
+                 resDedup.keluarDibersihkan + " berkas surat keluar dan " +
+                 resDedup.masukDibersihkan + " berkas surat masuk telah dibersihkan.",
+        detail: resDedup
+      });
+    }
+
+    if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar") {
+      const msg = rapikanNomorAgendaKeluar();
+      return createJsonResponse({
+        status: "success",
+        message: msg
+      });
+    }
+
+    // ==========================================
     // 1. SIMPAN SURAT KELUAR KE SPREADSHEET
     // ==========================================
     if (action === "create_surat_keluar") {
@@ -429,22 +730,24 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_KELUAR + " tidak ditemukan!" });
       }
 
-      // 1.A. Proses Upload File ke Google Drive jika ada berkas terlampir
+      const noAgendaStr = String(payload.no_agenda || payload.nomor_urut || "").trim();
+
+      // 1.A. Proses Upload File ke Google Drive jika ada berkas terlampir (Anti-Duplikasi Aktif)
       let driveFileUrl = "";
       if (payload.fileBase64 && payload.fileName) {
         driveFileUrl = uploadFileToGoogleDrive(
           payload.fileBase64,
           payload.fileName,
           payload.fileMime || "application/pdf",
-          "Surat Keluar 2026"
+          "Surat Keluar 2026",
+          payload.old_drive_url || "",
+          noAgendaStr
         );
       }
 
       const rawKode = payload.kode_klasifikasi || "421.3";
       const kodePrefix = rawKode.endsWith("/") ? rawKode : rawKode + "/";
       const tahunSuffix = payload.tahun ? "/" + payload.tahun.replace("/", "").trim() : "/2026";
-
-      const noAgendaStr = String(payload.no_agenda || payload.nomor_urut || "").trim();
       const bulanRomawi = payload.bulan_romawi || "X";
       const perihal = payload.perihal || "";
       const dari = payload.dari || "Syarif Hasanudin, S.Pd., Gr., M.M.";
@@ -563,31 +866,90 @@ function doPost(e) {
       const oldAgendaStr = String(payload.old_no_agenda || payload.no_agenda || "").trim();
       const newAgendaStr = String(payload.no_agenda || oldAgendaStr).trim();
 
+      const lastRow = sheet.getLastRow();
+      let targetRowIndex = -1;
+
+      // 1. CARI PRESISI BERDASARKAN NO. AGENDA LAMA DI KOLOM D (KOLOM 4)
+      if (lastRow >= 4 && oldAgendaStr) {
+        const totalScan = lastRow - 3;
+        const agendaColValues = sheet.getRange(4, 4, totalScan, 1).getValues(); // Kolom D
+        const perihalColValues = sheet.getRange(4, 9, totalScan, 1).getValues(); // Kolom I (Perihal)
+
+        const payloadPerihal = String(payload.perihal || "").trim().toLowerCase();
+
+        // 1.A. Jika ada lebih dari satu baris dengan nomor agenda sama (duplikat), cocokkan dengan perihal
+        if (payloadPerihal) {
+          for (let i = 0; i < totalScan; i++) {
+            const rowAgenda = String(agendaColValues[i][0]).trim();
+            const rowPerihal = String(perihalColValues[i][0]).trim().toLowerCase();
+            if (rowAgenda === oldAgendaStr && rowPerihal &&
+               (rowPerihal.indexOf(payloadPerihal.substring(0, 15)) !== -1 || payloadPerihal.indexOf(rowPerihal.substring(0, 15)) !== -1)) {
+              targetRowIndex = i + 4;
+              break;
+            }
+          }
+        }
+
+        // 1.B. Jika belum ditemukan via perihal, ambil baris pertama yang Kolom D = oldAgendaStr
+        if (targetRowIndex < 0) {
+          for (let i = 0; i < totalScan; i++) {
+            const rowAgenda = String(agendaColValues[i][0]).trim();
+            if (rowAgenda === oldAgendaStr) {
+              targetRowIndex = i + 4;
+              break;
+            }
+          }
+        }
+
+        // 1.C. Jika nomor agenda lama tidak ketemu, cari berdasarkan newAgendaStr
+        if (targetRowIndex < 0 && newAgendaStr && newAgendaStr !== oldAgendaStr) {
+          for (let i = 0; i < totalScan; i++) {
+            const rowAgenda = String(agendaColValues[i][0]).trim();
+            if (rowAgenda === newAgendaStr) {
+              targetRowIndex = i + 4;
+              break;
+            }
+          }
+        }
+      }
+
+      // 2. VALIDASI KETAT ROW_INDEX: Jangan pernah gunakan payload.row_index secara buta!
+      // Hanya izinkan jika Kolom D di baris tersebut benar-benar berisi oldAgendaStr atau newAgendaStr!
+      if (targetRowIndex < 0 && payload.row_index) {
+        const clientRow = Number(payload.row_index);
+        if (clientRow >= 4 && clientRow <= lastRow) {
+          const checkCell = String(sheet.getRange(clientRow, 4).getValue()).trim();
+          if (checkCell === oldAgendaStr || checkCell === newAgendaStr) {
+            targetRowIndex = clientRow;
+          }
+        }
+      }
+
+      // 3. JIKA SAMA SEKALI TIDAK DITEMUKAN, TOLAK UNTUK MENIMPA BARIS LAIN!
+      if (targetRowIndex < 0) {
+        return createJsonResponse({
+          status: "error",
+          message: "Gagal edit: Baris Surat Keluar dengan No. Agenda " + oldAgendaStr + " tidak ditemukan di Kolom D Spreadsheet. Sistem menolak menimpa baris lain agar urutan tidak acak-acakan!"
+        });
+      }
+
+      let existingLampiran = "";
+      if (targetRowIndex > 0) {
+        existingLampiran = String(sheet.getRange(targetRowIndex, 14).getValue()).trim();
+      }
+      const oldDriveUrl = payload.old_drive_url || existingLampiran;
+
       let driveFileUrl = "";
       if (payload.fileBase64 && payload.fileName) {
         driveFileUrl = uploadFileToGoogleDrive(
           payload.fileBase64,
           payload.fileName,
           payload.fileMime || "application/pdf",
-          "Surat Keluar 2026"
+          "Surat Keluar 2026",
+          oldDriveUrl,
+          newAgendaStr,
+          oldAgendaStr
         );
-      }
-
-      const lastRow = sheet.getLastRow();
-      let targetRowIndex = -1;
-      if (payload.row_index && Number(payload.row_index) >= 4 && Number(payload.row_index) <= lastRow) {
-        targetRowIndex = Number(payload.row_index);
-      }
-      if (targetRowIndex < 0 && lastRow >= 4) {
-        const totalScan = lastRow - 3;
-        const agendaColValues = sheet.getRange(4, 4, totalScan, 1).getValues();
-        for (let i = 0; i < agendaColValues.length; i++) {
-          const rowAgenda = String(agendaColValues[i][0]).trim();
-          if (rowAgenda === oldAgendaStr || rowAgenda === newAgendaStr) {
-            targetRowIndex = i + 4;
-            break;
-          }
-        }
       }
 
       if (targetRowIndex > 0) {
@@ -662,27 +1024,33 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Berkas upload tidak ditemukan!" });
       }
 
-      const driveUrl = uploadFileToGoogleDrive(
-        payload.fileBase64,
-        payload.fileName,
-        payload.fileMime || "application/pdf",
-        "Surat Keluar 2026"
-      );
-
-      if (!driveUrl) {
-        return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
-      }
-
       const lastRow = sheet.getLastRow();
       let foundRow = -1;
+      let existingLampiran = "";
       if (lastRow >= 4) {
         const agendaColValues = sheet.getRange(4, 4, lastRow - 3, 1).getValues();
         for (let i = 0; i < agendaColValues.length; i++) {
           if (String(agendaColValues[i][0]).trim() === noAgendaStr) {
             foundRow = i + 4;
+            existingLampiran = String(sheet.getRange(foundRow, 14).getValue()).trim();
             break;
           }
         }
+      }
+
+      const oldDriveUrl = payload.old_drive_url || existingLampiran;
+
+      const driveUrl = uploadFileToGoogleDrive(
+        payload.fileBase64,
+        payload.fileName,
+        payload.fileMime || "application/pdf",
+        "Surat Keluar 2026",
+        oldDriveUrl,
+        noAgendaStr
+      );
+
+      if (!driveUrl) {
+        return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
       }
 
       if (foundRow > 0) {
@@ -692,7 +1060,7 @@ function doPost(e) {
 
       return createJsonResponse({
         status: "success",
-        message: "Berkas berhasil diupload ke Google Drive Surat Keluar!",
+        message: "Berkas berhasil diupload ke Google Drive Surat Keluar (versi lama digantikan tanpa duplikat)!",
         drive_file_url: driveUrl,
         no_agenda: noAgendaStr,
         target_row: foundRow
@@ -729,14 +1097,25 @@ function doPost(e) {
       }
 
       if (foundRow > 0) {
+        // Hapus file terlampir di Google Drive jika ada
+        const oldLampiran = String(sheet.getRange(foundRow, 14).getValue()).trim();
+        if (oldLampiran) {
+          const oldId = extractDriveFileId(oldLampiran);
+          if (oldId) {
+            try {
+              const oldFile = DriveApp.getFileById(oldId);
+              if (oldFile && !oldFile.isTrashed()) oldFile.setTrashed(true);
+            } catch (e) { }
+          }
+        }
         sheet.getRange(foundRow, 2).setValue(false); // Uncheck
         sheet.getRange(foundRow, 3).setValue("");    // Kosongkan kode
-        sheet.getRange(foundRow, 8, 1, 6).setValues([["", "", "", "", "", ""]]); // Kosongkan H s/d M
+        sheet.getRange(foundRow, 8, 1, 7).setValues([["", "", "", "", "", "", ""]]); // Kosongkan H s/d N
       }
 
       return createJsonResponse({
         status: "success",
-        message: "Data surat agenda " + noAgendaStr + " berhasil dihapus dari Spreadsheet!",
+        message: "Data surat agenda " + noAgendaStr + " beserta lampiran berhasil dihapus dari Spreadsheet!",
         no_agenda: noAgendaStr,
         target_row: foundRow
       });
@@ -751,13 +1130,18 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_MASUK + " tidak ditemukan!" });
       }
 
+      const noAgendaStr = String(payload.no_agenda || "").trim();
+      const noUrutStr = String(payload.no_urut || "").trim();
+
       let driveFileUrl = "";
       if (payload.fileBase64 && payload.fileName) {
         driveFileUrl = uploadFileToGoogleDrive(
           payload.fileBase64,
           payload.fileName,
           payload.fileMime || "application/pdf",
-          "Surat Masuk 2026"
+          "Surat Masuk 2026",
+          payload.old_drive_url || "",
+          noAgendaStr || noUrutStr
         );
       }
 
@@ -940,16 +1324,6 @@ function doPost(e) {
       const newAgendaStr = String(payload.no_agenda || oldAgendaStr).trim();
       const newNoUrutStr = String(payload.no_urut || oldNoUrutStr).trim();
 
-      let driveFileUrl = "";
-      if (payload.fileBase64 && payload.fileName) {
-        driveFileUrl = uploadFileToGoogleDrive(
-          payload.fileBase64,
-          payload.fileName,
-          payload.fileMime || "application/pdf",
-          "Surat Masuk 2026"
-        );
-      }
-
       const scanLimit = Math.max(sheet.getLastRow(), 310);
       let foundRow = -1;
       if (payload.row_index && Number(payload.row_index) >= 2 && Number(payload.row_index) <= sheet.getLastRow()) {
@@ -989,6 +1363,24 @@ function doPost(e) {
             break;
           }
         }
+      }
+
+      let existingLampiran = "";
+      if (foundRow > 0) {
+        existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+      }
+      const oldDriveUrl = payload.old_drive_url || existingLampiran;
+
+      let driveFileUrl = "";
+      if (payload.fileBase64 && payload.fileName) {
+        driveFileUrl = uploadFileToGoogleDrive(
+          payload.fileBase64,
+          payload.fileName,
+          payload.fileMime || "application/pdf",
+          "Surat Masuk 2026",
+          oldDriveUrl,
+          newAgendaStr || oldAgendaStr || newNoUrutStr
+        );
       }
 
       if (foundRow > 0) {
@@ -1049,19 +1441,9 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Berkas upload tidak ditemukan!" });
       }
 
-      const driveUrl = uploadFileToGoogleDrive(
-        payload.fileBase64,
-        payload.fileName,
-        payload.fileMime || "application/pdf",
-        "Surat Masuk 2026"
-      );
-
-      if (!driveUrl) {
-        return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
-      }
-
       const lastRow = Math.max(sheet.getLastRow(), 302);
       let foundRow = -1;
+      let existingLampiran = "";
       if (lastRow >= 2) {
         const totalScan = lastRow - 1;
         const agendaColValues = sheet.getRange(2, 2, totalScan, 1).getValues();
@@ -1069,10 +1451,26 @@ function doPost(e) {
         for (let i = 0; i < totalScan; i++) {
           if ((noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr) ||
             (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
-            foundRow = i + 4;
+            foundRow = i + 2;
+            existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
             break;
           }
         }
+      }
+
+      const oldDriveUrl = payload.old_drive_url || existingLampiran;
+
+      const driveUrl = uploadFileToGoogleDrive(
+        payload.fileBase64,
+        payload.fileName,
+        payload.fileMime || "application/pdf",
+        "Surat Masuk 2026",
+        oldDriveUrl,
+        noAgendaStr || noUrutStr
+      );
+
+      if (!driveUrl) {
+        return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
       }
 
       if (foundRow > 0) {
@@ -1081,7 +1479,7 @@ function doPost(e) {
 
       return createJsonResponse({
         status: "success",
-        message: "Berkas berhasil diupload ke Google Drive Surat Masuk!",
+        message: "Berkas berhasil diupload ke Google Drive Surat Masuk (versi lama digantikan tanpa duplikat)!",
         drive_file_url: driveUrl,
         no_agenda: noAgendaStr,
         target_row: foundRow
@@ -1282,9 +1680,33 @@ function setupDriveFolders() {
 }
 
 /**
- * Fungsi Pembantu: Mengunggah Berkas Base64 ke Google Drive di Folder Sekolah
+ * Helper: Ekstrak File ID dari URL Google Drive
  */
-function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) {
+function extractDriveFileId(url) {
+  if (!url || typeof url !== "string") return "";
+  if (url.indexOf("/folders/") !== -1) return ""; // Jangan sentuh folder!
+
+  const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]{25,})/);
+  if (m1 && m1[1]) return m1[1];
+
+  const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]{25,})/);
+  if (m2 && m2[1]) return m2[1];
+
+  const m3 = url.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
+  if (m3 && m3[1]) return m3[1];
+
+  return "";
+}
+
+/**
+ * Fungsi Pembantu: Mengunggah Berkas Base64 ke Google Drive di Folder Sekolah
+ * Dilengkapi ANTI-DUPLIKASI OTOMATIS:
+ * - Membersihkan berkas lama jika URL berkas sebelumnya dikirimkan
+ * - Membersihkan berkas di folder yang memiliki nama sama persis
+ * - Membersihkan berkas di folder yang memiliki nomor agenda yang sama (misal "No. 619 ")
+ * Sehingga tidak pernah ada 2 file ganda/kembar di Google Drive!
+ */
+function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName, oldFileUrl, agendaNumber, oldAgendaNumber) {
   try {
     let mainFolder;
     try {
@@ -1310,15 +1732,100 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
 
     const decodedBytes = Utilities.base64Decode(base64Data);
     const blob = Utilities.newBlob(decodedBytes, mimeType, fileName);
-    const driveFile = targetFolder.createFile(blob);
 
+    const oldId = extractDriveFileId(oldFileUrl);
+
+    // ==============================================================
+    // CARA 1: MENIMPA KONTEN FILE SECARA IN-PLACE (JIKA DRIVE API AKTIF)
+    // ==============================================================
+    if (oldId && typeof Drive !== "undefined" && Drive.Files && Drive.Files.update) {
+      try {
+        const updated = Drive.Files.update(
+          { title: fileName, mimeType: mimeType },
+          oldId,
+          blob,
+          { newRevision: true }
+        );
+        if (updated && updated.id) {
+          Logger.log("✅ Berhasil menimpa (in-place) konten berkas Drive ID: " + oldId);
+          return "https://drive.google.com/file/d/" + oldId + "/view";
+        }
+      } catch (errInPlace) {
+        Logger.log("Info: In-place update dilewati, beralih ke penggantian bersih: " + errInPlace.toString());
+      }
+    }
+
+    // ==============================================================
+    // CARA 2: PENGGANTIAN BERSIH (REPLACE & TRASH SELURUH VERSI LAMA)
+    // ==============================================================
+    // 1. Pindahkan file lama ke sampah berdasarkan oldFileId
+    if (oldId) {
+      try {
+        const oldFile = DriveApp.getFileById(oldId);
+        if (oldFile && !oldFile.isTrashed()) {
+          Logger.log("🗑️ Menimpa: membuang berkas lama ke Sampah (by ID): " + oldFile.getName() + " (" + oldId + ")");
+          oldFile.setTrashed(true);
+        }
+      } catch (e) {
+        Logger.log("Info: Berkas lama ID " + oldId + " tidak ditemukan atau sudah dibuang: " + e.toString());
+      }
+    }
+
+    // 2. Bersihkan file di folder yang memiliki nama sama persis (case-insensitive) atau nomor agenda sama
+    const normNewName = (fileName || "").trim().toLowerCase();
+    const agendasToMatch = [];
+    if (agendaNumber) agendasToMatch.push(String(agendaNumber).trim());
+    if (oldAgendaNumber && String(oldAgendaNumber).trim() !== String(agendaNumber).trim()) {
+      agendasToMatch.push(String(oldAgendaNumber).trim());
+    }
+
+    const allFiles = targetFolder.getFiles();
+    while (allFiles.hasNext()) {
+      const f = allFiles.next();
+      if (f.isTrashed()) continue;
+      const fName = f.getName().trim();
+      const fNameLower = fName.toLowerCase();
+
+      let shouldTrash = false;
+      // Nama sama persis (case-insensitive)
+      if (normNewName && fNameLower === normNewName) {
+        shouldTrash = true;
+      }
+
+      // Cocok dengan nomor agenda (misal No. 617, 619, dsb)
+      if (!shouldTrash && agendasToMatch.length > 0) {
+        for (let a = 0; a < agendasToMatch.length; a++) {
+          const ag = agendasToMatch[a];
+          if (!ag || ag === "-" || ag === "0") continue;
+          const escapedAg = ag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const agRegex = new RegExp("(?:^|[^0-9])(?:no\\.?\\s*|agenda\\s*)?" + escapedAg + "(?![0-9a-zA-Z])", "i");
+          if (agRegex.test(fName)) {
+            shouldTrash = true;
+            break;
+          }
+        }
+      }
+
+      if (shouldTrash) {
+        try {
+          Logger.log("🗑️ Menimpa berkas lama di Drive: " + fName + " (" + f.getId() + ")");
+          f.setTrashed(true);
+        } catch (e) {
+          Logger.log("Gagal membuang berkas lama " + fName + ": " + e.toString());
+        }
+      }
+    }
+
+    // 3. Buat berkas baru pengganti di targetFolder
+    const driveFile = targetFolder.createFile(blob);
     try {
       driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch (e) { }
 
+    Logger.log("✅ Berkas baru berhasil disimpan menggantikan versi lama: " + driveFile.getName());
     return driveFile.getUrl();
   } catch (err) {
-    Logger.log("Gagal upload berkas ke Google Drive: " + err.toString());
+    Logger.log("Gagal replace berkas ke Google Drive: " + err.toString());
     return "";
   }
 }

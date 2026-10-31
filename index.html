@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -298,6 +298,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT KELUAR 2026</code> (gid: 381566345) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <button type="button" class="btn btn-emerald btn-sm" id="btnHeaderBatchUploadKeluar" title="Upload berkas banyak surat keluar sekaligus ke Google Drive">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> Upload Batch Drive
+                </button>
                 <a href="https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A" target="_blank" rel="noopener noreferrer" class="btn btn-drive-header" id="btnHeaderDriveKeluar" title="Buka Folder Google Drive Surat Keluar">
                   <i class="fa-brands fa-google-drive"></i> Folder Drive Surat Keluar
                 </a>
@@ -356,11 +359,36 @@
               </div>
             </div>
 
+            <!-- Batch Actions Bar for Surat Keluar -->
+            <div class="batch-action-bar" id="batchKeluarBar" style="display: none;">
+              <div class="batch-bar-left">
+                <span class="batch-badge-count" id="batchKeluarCountBadge">0</span>
+                <span class="batch-bar-text">Surat Keluar dipilih</span>
+                <button type="button" class="btn btn-outline btn-xs" id="btnSelectAllNoDriveKeluar" title="Pilih otomatis semua surat yang belum memiliki berkas Google Drive">
+                  <i class="fa-regular fa-square-check"></i> Pilih yg Belum Ada Berkas Drive
+                </button>
+                <button type="button" class="btn btn-outline btn-xs" id="btnSelectAllCurrentPageKeluar" title="Pilih semua surat di halaman ini">
+                  <i class="fa-solid fa-list-check"></i> Pilih Halaman Ini
+                </button>
+              </div>
+              <div class="batch-bar-right">
+                <button type="button" class="btn btn-primary btn-sm" id="btnOpenBatchUploadKeluarModal">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> Upload Batch Berkas (<span id="batchKeluarBtnCount">0</span>)
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnClearBatchKeluar" title="Batalkan pilihan ceklis">
+                  <i class="fa-solid fa-xmark"></i> Batal
+                </button>
+              </div>
+            </div>
+
             <!-- Table Responsive -->
             <div class="table-container">
               <table class="data-table" id="tableSuratKeluar">
                 <thead>
                   <tr>
+                    <th style="width: 44px; text-align: center;">
+                      <input type="checkbox" id="checkAllKeluar" title="Pilih Semua Surat Keluar di Halaman Ini" class="table-checkbox">
+                    </th>
                     <th style="width: 80px;">No. Agenda</th>
                     <th style="width: 80px;">Status</th>
                     <th style="width: 220px;">Nomor Lengkap Surat</th>
@@ -374,7 +402,7 @@
                 </thead>
                 <tbody id="tbodySuratKeluar">
                   <tr>
-                    <td colspan="9" class="loading-state">
+                    <td colspan="10" class="loading-state">
                       <div class="spinner"></div>
                       <p>Memuat buku agenda surat keluar SMA YWKA...</p>
                     </td>
@@ -906,8 +934,14 @@
                   <button type="button" class="btn btn-outline" id="btnRelocateMisplacedRows" title="Pindahkan surat masuk di baris bawah ke slot urut 215, 216 yang benar dan bersihkan baris salah">
                     <i class="fa-solid fa-arrow-up-short-wide" style="color: #10b981;"></i> Rapikan Baris Surat Masuk
                   </button>
+                  <button type="button" class="btn btn-outline" id="btnRapikanAgendaKeluar" title="Pulihkan urutan nomor agenda Surat Keluar 612 s/d 620 yang acak-acakan/tertimpa menjadi rapi berurutan">
+                    <i class="fa-solid fa-arrow-down-1-9" style="color: #6366f1;"></i> Rapikan No. Agenda Keluar
+                  </button>
                   <button type="button" class="btn btn-outline" id="btnCleanSpreadsheetDuplicates" title="Hapus baris ganda di Spreadsheet dan bersihkan tampilan">
                     <i class="fa-solid fa-broom" style="color: #f59e0b;"></i> Bersihkan Baris Ganda
+                  </button>
+                  <button type="button" class="btn btn-outline" id="btnCleanDriveDuplicates" title="Pindai dan bersihkan seluruh file duplikat ganda di Google Drive dan sisakan 1 versi terbaru">
+                    <i class="fa-brands fa-google-drive" style="color: #3b82f6;"></i> Bersihkan Duplikat Drive
                   </button>
                   <button type="button" class="btn btn-primary" id="btnSaveConnectionSettings">
                     <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan
@@ -917,7 +951,7 @@
 
               <div class="script-instruction-box">
                 <div class="script-header">
-                  <span><i class="fa-solid fa-code"></i> Kode Google Apps Script v2.8 (Auto-Relokasi Presisi Baris 302 ke Slot 214 & Anti-Penempatan Bawah)</span>
+                  <span><i class="fa-solid fa-code"></i> Kode Google Apps Script v3.1 (Pencegahan Total Overwrite Edit Surat + Auto-Rapikan 612-620)</span>
                   <button class="btn btn-outline btn-sm" id="btnCopyScriptCode">
                     <i class="fa-solid fa-copy"></i> Salin Skrip
                   </button>
@@ -1344,7 +1378,10 @@
               Berkas saat ini: <strong id="editKeluarCurrentFileName">-</strong>
             </div>
             <input type="file" id="editKeluarUploadDrive" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-            <small class="helper-text">Biarkan kosong jika tidak ingin mengubah berkas yang sudah ada.</small>
+            <small class="helper-text" style="color: #059669; font-weight: 600; display: block; margin-top: 4px;">
+              <i class="fa-solid fa-arrows-rotate"></i> Mode Timpa (Replace): Jika berkas baru dipilih, berkas lama di Google Drive otomatis ditimpa/digantikan tanpa menduplikasi.
+            </small>
+            <small class="helper-text" style="color: #64748b; display: block;">Biarkan kosong jika tidak ingin mengubah berkas yang sudah ada.</small>
           </div>
         </div>
         <div class="modal-footer">
@@ -1455,7 +1492,10 @@
               Berkas saat ini: <strong id="editMasukCurrentFileName">-</strong>
             </div>
             <input type="file" id="editMasukUploadDrive" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-            <small class="helper-text">Biarkan kosong jika tidak ingin mengubah berkas scan surat masuk yang sudah ada.</small>
+            <small class="helper-text" style="color: #059669; font-weight: 600; display: block; margin-top: 4px;">
+              <i class="fa-solid fa-arrows-rotate"></i> Mode Timpa (Replace): Jika berkas baru dipilih, berkas lama di Google Drive otomatis ditimpa/digantikan.
+            </small>
+            <small class="helper-text" style="color: #64748b; display: block;">Biarkan kosong jika tidak ingin mengubah berkas scan surat masuk yang sudah ada.</small>
           </div>
         </div>
         <div class="modal-footer">
@@ -1505,6 +1545,99 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: UPLOAD BATCH BERKAS SURAT KELUAR ================= -->
+  <div class="modal-backdrop" id="modalBatchUploadKeluar">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-layer-group text-primary"></i> Upload Batch Berkas Surat Keluar ke Google Drive
+        </h3>
+        <button class="modal-close-btn" id="btnCloseBatchUploadKeluar" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Info Banner -->
+        <div class="batch-info-banner">
+          <div class="batch-info-icon"><i class="fa-brands fa-google-drive text-emerald"></i></div>
+          <div class="batch-info-content">
+            <h4>Upload Sekaligus & Otomatis Sesuai No. Agenda</h4>
+            <p>
+              Tarik atau pilih berkas surat (PDF / Word / Scan JPG / PNG) secara massal. Sistem akan <strong>otomatis mencocokkan nomor agenda</strong> dari nama berkas (contoh: <code>612.pdf</code>, <code>No. 613 Surat Tugas.pdf</code>, <code>Agenda 614.jpg</code>) ke baris surat yang sesuai!
+            </p>
+          </div>
+        </div>
+
+        <!-- Multi-File Dropzone -->
+        <div class="batch-dropzone" id="batchKeluarDropzone">
+          <input type="file" id="batchKeluarMultiInput" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display: none;">
+          <div class="batch-dropzone-inner">
+            <div class="batch-dropzone-icon">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h4>Tarik & Jatuhkan Semua Berkas ke Sini</h4>
+            <p>atau klik tombol di bawah untuk memilih banyak file dari komputer Anda</p>
+            <button type="button" class="btn btn-primary" id="btnBrowseBatchFiles">
+              <i class="fa-solid fa-folder-open"></i> Pilih Berkas (Bisa Pilih Banyak Sekaligus)
+            </button>
+            <div class="batch-dropzone-subtext">Mendukung format PDF, Word (.doc, .docx), JPG, PNG. Maksimal 20 MB per file.</div>
+          </div>
+        </div>
+
+        <!-- Batch Items Table / List -->
+        <div class="batch-list-wrapper">
+          <div class="batch-list-header">
+            <div>
+              <strong style="color: #1e293b; font-size: 13.5px;">Daftar Surat Keluar Target Upload:</strong>
+              <span class="batch-count-summary" id="batchSummaryStats">0 surat • 0 berkas dipasangkan</span>
+            </div>
+            <div class="batch-list-actions">
+              <button type="button" class="btn btn-xs btn-outline" id="btnBatchAddUnuploaded" title="Tambahkan semua surat yang belum memiliki berkas Google Drive">
+                <i class="fa-solid fa-plus"></i> Tambah Semua yg Belum Ada Berkas
+              </button>
+              <button type="button" class="btn btn-xs btn-secondary" id="btnBatchClearFiles" title="Kosongkan file yang dipasangkan">
+                <i class="fa-solid fa-rotate-left"></i> Reset File
+              </button>
+            </div>
+          </div>
+
+          <div class="batch-table-scroll">
+            <table class="batch-items-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px; text-align: center;">No. Agenda</th>
+                  <th>Nomor Lengkap & Prihal Surat</th>
+                  <th style="width: 290px;">Berkas yang Dipasangkan</th>
+                  <th style="width: 130px; text-align: center;">Status</th>
+                  <th style="width: 44px; text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyBatchKeluarItems">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Upload Progress Section -->
+        <div class="batch-progress-box" id="batchProgressBox" style="display: none;">
+          <div class="batch-progress-header">
+            <span id="batchProgressStatusText"><i class="fa-solid fa-spinner fa-spin"></i> Mengunggah berkas ke Google Drive...</span>
+            <span id="batchProgressPercentage" class="stat-mono">0%</span>
+          </div>
+          <div class="batch-progress-track">
+            <div class="batch-progress-bar" id="batchProgressBar" style="width: 0%;"></div>
+          </div>
+          <div class="batch-progress-details" id="batchProgressCurrentDetail">-</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCancelBatchUploadKeluar">Tutup</button>
+        <button type="button" class="btn btn-primary" id="btnStartBatchUploadKeluar" disabled>
+          <i class="fa-solid fa-cloud-arrow-up"></i> Mulai Upload Batch (<span id="batchReadyCount">0</span> Berkas Siap)
+        </button>
+      </div>
     </div>
   </div>
 
