@@ -44,6 +44,10 @@ let state = {
   pendingKeluarData: null,
   pendingMasukData: null,
   selectedKeluarIds: new Set(),
+  selectedMasukIds: new Set(),
+  batchPrintItems: [],
+  batchPrintType: "keluar",
+  batchPrintMode: "disposisi",
   batchKeluarItems: [],
   batchEditKeluarItems: []
 };
@@ -1228,8 +1232,17 @@ function initNavigation() {
   const btnPrintDisposisiDoc = document.getElementById("btnPrintDisposisiDoc");
   if (btnPrintDisposisiDoc) {
     btnPrintDisposisiDoc.addEventListener("click", () => {
-      switchPrintTab("disposisi");
-      window.print();
+      document.body.classList.add("printing-single-disposisi");
+      setTimeout(() => {
+        window.print();
+      }, 100);
+
+      const cleanup = () => {
+        document.body.classList.remove("printing-single-disposisi");
+        window.removeEventListener("afterprint", cleanup);
+      };
+      window.addEventListener("afterprint", cleanup);
+      setTimeout(cleanup, 2500);
     });
   }
   const tabBtnDisposisi = document.getElementById("tabBtnDisposisi");
@@ -1258,6 +1271,153 @@ function initNavigation() {
         } else {
           openUploadModalKeluar(currentPrintData.item.id);
         }
+  // Surat Masuk Table Checkbox Listeners
+  const tbodyMasuk = document.getElementById("tbodySuratMasuk");
+  if (tbodyMasuk) {
+    tbodyMasuk.addEventListener("change", (e) => {
+      if (e.target && e.target.classList.contains("check-item-masuk")) {
+        const id = e.target.dataset.id;
+        if (e.target.checked) {
+          state.selectedMasukIds.add(id);
+        } else {
+          state.selectedMasukIds.delete(id);
+        }
+        updateBatchMasukBar();
+        updateCheckAllMasukState();
+      }
+    });
+  }
+
+  const checkAllMasuk = document.getElementById("checkAllMasuk");
+  if (checkAllMasuk) {
+    checkAllMasuk.addEventListener("change", (e) => {
+      const currentSlice = getCurrentMasukSlice();
+      if (e.target.checked) {
+        currentSlice.forEach(item => state.selectedMasukIds.add(item.id));
+      } else {
+        currentSlice.forEach(item => state.selectedMasukIds.delete(item.id));
+      }
+      renderSuratMasukTable();
+    });
+  }
+
+  const btnSelectAllCurrentPageMasuk = document.getElementById("btnSelectAllCurrentPageMasuk");
+  if (btnSelectAllCurrentPageMasuk) {
+    btnSelectAllCurrentPageMasuk.addEventListener("click", () => {
+      const slice = getCurrentMasukSlice();
+      slice.forEach(item => state.selectedMasukIds.add(item.id));
+      renderSuratMasukTable();
+      updateBatchMasukBar();
+      showToast(`Dipilih ${slice.length} surat masuk di halaman ini`, "info");
+    });
+  }
+
+  const btnSelectAllHasFileMasuk = document.getElementById("btnSelectAllHasFileMasuk");
+  if (btnSelectAllHasFileMasuk) {
+    btnSelectAllHasFileMasuk.addEventListener("click", () => {
+      const hasFiles = state.filteredMasuk.filter(m => Boolean(m.driveUrl || (m.lampiran && m.lampiran.includes("http"))));
+      hasFiles.forEach(item => state.selectedMasukIds.add(item.id));
+      renderSuratMasukTable();
+      updateBatchMasukBar();
+      showToast(`Dipilih ${hasFiles.length} surat masuk yang memiliki berkas lampiran`, "info");
+    });
+  }
+
+  const btnClearBatchMasuk = document.getElementById("btnClearBatchMasuk");
+  if (btnClearBatchMasuk) {
+    btnClearBatchMasuk.addEventListener("click", () => {
+      state.selectedMasukIds.clear();
+      renderSuratMasukTable();
+      updateBatchMasukBar();
+      showToast("Pilihan ceklis surat masuk dibatalkan.", "info");
+    });
+  }
+
+  // Batch Print Trigger Listeners
+  const btnOpenBatchPrintKeluarModal = document.getElementById("btnOpenBatchPrintKeluarModal");
+  if (btnOpenBatchPrintKeluarModal) {
+    btnOpenBatchPrintKeluarModal.addEventListener("click", () => openBatchPrintModal("keluar"));
+  }
+  const btnHeaderBatchPrintKeluar = document.getElementById("btnHeaderBatchPrintKeluar");
+  if (btnHeaderBatchPrintKeluar) {
+    btnHeaderBatchPrintKeluar.addEventListener("click", () => openBatchPrintModal("keluar"));
+  }
+
+  const btnOpenBatchPrintMasukModal = document.getElementById("btnOpenBatchPrintMasukModal");
+  if (btnOpenBatchPrintMasukModal) {
+    btnOpenBatchPrintMasukModal.addEventListener("click", () => openBatchPrintModal("masuk"));
+  }
+  const btnHeaderBatchPrintMasuk = document.getElementById("btnHeaderBatchPrintMasuk");
+  if (btnHeaderBatchPrintMasuk) {
+    btnHeaderBatchPrintMasuk.addEventListener("click", () => openBatchPrintModal("masuk"));
+  }
+
+  // Modal Batch Print Controls
+  const modalBatchPrint = document.getElementById("modalBatchPrint");
+  const btnCloseBatchPrintModal = document.getElementById("btnCloseBatchPrintModal");
+  const btnCloseBatchPrintFooter = document.getElementById("btnCloseBatchPrintFooter");
+  if (btnCloseBatchPrintModal && modalBatchPrint) {
+    btnCloseBatchPrintModal.addEventListener("click", () => modalBatchPrint.classList.remove("show"));
+  }
+  if (btnCloseBatchPrintFooter && modalBatchPrint) {
+    btnCloseBatchPrintFooter.addEventListener("click", () => modalBatchPrint.classList.remove("show"));
+  }
+
+  const optBatchDisposisi = document.getElementById("optBatchDisposisi");
+  const optBatchBerkas = document.getElementById("optBatchBerkas");
+  if (optBatchDisposisi) {
+    optBatchDisposisi.addEventListener("change", () => setBatchPrintMode("disposisi"));
+  }
+  if (optBatchBerkas) {
+    optBatchBerkas.addEventListener("change", () => setBatchPrintMode("berkas"));
+  }
+
+  const btnBatchPrintSelectAllPage = document.getElementById("btnBatchPrintSelectAllPage");
+  if (btnBatchPrintSelectAllPage) {
+    btnBatchPrintSelectAllPage.addEventListener("click", () => {
+      const isMasuk = (state.batchPrintType === "masuk");
+      const slice = isMasuk ? getCurrentMasukSlice() : getCurrentKeluarSlice();
+      slice.forEach(item => {
+        if (!state.batchPrintItems.some(x => x.id === item.id)) {
+          state.batchPrintItems.push(item);
+        }
+        if (isMasuk) state.selectedMasukIds.add(item.id);
+        else state.selectedKeluarIds.add(item.id);
+      });
+      if (isMasuk) { renderSuratMasukTable(); updateBatchMasukBar(); }
+      else { renderSuratKeluarTable(); updateBatchKeluarBar(); }
+      renderBatchPrintItemsTable();
+    });
+  }
+
+  const btnBatchPrintFilterOnlyFiles = document.getElementById("btnBatchPrintFilterOnlyFiles");
+  if (btnBatchPrintFilterOnlyFiles) {
+    btnBatchPrintFilterOnlyFiles.addEventListener("click", () => {
+      state.batchPrintItems = state.batchPrintItems.filter(item => {
+        return Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.fileBase64);
+      });
+      renderBatchPrintItemsTable();
+    });
+  }
+
+  const btnBatchPrintClearAll = document.getElementById("btnBatchPrintClearAll");
+  if (btnBatchPrintClearAll) {
+    btnBatchPrintClearAll.addEventListener("click", () => {
+      state.batchPrintItems = [];
+      renderBatchPrintItemsTable();
+    });
+  }
+
+  const btnExecuteBatchPrintDisposisi = document.getElementById("btnExecuteBatchPrintDisposisi");
+  if (btnExecuteBatchPrintDisposisi) {
+    btnExecuteBatchPrintDisposisi.addEventListener("click", executeBatchPrintDisposisi);
+  }
+
+  const btnExecuteBatchPrintFiles = document.getElementById("btnExecuteBatchPrintFiles");
+  if (btnExecuteBatchPrintFiles) {
+    btnExecuteBatchPrintFiles.addEventListener("click", executeBatchPrintFiles);
+  }
+
       }
     });
   }
@@ -3553,7 +3713,8 @@ function parseCsvMasuk(csvText) {
     const noAgenda = (r[1] || "").trim();
     const lampiranVal = (r[9] || "").trim();
 
-    if (!perihal && !noAgenda) continue;
+        // Abaikan baris template kosong di mana kolom B hanya berisi angka urutan (218, 219, dst) tanpa perihal
+    if (!perihal && (!noAgenda || /^\d+$/.test(noAgenda))) continue;
 
     let tglSuratVal = formatDateIndo((r[2] || "").trim());
     let tglMasukVal = formatDateIndo((r[3] || "").trim());
@@ -3802,14 +3963,9 @@ function renderSuratKeluarTable() {
     const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
     const targetDriveHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveKeluarUrl || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5"));
     const driveLinkHtml = hasDriveFile
-      ? `<div class="drive-cell-group">
-           <button type="button" class="btn-print-direct" title="Cetak Berkas Scan Langsung (Tanpa Buka Drive)" onclick="openDirectPrintFile('${item.id}', 'keluar')">
-             <i class="fa-solid fa-print"></i> Cetak
-           </button>
-           <a href="${targetDriveHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas di Google Drive">
-             <i class="fa-brands fa-google-drive"></i> Drive
-           </a>
-         </div>`
+      ? `<a href="${targetDriveHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas di Google Drive">
+           <i class="fa-brands fa-google-drive text-emerald"></i> Berkas Drive
+         </a>`
       : `<button type="button" class="btn-upload-direct" title="Upload berkas ke Google Drive Surat Keluar" onclick="openUploadModalKeluar('${item.id}')">
            <i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Upload Drive
          </button>`;
@@ -3843,11 +3999,8 @@ function renderSuratKeluarTable() {
             <button type="button" class="btn-table-action" title="Salin Nomor Surat" onclick="copyText('${escapeQuotes(item.nomorLengkap)}')">
               <i class="fa-solid fa-copy"></i>
             </button>
-            <button type="button" class="btn-table-action btn-print-action" title="Cetak Surat & Lembar Disposisi (Print In)" onclick="openDirectPrint('${item.id}', 'keluar')">
+            <button type="button" class="btn-table-action btn-print-action" title="Cetak Lembar Disposisi & Agenda" onclick="openDirectPrint('${item.id}', 'keluar')">
               <i class="fa-solid fa-print"></i>
-            </button>
-            <button type="button" class="btn-table-action" title="Lihat Lembar Agenda" onclick="viewDisposisiKeluar('${item.id}')">
-              <i class="fa-solid fa-file-invoice"></i>
             </button>
             <button type="button" class="btn-table-action btn-edit-action" title="Edit Data Surat Keluar" onclick="openEditModalKeluar('${item.id}')">
               <i class="fa-solid fa-pen-to-square"></i>
@@ -3952,20 +4105,20 @@ function renderSuratMasukTable() {
     const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
     const targetDriveMasukHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveMasukUrl || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W"));
     const driveLinkHtml = hasDriveFile
-      ? `<div class="drive-cell-group">
-           <button type="button" class="btn-print-direct" title="Cetak Berkas Scan Langsung (Tanpa Buka Drive)" onclick="openDirectPrintFile('${item.id}', 'masuk')">
-             <i class="fa-solid fa-print"></i> Cetak
-           </button>
-           <a href="${targetDriveMasukHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas scan di Google Drive">
-             <i class="fa-brands fa-google-drive"></i> Drive
-           </a>
-         </div>`
+      ? `<a href="${targetDriveMasukHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas scan di Google Drive">
+           <i class="fa-brands fa-google-drive text-emerald"></i> Berkas Drive
+         </a>`
       : `<button type="button" class="btn-upload-direct" title="Upload berkas scan ke Google Drive Surat Masuk" onclick="openUploadModalMasuk('${item.id}')">
            <i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Upload Drive
          </button>`;
 
+    const isSelected = state.selectedMasukIds ? state.selectedMasukIds.has(item.id) : false;
+
     html += `
-      <tr>
+      <tr class="${isSelected ? 'row-selected' : ''}">
+        <td style="text-align: center;">
+          <input type="checkbox" class="check-item-masuk table-checkbox" data-id="${item.id}" data-agenda="${escapeHtml(item.noAgenda || '')}" ${isSelected ? 'checked' : ''} aria-label="Pilih surat ${escapeHtml(item.noAgenda || '')}">
+        </td>
         <td><strong>${item.noUrut || rowNum}</strong></td>
         <td>
           <span class="nomor-surat-badge" style="background: #e0f2fe; color: #0369a1;">${escapeHtml(item.noAgenda)}</span>
@@ -3981,11 +4134,8 @@ function renderSuratMasukTable() {
             <button type="button" class="btn-table-action" title="Salin Nomor Agenda / Asal" onclick="copyText('${escapeQuotes(item.noAgenda)}')">
               <i class="fa-solid fa-copy"></i>
             </button>
-            <button type="button" class="btn-table-action btn-print-action" title="Cetak Surat & Lembar Disposisi (Print In)" onclick="openDirectPrint('${item.id}', 'masuk')">
+            <button type="button" class="btn-table-action btn-print-action" title="Cetak Lembar Disposisi & Agenda" onclick="openDirectPrint('${item.id}', 'masuk')">
               <i class="fa-solid fa-print"></i>
-            </button>
-            <button type="button" class="btn-table-action" title="Lihat Lembar Disposisi Masuk" onclick="viewDisposisiMasuk('${item.id}')">
-              <i class="fa-solid fa-file-invoice"></i>
             </button>
             <button type="button" class="btn-table-action btn-edit-action" title="Edit Data Surat Masuk" onclick="openEditModalMasuk('${item.id}')">
               <i class="fa-solid fa-pen-to-square"></i>
@@ -4460,13 +4610,17 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
  * Helper: Menghitung Nomor Urut Buku Agenda Surat Masuk berikutnya (setelah nomor terakhir yang terisi, misal 209 -> 210)
  */
 function getNextNoUrutMasuk() {
-  if (!state.suratMasuk || state.suratMasuk.length === 0) return 1;
+  if (!state.suratMasuk || state.suratMasuk.length === 0) return 218;
   let max = 0;
   state.suratMasuk.forEach(s => {
-    const n = parseInt(s.noUrut, 10);
-    if (!isNaN(n) && n > max) max = n;
+    if (s.perihal || (s.noAgenda && s.noAgenda !== "-" && !/^\d+$/.test(s.noAgenda))) {
+      const n = parseInt(s.noUrut, 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
   });
-  return max > 0 ? max + 1 : state.suratMasuk.length + 1;
+  // Sesuai data asli SMA YWKA, surat masuk terakhir yang tercatat adalah 217 (Surat Permintaan Data Pendukung 205/DITDIK)
+  if (max < 217) max = 217;
+  return max + 1;
 }
 window.getNextNoUrutMasuk = getNextNoUrutMasuk;
 
@@ -4876,54 +5030,19 @@ function openDirectPrint(id, type = "keluar", initialTab = "disposisi") {
   if (dispKepada) dispKepada.textContent = item.kepada || "-";
   if (dispPerihal) dispPerihal.textContent = item.perihal || "-";
 
-  // 2. Tampilkan Data pada Tab 2: Berkas Scan / Lampiran
-  const badgeHasFile = document.getElementById("badgePrintHasFile");
-  const boxHasFile = document.getElementById("boxHasFilePreview");
-  const boxNoFile = document.getElementById("boxNoFilePreview");
-  const iframe = document.getElementById("printIframeViewer");
-  const btnOpenDrive = document.getElementById("btnOpenDriveInNewTab");
-  const btnPrintFileFooter = document.getElementById("btnPrintFileFooter");
-  const berkasTitle = document.getElementById("printBerkasTitle");
-  const berkasSub = document.getElementById("printBerkasSub");
-
-  if (berkasTitle) {
-    berkasTitle.textContent = item.perihal ? "Berkas: " + item.perihal : "Berkas Lampiran (" + (isMasuk ? "Surat Masuk" : "Surat Keluar") + ")";
-  }
-  if (berkasSub) {
-    berkasSub.textContent = "No. Agenda: " + (isMasuk ? item.noAgenda : (item.noAgenda || item.noUrut)) + " | Pengirim: " + (item.dari || "-");
+  // 2. Banner Informasi Berkas Google Drive
+  const bannerDrive = document.getElementById("dispDriveBanner");
+  const linkDrive = document.getElementById("dispDriveLink");
+  if (bannerDrive && linkDrive) {
+    if (hasFile && rawFileUrl.includes("http")) {
+      linkDrive.href = rawFileUrl;
+      bannerDrive.style.display = "flex";
+    } else {
+      bannerDrive.style.display = "none";
+    }
   }
 
-  if (hasFile) {
-    if (badgeHasFile) {
-      badgeHasFile.className = "badge-tab-pill has-file";
-      badgeHasFile.innerHTML = '<i class="fa-solid fa-check"></i> Ada Berkas';
-    }
-    if (boxHasFile) boxHasFile.style.display = "block";
-    if (boxNoFile) boxNoFile.style.display = "none";
-    if (btnPrintFileFooter) btnPrintFileFooter.style.display = "inline-flex";
-
-    const embedUrl = getGoogleDriveEmbedUrl(rawFileUrl);
-    if (iframe) iframe.src = embedUrl;
-    if (btnOpenDrive) {
-      btnOpenDrive.href = rawFileUrl;
-      btnOpenDrive.style.display = "inline-flex";
-    }
-  } else {
-    if (badgeHasFile) {
-      badgeHasFile.className = "badge-tab-pill no-file";
-      badgeHasFile.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Tidak Ada Berkas';
-    }
-    if (boxHasFile) boxHasFile.style.display = "none";
-    if (boxNoFile) boxNoFile.style.display = "block";
-    if (iframe) iframe.src = "";
-    if (btnOpenDrive) btnOpenDrive.style.display = "none";
-    if (btnPrintFileFooter) btnPrintFileFooter.style.display = "none";
-  }
-
-  // 3. Set tab awal
-  switchPrintTab(initialTab === "berkas" && hasFile ? "berkas" : "disposisi");
-
-  // 4. Buka modal
+  // 3. Buka modal
   modal.classList.add("show");
 }
 
@@ -7114,6 +7233,10 @@ window.openBatchUploadModalKeluar = openBatchUploadModalKeluar;
 window.removeBatchFile = removeBatchFile;
 window.removeBatchItem = removeBatchItem;
 window.openBatchEditModalKeluar = openBatchEditModalKeluar;
+window.openBatchPrintModal = openBatchPrintModal;
+window.removeBatchPrintItem = removeBatchPrintItem;
+window.executeBatchPrintDisposisi = executeBatchPrintDisposisi;
+window.executeBatchPrintFiles = executeBatchPrintFiles;
 window.openDirectPrint = openDirectPrint;
 window.openDirectPrintFile = openDirectPrintFile;
 window.switchPrintTab = switchPrintTab;
@@ -7162,6 +7285,378 @@ function escapeHtml(str) {
  * Menyiapkan format draft dokumen resmi sesuai surat/kode yang ditentukan
  * ===================================================================
  */
+
+
+/**
+ * =========================================================================
+ * BATCH ACTIONS & SELECTION FOR SURAT MASUK
+ * =========================================================================
+ */
+function updateCheckAllMasukState() {
+  const checkAll = document.getElementById("checkAllMasuk");
+  if (!checkAll) return;
+  const currentSlice = getCurrentMasukSlice();
+  if (currentSlice.length === 0) {
+    checkAll.checked = false;
+    checkAll.indeterminate = false;
+    return;
+  }
+  const selectedInSlice = currentSlice.filter(item => state.selectedMasukIds.has(item.id));
+  if (selectedInSlice.length === currentSlice.length) {
+    checkAll.checked = true;
+    checkAll.indeterminate = false;
+  } else if (selectedInSlice.length > 0) {
+    checkAll.checked = false;
+    checkAll.indeterminate = true;
+  } else {
+    checkAll.checked = false;
+    checkAll.indeterminate = false;
+  }
+}
+
+function updateBatchMasukBar() {
+  const bar = document.getElementById("batchMasukBar");
+  const countBadge = document.getElementById("batchMasukCountBadge");
+  const printBtnCount = document.getElementById("batchPrintMasukBtnCount");
+  if (!bar) return;
+
+  const count = state.selectedMasukIds ? state.selectedMasukIds.size : 0;
+  if (countBadge) countBadge.textContent = count;
+  if (printBtnCount) printBtnCount.textContent = count;
+
+  if (count > 0) {
+    bar.style.display = "flex";
+  } else {
+    bar.style.display = "none";
+  }
+}
+
+function getCurrentMasukSlice() {
+  const page = state.pagination.masukPage;
+  const perPage = state.pagination.masukPerPage;
+  const start = (page - 1) * perPage;
+  const end = Math.min(start + perPage, state.filteredMasuk.length);
+  return state.filteredMasuk.slice(start, end);
+}
+
+/**
+ * =========================================================================
+ * MODUL FITUR: BATCH PRINT (CETAK MASSAL SURAT KELUAR & SURAT MASUK)
+ * =========================================================================
+ */
+
+/**
+ * Buka Modal Batch Print
+ * @param {string} type 'keluar' atau 'masuk'
+ * @param {Array<string>|null} targetIds Daftar ID surat spesifik (opsional)
+ */
+function openBatchPrintModal(type = "keluar", targetIds = null) {
+  state.batchPrintType = type;
+  const isMasuk = (type === "masuk");
+  let itemsToPrint = [];
+
+  if (targetIds && targetIds.length > 0) {
+    itemsToPrint = targetIds.map(id => {
+      return isMasuk ? state.suratMasuk.find(m => m.id === id) : state.suratKeluar.find(k => k.id === id);
+    }).filter(Boolean);
+  } else {
+    const selectedIds = isMasuk ? state.selectedMasukIds : state.selectedKeluarIds;
+    if (selectedIds && selectedIds.size > 0) {
+      itemsToPrint = Array.from(selectedIds).map(id => {
+        return isMasuk ? state.suratMasuk.find(m => m.id === id) : state.suratKeluar.find(k => k.id === id);
+      }).filter(Boolean);
+    } else {
+      // Jika belum ada yang diceklis: otomatis ambil surat di halaman yang sedang aktif
+      const currentSlice = isMasuk ? getCurrentMasukSlice() : getCurrentKeluarSlice();
+      if (currentSlice.length > 0) {
+        itemsToPrint = [...currentSlice];
+        currentSlice.forEach(item => {
+          if (isMasuk) state.selectedMasukIds.add(item.id);
+          else state.selectedKeluarIds.add(item.id);
+        });
+        if (isMasuk) {
+          renderSuratMasukTable();
+          updateBatchMasukBar();
+        } else {
+          renderSuratKeluarTable();
+          updateBatchKeluarBar();
+        }
+        showToast(`Otomatis memuat ${itemsToPrint.length} surat pada halaman ini ke antrean cetak.`, "info");
+      }
+    }
+  }
+
+  if (itemsToPrint.length === 0) {
+    showToast(`Tidak ada ${isMasuk ? "surat masuk" : "surat keluar"} yang dapat dicetak!`, "warning");
+    return;
+  }
+
+  state.batchPrintItems = itemsToPrint;
+
+  // Set mode default: disposisi
+  setBatchPrintMode("disposisi");
+  renderBatchPrintItemsTable();
+
+  const modal = document.getElementById("modalBatchPrint");
+  if (modal) modal.classList.add("show");
+}
+
+/**
+ * Ganti mode cetak antara lembar disposisi dan berkas lampiran
+ */
+function setBatchPrintMode(mode) {
+  state.batchPrintMode = mode;
+  const optDisposisi = document.getElementById("optBatchDisposisi");
+  const optBerkas = document.getElementById("optBatchBerkas");
+  const cardDisposisi = document.getElementById("cardOptionDisposisi");
+  const cardBerkas = document.getElementById("cardOptionBerkas");
+  const btnPrintDisposisi = document.getElementById("btnExecuteBatchPrintDisposisi");
+  const btnPrintFiles = document.getElementById("btnExecuteBatchPrintFiles");
+
+  if (mode === "berkas") {
+    if (optBerkas) optBerkas.checked = true;
+    if (cardDisposisi) cardDisposisi.classList.remove("active");
+    if (cardBerkas) cardBerkas.classList.add("active");
+    if (btnPrintDisposisi) btnPrintDisposisi.style.display = "none";
+    if (btnPrintFiles) btnPrintFiles.style.display = "inline-flex";
+  } else {
+    if (optDisposisi) optDisposisi.checked = true;
+    if (cardDisposisi) cardDisposisi.classList.add("active");
+    if (cardBerkas) cardBerkas.classList.remove("active");
+    if (btnPrintDisposisi) btnPrintDisposisi.style.display = "inline-flex";
+    if (btnPrintFiles) btnPrintFiles.style.display = "none";
+  }
+}
+
+/**
+ * Render tabel daftar surat yang ada di antrean batch print
+ */
+function renderBatchPrintItemsTable() {
+  const tbody = document.getElementById("tbodyBatchPrintItems");
+  const scopeBadge = document.getElementById("batchPrintScopeBadge");
+  const countDisposisi = document.getElementById("batchPrintDisposisiCount");
+  const countFile = document.getElementById("batchPrintFileCount");
+  if (!tbody) return;
+
+  const items = state.batchPrintItems || [];
+  const total = items.length;
+  const isMasuk = (state.batchPrintType === "masuk");
+
+  let hasFileCount = 0;
+  items.forEach(item => {
+    const rawUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64;
+    if (rawUrl) hasFileCount++;
+  });
+
+  if (scopeBadge) scopeBadge.textContent = `${total} Surat Terpilih`;
+  if (countDisposisi) countDisposisi.textContent = total;
+  if (countFile) countFile.textContent = hasFileCount;
+
+  if (total === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; padding: 30px; color: #94a3b8;">
+          <i class="fa-solid fa-file-circle-question" style="font-size: 28px; margin-bottom: 8px;"></i>
+          <p>Antrean cetak kosong. Silakan tambahkan surat yang ingin dicetak.</p>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  let html = "";
+  items.forEach((item, idx) => {
+    const rawUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64;
+    const hasFile = Boolean(rawUrl);
+    const agendaText = isMasuk ? (item.noAgenda || "-") : (item.noAgenda || item.noUrut || "-");
+    const tglText = isMasuk ? (item.tglSurat || "-") : (item.tanggal || "-");
+    const instansiText = isMasuk ? (item.dari || "-") : (item.kepada || "-");
+
+    const badgeFile = hasFile
+      ? `<span class="badge-tab-pill has-file" style="cursor: pointer;" title="Pratinjau berkas" onclick="openDirectPrintFile('${item.id}', '${state.batchPrintType}')">
+           <i class="fa-solid fa-check"></i> Ada Berkas
+         </span>`
+      : `<span class="badge-tab-pill no-file">
+           <i class="fa-solid fa-minus"></i> Tanpa Berkas
+         </span>`;
+
+    html += `
+      <tr>
+        <td style="text-align: center; font-weight: 600; color: #64748b;">${idx + 1}</td>
+        <td><span class="nomor-agenda-badge"><strong>${escapeHtml(agendaText)}</strong></span></td>
+        <td style="font-size: 13px;">${escapeHtml(item.perihal || "-")}</td>
+        <td style="font-size: 12.5px; color: #334155;">${escapeHtml(instansiText)}</td>
+        <td style="text-align: center; font-size: 12px;">${escapeHtml(tglText)}</td>
+        <td style="text-align: center;">${badgeFile}</td>
+        <td style="text-align: center;">
+          <button type="button" class="btn btn-outline btn-xs text-danger" title="Hapus dari antrean cetak" onclick="removeBatchPrintItem('${item.id}')">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+/**
+ * Hapus 1 item dari antrean batch print
+ */
+function removeBatchPrintItem(id) {
+  state.batchPrintItems = state.batchPrintItems.filter(item => item.id !== id);
+  if (state.batchPrintType === "masuk") {
+    state.selectedMasukIds.delete(id);
+    renderSuratMasukTable();
+    updateBatchMasukBar();
+  } else {
+    state.selectedKeluarIds.delete(id);
+    renderSuratKeluarTable();
+    updateBatchKeluarBar();
+  }
+  renderBatchPrintItemsTable();
+}
+
+/**
+ * Eksekusi Cetak Massal Lembar Disposisi / Agenda Resmi
+ */
+function executeBatchPrintDisposisi() {
+  const items = state.batchPrintItems || [];
+  if (items.length === 0) {
+    showToast("Pilih minimal satu surat untuk dicetak!", "warning");
+    return;
+  }
+
+  const isMasuk = (state.batchPrintType === "masuk");
+  const printArea = document.getElementById("batchPrintArea");
+  if (!printArea) return;
+
+  // Bangun naskah lembar disposisi resmi untuk SETIAP surat
+  let html = "";
+  items.forEach(item => {
+    const tipeSurat = isMasuk ? "Surat Masuk" : "Surat Keluar";
+    const noUrut = isMasuk ? (item.noUrut || item.noAgenda || "-") : (item.noAgenda || item.noUrut || "-");
+    const noLengkap = isMasuk ? (item.noAgenda || "-") : (item.nomorLengkap || "-");
+    const tglSurat = isMasuk
+      ? (item.tglSurat + (item.tglMasuk ? " (Diterima: " + item.tglMasuk + ")" : ""))
+      : (item.tanggal || "-");
+    const petugas = isMasuk ? (item.keterangan || "-") : (item.petugas || "-");
+    const dari = item.dari || "-";
+    const kepada = item.kepada || "-";
+    const perihal = item.perihal || "-";
+
+    html += `
+      <div class="disposisi-card page-break">
+        <div class="disposisi-header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px;">
+          <img src="logo-ywka.png" alt="Logo SMAS YWKA Bandung" style="width: 58px; height: 58px; object-fit: contain;">
+          <div class="disposisi-school" style="text-align: left;">
+            <div style="font-size: 13px; font-weight: 700; color: #1e293b; letter-spacing: 0.5px;">YAYASAN WANITA KERETA API</div>
+            <h2 style="font-size: 19px; font-weight: 900; color: #002b80; margin: 1px 0;">SMAS YWKA BANDUNG</h2>
+            <p style="font-size: 11px; margin: 1px 0;">Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat</p>
+            <small style="font-size: 10px; color: #64748b;">Akreditasi: A | NSS: 302026002008 | NPSN: 20219736 | Telp: (022) 6011740</small>
+          </div>
+        </div>
+        <div class="disposisi-divider"></div>
+        <h3 class="disposisi-title">LEMBAR AGENDA SURAT (${tipeSurat.toUpperCase()})</h3>
+
+        <table class="disposisi-table">
+          <tr>
+            <td class="dt-label">Tipe Surat</td>
+            <td class="dt-val">${escapeHtml(tipeSurat)}</td>
+            <td class="dt-label">No. Agenda</td>
+            <td class="dt-val font-bold stat-mono">${escapeHtml(noUrut)}</td>
+          </tr>
+          <tr>
+            <td class="dt-label">Nomor Surat Lengkap</td>
+            <td class="dt-val font-bold stat-mono" colspan="3">${escapeHtml(noLengkap)}</td>
+          </tr>
+          <tr>
+            <td class="dt-label">Tanggal Surat</td>
+            <td class="dt-val">${escapeHtml(tglSurat)}</td>
+            <td class="dt-label">Petugas / PIC</td>
+            <td class="dt-val">${escapeHtml(petugas)}</td>
+          </tr>
+          <tr>
+            <td class="dt-label">Dari</td>
+            <td class="dt-val" colspan="3">${escapeHtml(dari)}</td>
+          </tr>
+          <tr>
+            <td class="dt-label">Kepada / Ditujukan</td>
+            <td class="dt-val" colspan="3">${escapeHtml(kepada)}</td>
+          </tr>
+          <tr>
+            <td class="dt-label">Prihal / Isi Ringkasan</td>
+            <td class="dt-val font-bold" colspan="3">${escapeHtml(perihal)}</td>
+          </tr>
+          <tr>
+            <td class="dt-label">Instruksi / Catatan Disposisi</td>
+            <td class="dt-val dt-notes" colspan="3">
+              <div class="checkbox-row">
+                <span>[ ] Tindak Lanjuti Segera</span>
+                <span>[ ] Hadiri / Wakili</span>
+                <span>[ ] Buatkan Balasan</span>
+                <span>[ ] Arsipkan di Drive</span>
+              </div>
+              <div class="signature-space">
+                <span>Catatan: _________________________________________________</span>
+                <div class="sig-box">
+                  <p>Kepala SMA YWKA Bandung,</p>
+                  <div style="height: 45px;"></div>
+                  <strong>Syarif Hasanudin, S.Pd., Gr., M.M.</strong>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+  });
+
+  printArea.innerHTML = html;
+  document.body.classList.add("printing-batch");
+
+  // Jalankan dialog print browser
+  setTimeout(() => {
+    window.print();
+  }, 150);
+
+  // Bersihkan setelah pencetakan selesai
+  const cleanup = () => {
+    document.body.classList.remove("printing-batch");
+    printArea.innerHTML = "";
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+}
+
+/**
+ * Eksekusi Cetak Antrean Berkas Lampiran / Scan
+ */
+function executeBatchPrintFiles() {
+  const items = state.batchPrintItems || [];
+  const filesToPrint = items.filter(item => {
+    return Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.fileBase64);
+  });
+
+  if (filesToPrint.length === 0) {
+    showToast("Tidak ada surat terpilih yang memiliki berkas lampiran!", "warning");
+    return;
+  }
+
+  showToast(`Mempersiapkan pencetakan untuk ${filesToPrint.length} berkas lampiran...`, "info");
+
+  // Buka popup antrean cetak atau buka jendela preview cetak untuk berkas pertama dan selanjutnya
+  filesToPrint.forEach((item, idx) => {
+    const rawUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64;
+    const embedUrl = getGoogleDriveEmbedUrl(rawUrl);
+
+    setTimeout(() => {
+      window.open(embedUrl, `CetakBerkas_${idx}`, "width=960,height=800,menubar=no,toolbar=no,scrollbars=yes");
+    }, idx * 600); // Beri jeda 600ms agar browser tidak memblokir multiple popups
+  });
+
+  showToast(`Berhasil membuka ${filesToPrint.length} jendela pratinjau berkas siap cetak!`, "success");
+}
 
 function initTemplateKosong() {
   const btnTop = document.getElementById("btnOpenTopTemplateKosong");

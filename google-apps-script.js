@@ -1,7 +1,7 @@
 ﻿/**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 3.4 (PENEMPATAN PRESISI NO. URUT 218, CLEAR-ONLY DELETE TANPA HAPUS BARIS, AUTO-FOLLOW 620->621, & AUTO-SINKRON DRIVE)
+ * VERSI 3.5 (PERBAIKAN PRESISI TEMPLATE NO. URUT 218 SURAT MASUK, PENEMPATAN AUTO-FOLLOW SURAT KELUAR 620->621, & CLEAR-ONLY DELETE)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -600,12 +600,46 @@ function rapikanNomorAgendaKeluar() {
 }
 
 function perbaikiBarisSuratMasuk() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getTargetSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
   if (!sheet) {
     Logger.log("Sheet tidak ditemukan: " + SHEET_SURAT_MASUK);
     return "Sheet tidak ditemukan";
   }
+
+  // 1. Rapikan template surat masuk: Pindahkan nomor urut 218..300 dari Kolom B ke Kolom A jika Kolom A kosong
+  const lastRow = Math.max(sheet.getLastRow(), 301);
+  const totalRows = lastRow - 1;
+  const values = sheet.getRange(2, 1, totalRows, 10).getValues();
+  let fixedCount = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const curRow = i + 2;
+    const colA = String(values[i][0]).trim();
+    const colB = String(values[i][1]).trim();
+    const colE = String(values[i][4]).trim();
+
+    // Jika Kolom A kosong, tapi Kolom B adalah angka murni (misal 218..300) dan belum ada perihal (Col E)
+    if (!colA && /^\d+$/.test(colB) && !colE) {
+      sheet.getRange(curRow, 1).setValue(colB); // Pindahkan ke Kolom A (No. Urut)
+      sheet.getRange(curRow, 2).setValue("");   // Kosongkan Kolom B (No. Agenda)
+      if (!values[i][5]) sheet.getRange(curRow, 6).setValue("CABANG DINAS WIL.VII");
+      if (!values[i][6]) sheet.getRange(curRow, 7).setValue("SMA YWKA");
+      if (!values[i][9]) sheet.getRange(curRow, 10).setValue("Surat Masuk");
+      fixedCount++;
+    }
+  }
+
+  // 2. Relokasi baris salah di bawah baris 301 jika ada
+  const hasilRelocate = autoRelocateMisplacedSuratMasuk(sheet);
+  const hasil = "Template Surat Masuk berhasil dirapikan (" + fixedCount + " nomor urut template disesuaikan). " + hasilRelocate;
+  Logger.log(hasil);
+  return hasil;
+}
+
+function rapikanNomorUrutSuratMasuk() {
+  return perbaikiBarisSuratMasuk();
+}
   const hasil = autoRelocateMisplacedSuratMasuk(sheet);
   Logger.log(hasil);
   return hasil;

@@ -2567,7 +2567,75 @@ body {
     visibility: hidden !important;
   }
 
-  body * {
+    /* Cetak Bersih Khusus Batch Print Disposisi */
+  body.printing-batch * {
+    visibility: hidden !important;
+  }
+
+  body.printing-batch #batchPrintArea,
+  body.printing-batch #batchPrintArea * {
+    visibility: visible !important;
+  }
+
+    /* Cetak Bersih Khusus Single Disposisi */
+  body.printing-single-disposisi * {
+    visibility: hidden !important;
+  }
+
+  body.printing-single-disposisi #disposisiPrintArea,
+  body.printing-single-disposisi #disposisiPrintArea * {
+    visibility: visible !important;
+  }
+
+  body.printing-single-disposisi #disposisiPrintArea {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.printing-single-disposisi .disposisi-card {
+    border: 2px solid #000000 !important;
+    margin: 0 !important;
+    padding: 12mm 15mm !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  body.printing-batch #batchPrintArea {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.printing-batch .disposisi-card {
+    page-break-after: always !important;
+    break-after: page !important;
+    margin: 0 !important;
+    border: 2px solid #000000 !important;
+    padding: 12mm 15mm !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  body.printing-batch .disposisi-card:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+body * {
     visibility: hidden;
   }
 
@@ -3266,6 +3334,74 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+/* ================= BATCH PRINT STYLES ================= */
+.batch-print-options {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.batch-print-option-card {
+  flex: 1;
+  min-width: 280px;
+  padding: 14px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #ffffff;
+}
+
+.batch-print-option-card:hover {
+  border-color: var(--primary);
+  background: #f8fafc;
+}
+
+.batch-print-option-card.active {
+  border-color: var(--primary);
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.batch-print-option-card input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--primary);
+}
+
+.batch-print-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.batch-print-scope-bar .scope-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.batch-print-scope-bar .scope-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.page-break {
+  page-break-after: always;
+  break-after: page;
 }
 
 .modal-xl {

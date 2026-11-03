@@ -301,6 +301,7 @@
                 <button type="button" class="btn btn-primary btn-sm" id="btnSyncDriveKeluar" title="Pindai Google Drive dan otomatis perbarui status menjadi 'Berkas Drive' di Spreadsheet">
                   <i class="fa-solid fa-arrows-rotate"></i> Sinkron Berkas Drive
                 </button>
+
                 <button type="button" class="btn btn-warning btn-sm" id="btnHeaderBatchEditKeluar" title="Edit kode klasifikasi dan data banyak surat keluar sekaligus">
                   <i class="fa-solid fa-pen-to-square"></i> Edit Batch
                 </button>
@@ -378,6 +379,9 @@
                 </button>
               </div>
               <div class="batch-bar-right">
+                <button type="button" class="btn btn-emerald btn-sm" id="btnOpenBatchPrintKeluarModal" title="Cetak batch lembar agenda / berkas surat keluar yang dipilih">
+                  <i class="fa-solid fa-print"></i> Cetak Batch (<span id="batchPrintKeluarBtnCount">0</span>)
+                </button>
                 <button type="button" class="btn btn-warning btn-sm" id="btnOpenBatchEditKeluarModal" title="Edit kode klasifikasi dan informasi surat yang dipilih">
                   <i class="fa-solid fa-pen-to-square"></i> Edit Batch (<span id="batchEditBtnCount">0</span>)
                 </button>
@@ -483,6 +487,7 @@
                 <button type="button" class="btn btn-outline btn-sm" id="btnSyncDriveMasuk" title="Pindai Google Drive Surat Masuk dan pasangkan ke Spreadsheet">
                   <i class="fa-solid fa-arrows-rotate text-emerald"></i> Sinkron Berkas Drive
                 </button>
+
                 <button class="btn btn-emerald btn-sm" id="btnOpenModalMasukHeader" title="Catat Surat Masuk Baru">
                   <i class="fa-solid fa-plus"></i> Catat Surat Masuk
                 </button>
@@ -523,11 +528,36 @@
               </div>
             </div>
 
+            <!-- Batch Actions Bar for Surat Masuk -->
+            <div class="batch-action-bar" id="batchMasukBar" style="display: none;">
+              <div class="batch-bar-left">
+                <span class="batch-badge-count" id="batchMasukCountBadge" style="background: #10b981;">0</span>
+                <span class="batch-bar-text" style="color: #065f46;">Surat Masuk dipilih</span>
+                <button type="button" class="btn btn-outline btn-xs" id="btnSelectAllCurrentPageMasuk" title="Pilih semua surat masuk di halaman ini">
+                  <i class="fa-solid fa-list-check"></i> Pilih Semua Hal Ini
+                </button>
+                <button type="button" class="btn btn-outline btn-xs" id="btnSelectAllHasFileMasuk" title="Pilih hanya surat masuk yang memiliki berkas scan">
+                  <i class="fa-regular fa-square-check"></i> Pilih yg Ada Berkas
+                </button>
+              </div>
+              <div class="batch-bar-right">
+                <button type="button" class="btn btn-emerald btn-sm" id="btnOpenBatchPrintMasukModal" title="Cetak batch lembar disposisi / berkas surat masuk yang dipilih">
+                  <i class="fa-solid fa-print"></i> Cetak Batch (<span id="batchPrintMasukBtnCount">0</span>)
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnClearBatchMasuk" title="Batalkan pilihan ceklis">
+                  <i class="fa-solid fa-xmark"></i> Batal
+                </button>
+              </div>
+            </div>
+
             <!-- Table Responsive -->
             <div class="table-container">
               <table class="data-table" id="tableSuratMasuk">
                 <thead>
                   <tr>
+                    <th style="width: 44px; text-align: center;">
+                      <input type="checkbox" id="checkAllMasuk" title="Pilih Semua Surat Masuk di Halaman Ini" class="table-checkbox">
+                    </th>
                     <th style="width: 50px;">No.</th>
                     <th style="width: 220px;">No. Agenda / Asal</th>
                     <th style="width: 95px;">Tgl Surat</th>
@@ -1198,146 +1228,104 @@
   </div>
 
   <!-- ================= MODAL: DETAIL / LEMBAR DISPOSISI PRINT ================= -->
-  <!-- ================= MODAL: DETAIL / LEMBAR DISPOSISI & CETAK BERKAS (PRINT IN) ================= -->
   <div class="modal-backdrop" id="modalDisposisi">
     <div class="modal-dialog modal-lg">
       <div class="modal-header">
-        <h3 class="modal-title"><i class="fa-solid fa-print text-blue"></i> Pratinjau & Cetak Surat (Print In)</h3>
+        <h3 class="modal-title"><i class="fa-solid fa-print text-primary"></i> Cetak Lembar Disposisi & Agenda Surat</h3>
         <button class="modal-close-btn" id="btnCloseModalDisposisi" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <!-- Tab Navigasi Mode Cetak -->
-      <div class="print-modal-tabs no-print">
-        <button type="button" class="print-tab-btn active" id="tabBtnDisposisi">
-          <i class="fa-solid fa-file-lines"></i> 1. Lembar Disposisi & Agenda
-        </button>
-        <button type="button" class="print-tab-btn" id="tabBtnBerkasDrive">
-          <i class="fa-solid fa-file-pdf"></i> 2. Berkas Scan / Dokumen Lampiran
-          <span id="badgePrintHasFile" class="badge-tab-pill no-file">Tidak Ada Berkas</span>
-        </button>
-      </div>
-
-      <div class="modal-body">
-        <!-- TAB 1: LEMBAR DISPOSISI & AGENDA SURAT RESMI -->
-        <div id="printTabDisposisiContent">
-          <div id="disposisiPrintArea">
-            <div class="disposisi-card">
-              <div class="disposisi-header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px;">
-                <img src="logo-ywka.png" alt="Logo SMAS YWKA Bandung" style="width: 58px; height: 58px; object-fit: contain;">
-                <div class="disposisi-school" style="text-align: left;">
-                  <div style="font-size: 13px; font-weight: 700; color: #1e293b; letter-spacing: 0.5px;">YAYASAN WANITA KERETA API</div>
-                  <h2 style="font-size: 19px; font-weight: 900; color: #002b80; margin: 1px 0;">SMAS YWKA BANDUNG</h2>
-                  <p style="font-size: 11px; margin: 1px 0;">Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat</p>
-                  <small style="font-size: 10px; color: #64748b;">Akreditasi: A | NSS: 302026002008 | NPSN: 20219736 | Telp: (022) 6011740</small>
-                </div>
+      <div class="modal-body" style="padding: 24px;">
+        <!-- LEMBAR AGENDA SURAT & DISPOSISI RESMI (SIAP CETAK) -->
+        <div id="disposisiPrintArea">
+          <div class="disposisi-card">
+            <div class="disposisi-header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px;">
+              <img src="logo-ywka.png" alt="Logo SMAS YWKA Bandung" style="width: 58px; height: 58px; object-fit: contain;">
+              <div class="disposisi-school" style="text-align: left;">
+                <div style="font-size: 13px; font-weight: 700; color: #1e293b; letter-spacing: 0.5px;">YAYASAN WANITA KERETA API</div>
+                <h2 style="font-size: 19px; font-weight: 900; color: #002b80; margin: 1px 0;">SMAS YWKA BANDUNG</h2>
+                <p style="font-size: 11px; margin: 1px 0;">Jl. Elang II No. 3, Garuda, Kec. Andir, Kota Bandung, Jawa Barat</p>
+                <small style="font-size: 10px; color: #64748b;">Akreditasi: A | NSS: 302026002008 | NPSN: 20219736 | Telp: (022) 6011740</small>
               </div>
-              <div class="disposisi-divider"></div>
-              <h3 class="disposisi-title">LEMBAR AGENDA SURAT</h3>
-
-              <table class="disposisi-table">
-                <tr>
-                  <td class="dt-label">Tipe Surat</td>
-                  <td class="dt-val" id="dispTipeSurat">-</td>
-                  <td class="dt-label">No. Agenda</td>
-                  <td class="dt-val font-bold stat-mono" id="dispNoUrut">-</td>
-                </tr>
-                <tr>
-                  <td class="dt-label">Nomor Surat Lengkap</td>
-                  <td class="dt-val font-bold stat-mono" colspan="3" id="dispNoLengkap">-</td>
-                </tr>
-                <tr>
-                  <td class="dt-label">Tanggal Surat</td>
-                  <td class="dt-val" id="dispTglSurat">-</td>
-                  <td class="dt-label">Petugas / PIC</td>
-                  <td class="dt-val" id="dispPetugas">-</td>
-                </tr>
-                <tr>
-                  <td class="dt-label">Dari</td>
-                  <td class="dt-val" colspan="3" id="dispDari">-</td>
-                </tr>
-                <tr>
-                  <td class="dt-label">Kepada / Ditujukan</td>
-                  <td class="dt-val" colspan="3" id="dispKepada">-</td>
-                </tr>
-                <tr>
-                  <td class="dt-label">Prihal / Isi Ringkasan</td>
-                  <td class="dt-val font-bold" colspan="3" id="dispPerihal">-</td>
-                </tr>
-                <tr>
-                  <td class="dt-label">Instruksi / Catatan Disposisi</td>
-                  <td class="dt-val dt-notes" colspan="3">
-                    <div class="checkbox-row">
-                      <span>[ ] Tindak Lanjuti Segera</span>
-                      <span>[ ] Hadiri / Wakili</span>
-                      <span>[ ] Buatkan Balasan</span>
-                      <span>[ ] Arsipkan di Drive</span>
-                    </div>
-                    <div class="signature-space">
-                      <span>Catatan: _________________________________________________</span>
-                      <div class="sig-box">
-                        <p>Kepala SMA YWKA Bandung,</p>
-                        <div style="height: 45px;"></div>
-                        <strong>Syarif Hasanudin, S.Pd., Gr., M.M.</strong>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              </table>
             </div>
+            <div class="disposisi-divider"></div>
+            <h3 class="disposisi-title">LEMBAR AGENDA SURAT</h3>
+
+            <table class="disposisi-table">
+              <tr>
+                <td class="dt-label">Tipe Surat</td>
+                <td class="dt-val" id="dispTipeSurat">-</td>
+                <td class="dt-label">No. Agenda</td>
+                <td class="dt-val font-bold stat-mono" id="dispNoUrut">-</td>
+              </tr>
+              <tr>
+                <td class="dt-label">Nomor Surat Lengkap</td>
+                <td class="dt-val font-bold stat-mono" colspan="3" id="dispNoLengkap">-</td>
+              </tr>
+              <tr>
+                <td class="dt-label">Tanggal Surat</td>
+                <td class="dt-val" id="dispTglSurat">-</td>
+                <td class="dt-label">Petugas / PIC</td>
+                <td class="dt-val" id="dispPetugas">-</td>
+              </tr>
+              <tr>
+                <td class="dt-label">Dari</td>
+                <td class="dt-val" colspan="3" id="dispDari">-</td>
+              </tr>
+              <tr>
+                <td class="dt-label">Kepada / Ditujukan</td>
+                <td class="dt-val" colspan="3" id="dispKepada">-</td>
+              </tr>
+              <tr>
+                <td class="dt-label">Prihal / Isi Ringkasan</td>
+                <td class="dt-val font-bold" colspan="3" id="dispPerihal">-</td>
+              </tr>
+              <tr>
+                <td class="dt-label">Instruksi / Catatan Disposisi</td>
+                <td class="dt-val dt-notes" colspan="3">
+                  <div class="checkbox-row">
+                    <span>[ ] Tindak Lanjuti Segera</span>
+                    <span>[ ] Hadiri / Wakili</span>
+                    <span>[ ] Buatkan Balasan</span>
+                    <span>[ ] Arsipkan di Drive</span>
+                  </div>
+                  <div class="signature-space">
+                    <span>Catatan: _________________________________________________</span>
+                    <div class="sig-box">
+                      <p>Kepala SMA YWKA Bandung,</p>
+                      <div style="height: 45px;"></div>
+                      <strong>Syarif Hasanudin, S.Pd., Gr., M.M.</strong>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </table>
           </div>
         </div>
 
-        <!-- TAB 2: PRATINJAU & CETAK BERKAS SCAN / LAMPIRAN (TANPA KE DRIVE) -->
-        <div id="printTabBerkasContent" style="display: none;">
-          <div class="print-berkas-container">
-            <div class="print-berkas-toolbar no-print">
-              <div class="print-file-info">
-                <i class="fa-solid fa-file-pdf text-danger" style="font-size: 24px;"></i>
-                <div>
-                  <div id="printBerkasTitle" style="font-size: 13.5px; font-weight: 700; color: #1e293b;">Berkas Dokumen Surat</div>
-                  <small id="printBerkasSub" style="color: #64748b; font-size: 11px;">Tersimpan di Google Drive / Berkas Lokal</small>
-                </div>
-              </div>
-              <div class="print-file-actions">
-                <button type="button" class="btn btn-primary btn-sm" id="btnPrintFileInsideModal" title="Cetak Berkas Ini Langsung">
-                  <i class="fa-solid fa-print"></i> Cetak Berkas Ini
-                </button>
-                <a href="#" target="_blank" rel="noopener noreferrer" id="btnOpenDriveInNewTab" class="btn btn-outline btn-sm" title="Buka di tab baru Google Drive jika perlu">
-                  <i class="fa-brands fa-google-drive"></i> Buka di Drive
-                </a>
-              </div>
-            </div>
-
-            <!-- Tampilan Jika Berkas Tersedia: Iframe Viewer -->
-            <div id="boxHasFilePreview" class="preview-iframe-wrapper">
-              <iframe id="printIframeViewer" src="" title="Pratinjau Dokumen"></iframe>
-            </div>
-
-            <!-- Tampilan Jika Belum Ada Berkas -->
-            <div id="boxNoFilePreview" class="print-empty-file" style="display: none;">
-              <i class="fa-solid fa-file-circle-question"></i>
-              <h4>Belum Ada Berkas Scan / Dokumen Lampiran</h4>
-              <p>Surat ini belum memiliki lampiran berkas digital di Google Drive.</p>
-              <button type="button" class="btn btn-primary" id="btnUploadNowFromPrint">
-                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Berkas Scan Sekarang
-              </button>
+        <!-- INFO BERKAS GOOGLE DRIVE (TIDAK DICETAK KE KERTAS) -->
+        <div id="dispDriveBanner" class="no-print" style="display: none; margin-top: 16px; padding: 12px 18px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-brands fa-google-drive text-emerald" style="font-size: 24px;"></i>
+            <div>
+              <strong style="font-size: 13.5px; color: #166534;">Berkas Dokumen Asli Tersedia di Google Drive</strong>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: #15803d;">Untuk melihat atau mencetak berkas scan PDF fisik asli, silakan buka langsung di Google Drive.</p>
             </div>
           </div>
+          <a href="#" id="dispDriveLink" target="_blank" rel="noopener noreferrer" class="btn btn-emerald btn-sm" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka di Drive
+          </a>
         </div>
       </div>
 
       <div class="modal-footer no-print">
         <button type="button" class="btn btn-secondary" id="btnCloseDisposisi">Tutup</button>
-        <button type="button" class="btn btn-outline" id="btnPrintFileFooter" style="display: none;">
-          <i class="fa-solid fa-file-pdf"></i> Cetak Berkas Scan
-        </button>
-        <button type="button" class="btn btn-primary" id="btnPrintDisposisiDoc">
+        <button type="button" class="btn btn-primary btn-lg" id="btnPrintDisposisiDoc">
           <i class="fa-solid fa-print"></i> Cetak Lembar Disposisi
         </button>
       </div>
     </div>
   </div>
-
   <!-- Modal: Hubungkan Google Apps Script (Muncul Jika User Submit Saat Belum Terhubung) -->
   <div class="modal-backdrop" id="modalAppsScriptPrompt">
     <div class="modal-dialog">
@@ -2039,5 +2027,104 @@
 
   <!-- Scripts -->
   <script src="app.js"></script>
+<!-- ================= MODAL: BATCH PRINT (SURAT KELUAR & MASUK) ================= -->
+  <div class="modal-backdrop" id="modalBatchPrint">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-print text-primary"></i> Cetak Massal / Batch Print Surat SMAS YWKA
+        </h3>
+        <button class="modal-close-btn" id="btnCloseBatchPrintModal" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Pilihan Mode Cetak -->
+        <div class="batch-print-options">
+          <label class="batch-print-option-card active" id="cardOptionDisposisi" for="optBatchDisposisi">
+            <input type="radio" name="batchPrintMode" id="optBatchDisposisi" value="disposisi" checked>
+            <div>
+              <strong style="display: flex; align-items: center; gap: 6px; font-size: 14.5px; color: #1e3a8a;">
+                <i class="fa-solid fa-file-lines text-primary"></i> 1. Cetak Lembar Disposisi & Agenda Massal
+              </strong>
+              <p style="font-size: 12px; color: #64748b; margin: 4px 0 0;">
+                Mencetak lembar disposisi / agenda resmi SMAS YWKA untuk setiap surat terpilih. Setiap surat otomatis terpisah pada 1 lembar kertas A4 (<em>clean page-break</em>).
+              </p>
+            </div>
+          </label>
+
+          <label class="batch-print-option-card" id="cardOptionBerkas" for="optBatchBerkas">
+            <input type="radio" name="batchPrintMode" id="optBatchBerkas" value="berkas">
+            <div>
+              <strong style="display: flex; align-items: center; gap: 6px; font-size: 14.5px; color: #065f46;">
+                <i class="fa-solid fa-file-pdf text-emerald"></i> 2. Cetak Berkas Scan / Dokumen Lampiran
+              </strong>
+              <p style="font-size: 12px; color: #64748b; margin: 4px 0 0;">
+                Mencetak dokumen scan/PDF lampiran dari Google Drive atau berkas lokal secara langsung tanpa harus membuka tab Google Drive satu per satu.
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <!-- Scope / Summary Toolbar -->
+        <div class="batch-print-scope-bar">
+          <div class="scope-left">
+            <span class="badge-tab-pill has-file" id="batchPrintScopeBadge" style="font-size: 12px; padding: 4px 10px;">0 Surat Terpilih</span>
+            <span id="batchPrintScopeSubtitle" style="font-size: 12.5px; color: #475569;">Daftar surat yang siap dicetak:</span>
+          </div>
+          <div class="scope-right">
+            <button type="button" class="btn btn-outline btn-xs" id="btnBatchPrintSelectAllPage">
+              <i class="fa-solid fa-list-check"></i> Tambah Semua di Hal. Ini
+            </button>
+            <button type="button" class="btn btn-outline btn-xs" id="btnBatchPrintFilterOnlyFiles">
+              <i class="fa-solid fa-filter"></i> Hanya yg Ada Berkas
+            </button>
+            <button type="button" class="btn btn-outline btn-xs text-danger" id="btnBatchPrintClearAll">
+              <i class="fa-solid fa-trash-can"></i> Kosongkan
+            </button>
+          </div>
+        </div>
+
+        <!-- List Table -->
+        <div class="batch-table-scroll" style="max-height: 290px; margin-top: 10px;">
+          <table class="batch-items-table">
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">No.</th>
+                <th style="width: 130px;">No. Agenda</th>
+                <th>Prihal / Isi Ringkasan</th>
+                <th style="width: 170px;">Instansi / Pihak Terkait</th>
+                <th style="width: 100px; text-align: center;">Tanggal</th>
+                <th style="width: 130px; text-align: center;">Berkas Lampiran</th>
+                <th style="width: 70px; text-align: center;">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyBatchPrintItems">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Alert / Note -->
+        <div class="batch-print-alert" id="batchPrintNotice" style="margin-top: 12px; font-size: 12px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 14px; border-radius: 8px;">
+          <i class="fa-solid fa-circle-info text-blue"></i> 
+          <span>Tip: Saat jendela dialog print browser muncul, pastikan opsi <strong>"Headers and footers"</strong> tidak dicentang agar hasil cetak lembar resmi bersih tanpa URL website.</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCloseBatchPrintFooter">Tutup</button>
+        <button type="button" class="btn btn-emerald" id="btnExecuteBatchPrintFiles" style="display: none;">
+          <i class="fa-solid fa-print"></i> Cetak Antrean Berkas Lampiran (<span id="batchPrintFileCount">0</span> Berkas)
+        </button>
+        <button type="button" class="btn btn-primary" id="btnExecuteBatchPrintDisposisi">
+          <i class="fa-solid fa-print"></i> Cetak Semua Lembar Disposisi (<span id="batchPrintDisposisiCount">0</span> Lembar)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container Cetak Bersih Disposisi Gabungan (Disembunyikan di layar, ditampilkan saat print) -->
+  <div id="batchPrintArea" style="display: none;"></div>
+
 </body>
+</html>
 </html>
