@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ===================================================================
  * APLIKASI AGENDA SURAT SMA YWKA BANDUNG
  * app.js - Controller, Drive Upload, 12 Kode Surat & No. Agenda
@@ -35,8 +35,8 @@ let state = {
   appsScriptUrl: localStorage.getItem("sma_ywka_apps_script_url") || DEFAULT_APPS_SCRIPT_URL,
   driveKeluarUrl: localStorage.getItem("sma_ywka_drive_keluar_url") || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5",
   driveMasukUrl: localStorage.getItem("sma_ywka_drive_masuk_url") || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W",
-  lastFilledAgendaNumber: "608",
-  nextKeluarAgenda: "609",
+  lastFilledAgendaNumber: "620",
+  nextKeluarAgenda: "621",
   isSyncing: false,
   selectedCategory: "all",
   stagedFileKeluar: null,
@@ -1025,10 +1025,11 @@ function hydrateFromCacheOrBuiltin() {
     unsyncedKeluar.forEach(uItem => {
       const found = state.suratKeluar.some(k => (k.noAgenda && uItem.noAgenda && k.noAgenda === uItem.noAgenda) || (k.perihal && uItem.perihal && k.perihal === uItem.perihal));
       if (!found) {
-        state.suratKeluar.unshift(uItem);
+        state.suratKeluar.push(uItem);
         remainingKeluar.push(uItem);
       }
     });
+    state.suratKeluar.sort((a, b) => (parseInt(a.noAgenda || a.noUrut, 10) || 0) - (parseInt(b.noAgenda || b.noUrut, 10) || 0));
     localStorage.setItem("unsynced_surat_keluar", JSON.stringify(remainingKeluar));
   }
 
@@ -1038,10 +1039,11 @@ function hydrateFromCacheOrBuiltin() {
     unsyncedMasuk.forEach(uItem => {
       const found = state.suratMasuk.some(m => (m.noAgenda && uItem.noAgenda && m.noAgenda !== "-" && m.noAgenda === uItem.noAgenda) || (m.perihal && uItem.perihal && m.perihal === uItem.perihal));
       if (!found) {
-        state.suratMasuk.unshift(uItem);
+        state.suratMasuk.push(uItem);
         remainingMasuk.push(uItem);
       }
     });
+    state.suratMasuk.sort((a, b) => (parseInt(a.noUrut, 10) || 0) - (parseInt(b.noUrut, 10) || 0));
     localStorage.setItem("unsynced_surat_masuk", JSON.stringify(remainingMasuk));
   }
 
@@ -1225,7 +1227,39 @@ function initNavigation() {
   }
   const btnPrintDisposisiDoc = document.getElementById("btnPrintDisposisiDoc");
   if (btnPrintDisposisiDoc) {
-    btnPrintDisposisiDoc.addEventListener("click", () => window.print());
+    btnPrintDisposisiDoc.addEventListener("click", () => {
+      switchPrintTab("disposisi");
+      window.print();
+    });
+  }
+  const tabBtnDisposisi = document.getElementById("tabBtnDisposisi");
+  const tabBtnBerkasDrive = document.getElementById("tabBtnBerkasDrive");
+  if (tabBtnDisposisi) {
+    tabBtnDisposisi.addEventListener("click", () => switchPrintTab("disposisi"));
+  }
+  if (tabBtnBerkasDrive) {
+    tabBtnBerkasDrive.addEventListener("click", () => switchPrintTab("berkas"));
+  }
+  const btnPrintFileInsideModal = document.getElementById("btnPrintFileInsideModal");
+  if (btnPrintFileInsideModal) {
+    btnPrintFileInsideModal.addEventListener("click", executePrintAttachedFile);
+  }
+  const btnPrintFileFooter = document.getElementById("btnPrintFileFooter");
+  if (btnPrintFileFooter) {
+    btnPrintFileFooter.addEventListener("click", executePrintAttachedFile);
+  }
+  const btnUploadNowFromPrint = document.getElementById("btnUploadNowFromPrint");
+  if (btnUploadNowFromPrint && modalDisp) {
+    btnUploadNowFromPrint.addEventListener("click", () => {
+      modalDisp.classList.remove("show");
+      if (currentPrintData && currentPrintData.item) {
+        if (currentPrintData.type === "masuk") {
+          openUploadModalMasuk(currentPrintData.item.id);
+        } else {
+          openUploadModalKeluar(currentPrintData.item.id);
+        }
+      }
+    });
   }
 }
 
@@ -3768,9 +3802,14 @@ function renderSuratKeluarTable() {
     const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
     const targetDriveHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveKeluarUrl || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5"));
     const driveLinkHtml = hasDriveFile
-      ? `<a href="${targetDriveHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Buka berkas di Google Drive">
-           <i class="fa-brands fa-google-drive"></i> Berkas Drive
-         </a>`
+      ? `<div class="drive-cell-group">
+           <button type="button" class="btn-print-direct" title="Cetak Berkas Scan Langsung (Tanpa Buka Drive)" onclick="openDirectPrintFile('${item.id}', 'keluar')">
+             <i class="fa-solid fa-print"></i> Cetak
+           </button>
+           <a href="${targetDriveHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas di Google Drive">
+             <i class="fa-brands fa-google-drive"></i> Drive
+           </a>
+         </div>`
       : `<button type="button" class="btn-upload-direct" title="Upload berkas ke Google Drive Surat Keluar" onclick="openUploadModalKeluar('${item.id}')">
            <i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Upload Drive
          </button>`;
@@ -3803,6 +3842,9 @@ function renderSuratKeluarTable() {
           <div class="action-buttons">
             <button type="button" class="btn-table-action" title="Salin Nomor Surat" onclick="copyText('${escapeQuotes(item.nomorLengkap)}')">
               <i class="fa-solid fa-copy"></i>
+            </button>
+            <button type="button" class="btn-table-action btn-print-action" title="Cetak Surat & Lembar Disposisi (Print In)" onclick="openDirectPrint('${item.id}', 'keluar')">
+              <i class="fa-solid fa-print"></i>
             </button>
             <button type="button" class="btn-table-action" title="Lihat Lembar Agenda" onclick="viewDisposisiKeluar('${item.id}')">
               <i class="fa-solid fa-file-invoice"></i>
@@ -3910,9 +3952,14 @@ function renderSuratMasukTable() {
     const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
     const targetDriveMasukHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveMasukUrl || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W"));
     const driveLinkHtml = hasDriveFile
-      ? `<a href="${targetDriveMasukHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Buka berkas scan di Google Drive">
-           <i class="fa-brands fa-google-drive"></i> Berkas Drive
-         </a>`
+      ? `<div class="drive-cell-group">
+           <button type="button" class="btn-print-direct" title="Cetak Berkas Scan Langsung (Tanpa Buka Drive)" onclick="openDirectPrintFile('${item.id}', 'masuk')">
+             <i class="fa-solid fa-print"></i> Cetak
+           </button>
+           <a href="${targetDriveMasukHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas scan di Google Drive">
+             <i class="fa-brands fa-google-drive"></i> Drive
+           </a>
+         </div>`
       : `<button type="button" class="btn-upload-direct" title="Upload berkas scan ke Google Drive Surat Masuk" onclick="openUploadModalMasuk('${item.id}')">
            <i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Upload Drive
          </button>`;
@@ -3933,6 +3980,9 @@ function renderSuratMasukTable() {
           <div class="action-buttons">
             <button type="button" class="btn-table-action" title="Salin Nomor Agenda / Asal" onclick="copyText('${escapeQuotes(item.noAgenda)}')">
               <i class="fa-solid fa-copy"></i>
+            </button>
+            <button type="button" class="btn-table-action btn-print-action" title="Cetak Surat & Lembar Disposisi (Print In)" onclick="openDirectPrint('${item.id}', 'masuk')">
+              <i class="fa-solid fa-print"></i>
             </button>
             <button type="button" class="btn-table-action" title="Lihat Lembar Disposisi Masuk" onclick="viewDisposisiMasuk('${item.id}')">
               <i class="fa-solid fa-file-invoice"></i>
@@ -4741,6 +4791,215 @@ function renderStatistics() {
 /**
  * Buka Modal Disposisi
  */
+let currentPrintData = null;
+
+/**
+ * Konversi URL Google Drive ke format Preview Embed Resmi
+ */
+function getGoogleDriveEmbedUrl(url) {
+  if (!url) return "";
+  const str = String(url).trim();
+  const match = str.match(/\/d\/([a-zA-Z0-9_-]+)/) || str.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return "https://drive.google.com/file/d/" + match[1] + "/preview";
+  }
+  return str;
+}
+
+/**
+ * Ganti Tab pada Modal Pratinjau & Cetak Surat
+ */
+function switchPrintTab(tabName) {
+  const tabBtnDisposisi = document.getElementById("tabBtnDisposisi");
+  const tabBtnBerkas = document.getElementById("tabBtnBerkasDrive");
+  const contentDisposisi = document.getElementById("printTabDisposisiContent");
+  const contentBerkas = document.getElementById("printTabBerkasContent");
+  const btnPrintFileFooter = document.getElementById("btnPrintFileFooter");
+
+  if (tabName === "berkas") {
+    if (tabBtnDisposisi) tabBtnDisposisi.classList.remove("active");
+    if (tabBtnBerkas) tabBtnBerkas.classList.add("active");
+    if (contentDisposisi) contentDisposisi.style.display = "none";
+    if (contentBerkas) contentBerkas.style.display = "block";
+    if (btnPrintFileFooter && currentPrintData && currentPrintData.hasFile) {
+      btnPrintFileFooter.style.display = "inline-flex";
+    }
+  } else {
+    if (tabBtnDisposisi) tabBtnDisposisi.classList.add("active");
+    if (tabBtnBerkas) tabBtnBerkas.classList.remove("active");
+    if (contentDisposisi) contentDisposisi.style.display = "block";
+    if (contentBerkas) contentBerkas.style.display = "none";
+    if (btnPrintFileFooter) btnPrintFileFooter.style.display = "none";
+  }
+}
+
+/**
+ * Buka Modal Pratinjau & Cetak Surat (Mendukung Lembar Disposisi & Berkas Drive Tanpa Perlu ke Drive)
+ */
+function openDirectPrint(id, type = "keluar", initialTab = "disposisi") {
+  const item = (type === "masuk")
+    ? state.suratMasuk.find(m => m.id === id)
+    : state.suratKeluar.find(s => s.id === id);
+
+  if (!item) {
+    showToast("Data surat tidak ditemukan!", "error");
+    return;
+  }
+
+  const modal = document.getElementById("modalDisposisi");
+  if (!modal) return;
+
+  const isMasuk = (type === "masuk");
+  const rawFileUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64 || "";
+  const hasFile = Boolean(rawFileUrl);
+
+  currentPrintData = { item, type, hasFile, rawFileUrl };
+
+  // 1. Tampilkan Data pada Tab 1: Lembar Disposisi
+  const dispTipe = document.getElementById("dispTipeSurat");
+  const dispUrut = document.getElementById("dispNoUrut");
+  const dispLengkap = document.getElementById("dispNoLengkap");
+  const dispTgl = document.getElementById("dispTglSurat");
+  const dispPetugas = document.getElementById("dispPetugas");
+  const dispDari = document.getElementById("dispDari");
+  const dispKepada = document.getElementById("dispKepada");
+  const dispPerihal = document.getElementById("dispPerihal");
+
+  if (dispTipe) dispTipe.textContent = isMasuk ? "Surat Masuk" : "Surat Keluar";
+  if (dispUrut) dispUrut.textContent = isMasuk ? (item.noUrut || item.noAgenda || "-") : (item.noAgenda || item.noUrut || "-");
+  if (dispLengkap) dispLengkap.textContent = isMasuk ? (item.noAgenda || "-") : (item.nomorLengkap || "-");
+  if (dispTgl) dispTgl.textContent = isMasuk
+    ? (item.tglSurat + (item.tglMasuk ? " (Diterima: " + item.tglMasuk + ")" : ""))
+    : (item.tanggal || "-");
+  if (dispPetugas) dispPetugas.textContent = isMasuk ? (item.keterangan || "-") : (item.petugas || "-");
+  if (dispDari) dispDari.textContent = item.dari || "-";
+  if (dispKepada) dispKepada.textContent = item.kepada || "-";
+  if (dispPerihal) dispPerihal.textContent = item.perihal || "-";
+
+  // 2. Tampilkan Data pada Tab 2: Berkas Scan / Lampiran
+  const badgeHasFile = document.getElementById("badgePrintHasFile");
+  const boxHasFile = document.getElementById("boxHasFilePreview");
+  const boxNoFile = document.getElementById("boxNoFilePreview");
+  const iframe = document.getElementById("printIframeViewer");
+  const btnOpenDrive = document.getElementById("btnOpenDriveInNewTab");
+  const btnPrintFileFooter = document.getElementById("btnPrintFileFooter");
+  const berkasTitle = document.getElementById("printBerkasTitle");
+  const berkasSub = document.getElementById("printBerkasSub");
+
+  if (berkasTitle) {
+    berkasTitle.textContent = item.perihal ? "Berkas: " + item.perihal : "Berkas Lampiran (" + (isMasuk ? "Surat Masuk" : "Surat Keluar") + ")";
+  }
+  if (berkasSub) {
+    berkasSub.textContent = "No. Agenda: " + (isMasuk ? item.noAgenda : (item.noAgenda || item.noUrut)) + " | Pengirim: " + (item.dari || "-");
+  }
+
+  if (hasFile) {
+    if (badgeHasFile) {
+      badgeHasFile.className = "badge-tab-pill has-file";
+      badgeHasFile.innerHTML = '<i class="fa-solid fa-check"></i> Ada Berkas';
+    }
+    if (boxHasFile) boxHasFile.style.display = "block";
+    if (boxNoFile) boxNoFile.style.display = "none";
+    if (btnPrintFileFooter) btnPrintFileFooter.style.display = "inline-flex";
+
+    const embedUrl = getGoogleDriveEmbedUrl(rawFileUrl);
+    if (iframe) iframe.src = embedUrl;
+    if (btnOpenDrive) {
+      btnOpenDrive.href = rawFileUrl;
+      btnOpenDrive.style.display = "inline-flex";
+    }
+  } else {
+    if (badgeHasFile) {
+      badgeHasFile.className = "badge-tab-pill no-file";
+      badgeHasFile.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Tidak Ada Berkas';
+    }
+    if (boxHasFile) boxHasFile.style.display = "none";
+    if (boxNoFile) boxNoFile.style.display = "block";
+    if (iframe) iframe.src = "";
+    if (btnOpenDrive) btnOpenDrive.style.display = "none";
+    if (btnPrintFileFooter) btnPrintFileFooter.style.display = "none";
+  }
+
+  // 3. Set tab awal
+  switchPrintTab(initialTab === "berkas" && hasFile ? "berkas" : "disposisi");
+
+  // 4. Buka modal
+  modal.classList.add("show");
+}
+
+/**
+ * Buka langsung tab cetak berkas lampiran
+ */
+function openDirectPrintFile(id, type) {
+  openDirectPrint(id, type, "berkas");
+}
+
+/**
+ * Eksekusi Cetak Berkas Lampiran / Scan Surat (Tanpa Navigasi ke Google Drive)
+ */
+function executePrintAttachedFile() {
+  if (!currentPrintData || !currentPrintData.item) {
+    showToast("Data surat tidak valid!", "error");
+    return;
+  }
+  const item = currentPrintData.item;
+  const rawUrl = currentPrintData.rawFileUrl;
+
+  if (!rawUrl) {
+    showToast("Surat ini belum memiliki berkas lampiran untuk dicetak!", "warning");
+    return;
+  }
+
+  // 1. Jika berkas lokal base64 / blob
+  if (rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")) {
+    const printWin = window.open("", "_blank");
+    if (printWin) {
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Cetak Berkas - ${escapeHtml(item.perihal || "Surat")}</title>
+            <style>
+              body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background: #fff; }
+              img { max-width: 100%; height: auto; }
+              embed, iframe { width: 100vw; height: 100vh; border: none; }
+            </style>
+          </head>
+          <body>
+            ${rawUrl.includes("application/pdf") ? `<embed src="${rawUrl}" type="application/pdf" />` : `<img src="${rawUrl}" onload="window.print();" />`}
+          </body>
+        </html>
+      `);
+      printWin.document.close();
+      printWin.focus();
+      return;
+    }
+  }
+
+  // 2. Jika berkas Google Drive: Coba cetak melalui iframe
+  const iframe = document.getElementById("printIframeViewer");
+  if (iframe && iframe.contentWindow) {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      return;
+    } catch (err) {
+      console.warn("Iframe direct print cross-origin restricted, opening clean print preview popup:", err);
+    }
+  }
+
+  // 3. Fallback: Buka pop-up preview bersih khusus cetak
+  const embedUrl = getGoogleDriveEmbedUrl(rawUrl);
+  const printWin = window.open(embedUrl, "CetakBerkasYWKA", "width=960,height=800,menubar=no,toolbar=no,scrollbars=yes");
+  if (printWin) {
+    printWin.focus();
+    showToast("Jendela pratinjau berkas terbuka. Silakan tekan Ctrl+P atau ikon printer untuk mencetak.", "info");
+  }
+}
+
+/**
+ * Buka Modal Disposisi (Kompatibilitas)
+ */
 function openDisposisiModal(data) {
   const modal = document.getElementById("modalDisposisi");
   if (!modal) return;
@@ -4754,37 +5013,21 @@ function openDisposisiModal(data) {
   document.getElementById("dispKepada").textContent = data.kepada || "-";
   document.getElementById("dispPerihal").textContent = data.perihal || "-";
 
+  const badgeHasFile = document.getElementById("badgePrintHasFile");
+  if (badgeHasFile) {
+    badgeHasFile.className = "badge-tab-pill no-file";
+    badgeHasFile.innerHTML = '<i class="fa-solid fa-circle-info"></i> Lembar Disposisi';
+  }
+  switchPrintTab("disposisi");
   modal.classList.add("show");
 }
 
 function viewDisposisiKeluar(id) {
-  const item = state.suratKeluar.find(s => s.id === id);
-  if (!item) return;
-  openDisposisiModal({
-    tipe: "Surat Keluar",
-    noUrut: item.noAgenda || item.noUrut,
-    noLengkap: item.nomorLengkap,
-    tanggal: item.tanggal,
-    perihal: item.perihal,
-    kepada: item.kepada,
-    dari: item.dari,
-    petugas: item.petugas
-  });
+  openDirectPrint(id, "keluar", "disposisi");
 }
 
 function viewDisposisiMasuk(id) {
-  const item = state.suratMasuk.find(s => s.id === id);
-  if (!item) return;
-  openDisposisiModal({
-    tipe: "Surat Masuk",
-    noUrut: item.noAgenda,
-    noLengkap: item.noAgenda,
-    tanggal: item.tglSurat + (item.tglMasuk ? ` (Diterima: ${item.tglMasuk})` : ""),
-    perihal: item.perihal,
-    kepada: item.kepada,
-    dari: item.dari,
-    petugas: item.keterangan || "-"
-  });
+  openDirectPrint(id, "masuk", "disposisi");
 }
 
 function changeKeluarPage(newPage) {
@@ -6871,6 +7114,10 @@ window.openBatchUploadModalKeluar = openBatchUploadModalKeluar;
 window.removeBatchFile = removeBatchFile;
 window.removeBatchItem = removeBatchItem;
 window.openBatchEditModalKeluar = openBatchEditModalKeluar;
+window.openDirectPrint = openDirectPrint;
+window.openDirectPrintFile = openDirectPrintFile;
+window.switchPrintTab = switchPrintTab;
+window.executePrintAttachedFile = executePrintAttachedFile;
 window.renderBatchEditPreview = renderBatchEditPreview;
 window.removeBatchEditItem = removeBatchEditItem;
 window.executeBatchEditKeluar = executeBatchEditKeluar;

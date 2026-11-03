@@ -1,7 +1,7 @@
-/**
+﻿/**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 3.3 (FITUR AUTO-SINKRON BERKAS GOOGLE DRIVE KE SPREADSHEET + STATUS 'BERKAS DRIVE' LIVE)
+ * VERSI 3.4 (PENEMPATAN PRESISI NO. URUT 218, CLEAR-ONLY DELETE TANPA HAPUS BARIS, AUTO-FOLLOW 620->621, & AUTO-SINKRON DRIVE)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -1636,21 +1636,18 @@ function doPost(e) {
         }
       }
 
-      // 1.B. Cari baris template berdasarkan Nomor Urut yang diminta (misal No. Urut 215 -> cari baris dengan Col A = 215)
-      // Dibatasi HANYA di dalam area template (baris <= 301)
+      // 1.B. Cari baris template berdasarkan Nomor Urut yang diminta (misal No. Urut 218 -> cari baris dengan Col A = 218)
+      // Prioritas UTAMA: Cocokkan No. Urut angka secara presisi
       if (targetRowIndex < 0 && reqNoUrut) {
-        for (let i = 0; i < Math.min(300, rangeData.length); i++) {
-          const rowUrut = String(rangeData[i][0]).trim();
-          const rowAgenda = String(rangeData[i][1]).trim();
-          const rowPerihal = String(rangeData[i][4]).trim();
+        const reqNum = parseInt(reqNoUrut, 10);
+        for (let i = 0; i < rangeData.length; i++) {
+          const rowUrutStr = String(rangeData[i][0]).trim();
+          const rowNum = parseInt(rowUrutStr, 10);
 
-          if (rowUrut === reqNoUrut) {
-            // Cocok dengan No. Urut template! Jika baris ini belum terisi agenda dan perihal, gunakan langsung baris ini
-            if (!rowAgenda && !rowPerihal) {
-              targetRowIndex = i + 2;
-              finalNoUrut = rowUrut;
-              break;
-            }
+          if ((!isNaN(reqNum) && rowNum === reqNum) || rowUrutStr === reqNoUrut) {
+            targetRowIndex = i + 2;
+            finalNoUrut = rowUrutStr || reqNoUrut;
+            break;
           }
         }
       }
@@ -1914,7 +1911,7 @@ function doPost(e) {
     }
 
     // ==========================================
-    // 8. HAPUS DATA SURAT MASUK (DENGAN DUKUNGAN HAPUS DUPLIKAT BERSIH)
+    // 8. HAPUS DATA SURAT MASUK (CLEAR-ONLY TANPA MENGHAPUS BARIS TEMPLATE)
     // ==========================================
     if (action === "delete_surat_masuk") {
       const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
@@ -1925,56 +1922,54 @@ function doPost(e) {
       const noAgendaStr = String(payload.no_agenda || "").trim();
       const noUrutStr = String(payload.no_urut || "").trim();
       const lastRow = sheet.getLastRow();
-      const deletedRows = [];
+      const clearedRows = [];
 
-      // 1. Jika dikirim array row_indices
-      if (Array.isArray(payload.row_indices) && payload.row_indices.length > 0) {
-        const sortedIndices = payload.row_indices
-          .map(function (n) { return parseInt(n, 10); })
-          .filter(function (n) { return !isNaN(n) && n >= 4 && n <= sheet.getLastRow(); })
-          .sort(function (a, b) { return b - a; }); // Hapus dari baris terbawah agar index baris atas tidak bergeser!
-
-        for (var d = 0; d < sortedIndices.length; d++) {
-          try {
-            sheet.deleteRow(sortedIndices[d]);
-            deletedRows.push(sortedIndices[d]);
-          } catch (e) { }
-        }
-      } else {
-        const rowIndex = parseInt(payload.row_index, 10);
-        if (!isNaN(rowIndex) && rowIndex >= 2 && rowIndex <= lastRow) {
-          sheet.deleteRow(rowIndex);
-          deletedRows.push(rowIndex);
-        }
-      }
-
-      // 2. Jika delete_all_matching true atau masih ada baris duplikat dengan no_agenda yang sama
-      if (noAgendaStr && (payload.delete_all_matching || deletedRows.length === 0)) {
-        const curLast = sheet.getLastRow();
-        if (curLast >= 2) {
-          const totalScan = curLast - 1;
-          const vals = sheet.getRange(2, 2, totalScan, 1).getValues();
-          for (var i = totalScan - 1; i >= 0; i--) {
-            if (String(vals[i][0]).trim().toLowerCase() === noAgendaStr.toLowerCase()) {
-              var rTarget = i + 2;
-              sheet.deleteRow(rTarget);
-              deletedRows.push(rTarget);
-            }
+      // Cari baris target berdasarkan row_index, no_urut, atau no_agenda
+      let targetRow = -1;
+      const rowIndex = parseInt(payload.row_index, 10);
+      if (!isNaN(rowIndex) && rowIndex >= 2 && rowIndex <= lastRow) {
+        targetRow = rowIndex;
+      } else if (lastRow >= 2) {
+        const totalScan = lastRow - 1;
+        const vals = sheet.getRange(2, 1, totalScan, 2).getValues();
+        for (let i = 0; i < totalScan; i++) {
+          const rowUrut = String(vals[i][0]).trim();
+          const rowAgenda = String(vals[i][1]).trim();
+          if ((noUrutStr && rowUrut === noUrutStr) || (noAgendaStr && rowAgenda.toLowerCase() === noAgendaStr.toLowerCase())) {
+            targetRow = i + 2;
+            break;
           }
         }
       }
 
+      if (targetRow > 0) {
+        // Hapus file di Google Drive jika ada
+        const oldLampiran = String(sheet.getRange(targetRow, 10).getValue()).trim();
+        if (oldLampiran) {
+          const oldId = extractDriveFileId(oldLampiran);
+          if (oldId) {
+            try {
+              const oldFile = DriveApp.getFileById(oldId);
+              if (oldFile && !oldFile.isTrashed()) oldFile.setTrashed(true);
+            } catch (e) { }
+          }
+        }
+
+        // HANYA HAPUS ISINYA (Clear-Only) tanpa menghapus baris fisik template
+        sheet.getRange(targetRow, 2, 1, 9).setValues([["", "", "", "", "CABANG DINAS WIL.VII", "SMA YWKA", "", "", "Surat Masuk"]]);
+        clearedRows.push(targetRow);
+      }
+
       return createJsonResponse({
         status: "success",
-        message: "Data surat masuk " + (noAgendaStr || noUrutStr) + " (Baris: " + deletedRows.join(", ") + ") berhasil dihapus bersih dari Spreadsheet!",
+        message: "Data surat masuk berhasil dibersihkan dari Spreadsheet tanpa merusak baris atau nomor urut!",
         no_agenda: noAgendaStr,
-        deleted_rows: deletedRows
+        cleared_rows: clearedRows
       });
     }
 
     // ==========================================
-    // 9. DEDUKLIKASI OTOMATIS SELURUH SPREADSHEET
-    // ==========================================
+
     if (action === "clean_duplicates" || action === "clean_duplicate_surat_masuk") {
       const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
       if (!sheet) {

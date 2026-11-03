@@ -1,4 +1,4 @@
-/* ===================================================================
+﻿/* ===================================================================
    Sistem Informasi Agenda Surat SMA YWKA Bandung
    Modern Design System & Styling (v2.0 with Drive Upload & 12 Codes)
    =================================================================== */
@@ -969,6 +969,68 @@ body {
   color: #ffffff;
   border-color: #10b981;
   box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+.drive-cell-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.btn-print-direct {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-print-direct:hover {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.btn-drive-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 4px 7px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.btn-drive-mini:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-table-action.btn-print-action {
+  color: #2563eb;
+  border-color: #bfdbfe;
+  background-color: #eff6ff;
+}
+
+.btn-table-action.btn-print-action:hover {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
 }
 
 .action-buttons {
@@ -1946,6 +2008,139 @@ body {
   width: 220px;
 }
 
+/* ================= MODAL CETAK & PRATINJAU SURAT (TABS & PREVIEW) ================= */
+.print-modal-tabs {
+  display: flex;
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--border-color);
+  padding: 6px 16px 0;
+  gap: 8px;
+}
+
+.print-tab-btn {
+  padding: 9px 18px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.print-tab-btn:hover {
+  color: #1e293b;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.print-tab-btn.active {
+  background: #ffffff;
+  color: var(--primary);
+  border-color: var(--border-color);
+  border-bottom-color: #ffffff;
+  margin-bottom: -1px;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.03);
+}
+
+.badge-tab-pill {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.badge-tab-pill.has-file {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-tab-pill.no-file {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.print-berkas-container {
+  padding: 6px 0;
+}
+
+.print-berkas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.print-file-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.print-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-iframe-wrapper {
+  width: 100%;
+  height: 560px;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #f8fafc;
+  position: relative;
+  box-shadow: var(--shadow-sm);
+}
+
+.preview-iframe-wrapper iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.print-empty-file {
+  text-align: center;
+  padding: 60px 20px;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: var(--radius-lg);
+  margin: 10px 0;
+}
+
+.print-empty-file i {
+  font-size: 52px;
+  color: #94a3b8;
+  margin-bottom: 16px;
+}
+
+.print-empty-file h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.print-empty-file p {
+  font-size: 13.5px;
+  color: #64748b;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
 /* ================= TOAST NOTIFICATION ================= */
 .toast-container {
   position: fixed;
@@ -2350,39 +2545,84 @@ body {
   margin-top: 2px;
 }
 
-/* Cetak Bersih Khusus Lembar Surat */
+/* Cetak Bersih Khusus Lembar Surat & Dokumen */
 @media print {
+  /* Sembunyikan elemen navigasi dan tombol saat mencetak */
+  .no-print,
+  .print-modal-tabs,
+  .print-berkas-toolbar,
+  .sidebar,
+  .top-navbar,
+  .filter-toolbar,
+  .panel-actions,
+  .pagination-footer,
+  .form-actions-bar,
+  .toast-container,
+  .modal-footer,
+  .modal-close-btn,
+  .category-pills-bar,
+  .btn,
+  .action-buttons {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
   body * {
     visibility: hidden;
   }
-  
+
+  /* Lembar Disposisi & Agenda saat Modal Dibuka */
   #modalDisposisi.show,
-  #modalDisposisi.show * {
-    visibility: visible;
+  #modalDisposisi.show #disposisiPrintArea,
+  #modalDisposisi.show #disposisiPrintArea * {
+    visibility: visible !important;
   }
-  
+
   #modalDisposisi.show {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    background: transparent;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
   }
-  
+
+  #modalDisposisi.show .modal-dialog {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  #modalDisposisi.show .modal-body {
+    padding: 0 !important;
+  }
+
+  .disposisi-card {
+    border: 2px solid #000000 !important;
+    page-break-inside: avoid !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 12mm 15mm !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Lembar Naskah Surat Dinas */
   .official-letter-sheet,
   .official-letter-sheet * {
-    visibility: visible;
+    visibility: visible !important;
   }
 
   .official-letter-wrapper {
     background: transparent !important;
     padding: 0 !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
   }
 
   .official-letter-sheet {
