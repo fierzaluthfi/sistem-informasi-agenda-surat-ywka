@@ -1,4 +1,4 @@
-﻿/* ===================================================================
+/* ===================================================================
    Sistem Informasi Agenda Surat SMA YWKA Bandung
    Modern Design System & Styling (v2.0 with Drive Upload & 12 Codes)
    =================================================================== */
@@ -947,28 +947,65 @@ body {
   color: #475569;
 }
 
-/* Tombol Berkas Google Drive di Tabel */
+/* Tombol Berkas Google Drive di Tabel (Status File Ada / Sudah Tersimpan di Drive) */
 .btn-drive-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  background-color: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
-  padding: 4px 9px;
+  background-color: #ecfdf5 !important;
+  color: #065f46 !important;
+  border: 1.5px solid #10b981 !important;
+  padding: 4px 11px !important;
   border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
   text-decoration: none;
-  transition: var(--transition);
+  transition: all 0.2s ease-in-out;
   white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.2);
+}
+
+.btn-drive-link i {
+  color: #10b981 !important;
+  font-size: 13px !important;
 }
 
 .btn-drive-link:hover {
-  background-color: #10b981;
-  color: #ffffff;
-  border-color: #10b981;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  background-color: #10b981 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-drive-link:hover i {
+  color: #ffffff !important;
+}
+
+/* Status Badge Resmi vs Draft */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-badge.status-active {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.status-badge.status-pending {
+  background-color: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
 }
 .drive-cell-group {
   display: inline-flex;
@@ -1101,28 +1138,39 @@ body {
   width: fit-content;
 }
 
-/* Tombol Upload Langsung di Kolom Berkas Drive */
+/* Tombol Upload Langsung di Kolom Berkas Drive (Status File Belum Ada di Drive) */
 .btn-upload-direct {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  background: #f8fafc;
-  color: #475569;
-  border: 1px dashed #cbd5e1;
-  padding: 3px 9px;
+  background-color: #f8fafc !important;
+  color: #64748b !important;
+  border: 1.5px dashed #cbd5e1 !important;
+  padding: 4px 10px !important;
   border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 11px !important;
+  font-weight: 600 !important;
   cursor: pointer;
-  transition: var(--transition);
+  transition: all 0.2s ease-in-out;
   white-space: nowrap;
 }
 
+.btn-upload-direct i {
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+}
+
 .btn-upload-direct:hover {
-  background: #eff6ff;
-  color: var(--primary);
-  border-color: var(--primary-border);
-  border-style: solid;
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  border-color: #94a3b8 !important;
+  border-style: solid !important;
+  transform: translateY(-1px);
+}
+
+.btn-upload-direct:hover i {
+  color: #475569 !important;
 }
 
 .loading-state {

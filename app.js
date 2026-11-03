@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ===================================================================
  * APLIKASI AGENDA SURAT SMA YWKA BANDUNG
  * app.js - Controller, Drive Upload, 12 Kode Surat & No. Agenda
@@ -1315,7 +1315,7 @@ function initNavigation() {
   const btnSelectAllHasFileMasuk = document.getElementById("btnSelectAllHasFileMasuk");
   if (btnSelectAllHasFileMasuk) {
     btnSelectAllHasFileMasuk.addEventListener("click", () => {
-      const hasFiles = state.filteredMasuk.filter(m => Boolean(m.driveUrl || (m.lampiran && m.lampiran.includes("http"))));
+      const hasFiles = state.filteredMasuk.filter(m => hasDriveFileAttached(m));
       hasFiles.forEach(item => state.selectedMasukIds.add(item.id));
       renderSuratMasukTable();
       updateBatchMasukBar();
@@ -1393,9 +1393,7 @@ function initNavigation() {
   const btnBatchPrintFilterOnlyFiles = document.getElementById("btnBatchPrintFilterOnlyFiles");
   if (btnBatchPrintFilterOnlyFiles) {
     btnBatchPrintFilterOnlyFiles.addEventListener("click", () => {
-      state.batchPrintItems = state.batchPrintItems.filter(item => {
-        return Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.fileBase64);
-      });
+      state.batchPrintItems = state.batchPrintItems.filter(item => hasDriveFileAttached(item));
       renderBatchPrintItemsTable();
     });
   }
@@ -3616,6 +3614,74 @@ async function loadDataFromSpreadsheet() {
 }
 
 /**
+ * Helper: Normalisasi URL/ID Berkas Google Drive dari kolom Spreadsheet
+ * Mampu membaca format full link (http/https), /d/<id>, /<id>, atau raw File ID (20+ karakter)
+ */
+function normalizeDriveFileUrl(val) {
+  if (!val) return "";
+  const str = String(val).trim();
+  if (!str || str === "Surat Keluar" || str === "Surat Masuk" || str === "-" || str === "null" || str === "undefined") {
+    return "";
+  }
+  // 1. Full URL
+  if (str.startsWith("http://") || str.startsWith("https://")) {
+    return str;
+  }
+  // 2. Format /d/<id>
+  const matchD = str.match(/\/d\/([a-zA-Z0-9_-]{15,})/);
+  if (matchD && matchD[1]) {
+    return `https://drive.google.com/file/d/${matchD[1]}/view?usp=drivesdk`;
+  }
+  // 3. Format /<id>
+  const matchSlash = str.match(/^\/([a-zA-Z0-9_-]{15,})/);
+  if (matchSlash && matchSlash[1]) {
+    return `https://drive.google.com/file/d/${matchSlash[1]}/view?usp=drivesdk`;
+  }
+  // 4. Raw file ID (20 karakter atau lebih, tanpa spasi dan garis miring)
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(str)) {
+    return `https://drive.google.com/file/d/${str}/view?usp=drivesdk`;
+  }
+  return "";
+}
+
+/**
+ * Helper: Cek secara presisi apakah surat memiliki berkas di Google Drive
+ */
+function hasDriveFileAttached(item) {
+  if (!item) return false;
+  if (item.driveUrl && item.driveUrl.includes("http")) return true;
+  if (item.fileBase64) return true;
+  if (item.status === true) return true; // Checkbox di Kolom B Spreadsheet telah diceklis
+  if (item.lampiran) {
+    const lamp = String(item.lampiran).trim();
+    if (lamp && lamp !== "Surat Keluar" && lamp !== "Surat Masuk" && lamp !== "-") {
+      if (lamp.includes("drive.google.com") || lamp.startsWith("http") || lamp.startsWith("/d/") || lamp.startsWith("/1") || /^[a-zA-Z0-9_-]{20,}$/.test(lamp)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Helper: Dapatkan URL tautan berkas Google Drive dengan fallback folder
+ */
+function getDriveLinkHref(item, type = "keluar") {
+  if (!item) return "";
+  const defaultFolder = type === "keluar"
+    ? (state.driveKeluarUrl || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5")
+    : (state.driveMasukUrl || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W");
+
+  if (item.driveUrl && item.driveUrl.includes("http")) {
+    return item.driveUrl;
+  }
+  const normLampiran = normalizeDriveFileUrl(item.lampiran);
+  if (normLampiran) return normLampiran;
+
+  return defaultFolder;
+}
+
+/**
  * Parse CSV Surat Keluar: No. Urut Mengikuti No. Agenda (Col D) dengan Anti-Duplikasi
  */
 function parseCsvKeluar(csvText) {
@@ -3643,6 +3709,9 @@ function parseCsvKeluar(csvText) {
     const bulanRomawi = (r[5] || "").trim();
     const tahun = (r[6] || "").trim();
     const lampiranVal = (r[13] || "").trim();
+    const normalizedDriveUrl = normalizeDriveFileUrl(lampiranVal);
+    const isChecked = r[1] === "TRUE";
+    const hasDriveFile = Boolean(isChecked || normalizedDriveUrl || (lampiranVal && (lampiranVal.includes("http") || lampiranVal.startsWith("/d/") || lampiranVal.startsWith("/1") || /^[a-zA-Z0-9_-]{20,}$/.test(lampiranVal))));
 
     let nomorLengkap = "";
     if (kodePrefix && noAgenda) {
@@ -3655,7 +3724,7 @@ function parseCsvKeluar(csvText) {
       id: "K-" + (i + 1),
       rowIndex: i + 1,
       noUrut: noUrut, // No. Urut mengikuti No. Agenda
-      status: r[1] === "TRUE",
+      status: isChecked || hasDriveFile,
       kodeKlasifikasi: kodePrefix.replace("/", "").trim() || "421.3",
       noAgenda: noAgenda,
       nomorLengkap: nomorLengkap,
@@ -3666,8 +3735,8 @@ function parseCsvKeluar(csvText) {
       kepada: (r[10] || "").trim(),
       petugas: (r[11] || "").trim(),
       keterangan: (r[12] || "").trim(),
-      lampiran: lampiranVal || "Surat Keluar",
-      driveUrl: lampiranVal.includes("drive.google.com") ? lampiranVal : ""
+      lampiran: normalizedDriveUrl || lampiranVal || (hasDriveFile ? normalizedDriveUrl : "Surat Keluar"),
+      driveUrl: normalizedDriveUrl
     });
   }
 
@@ -3686,6 +3755,9 @@ function parseCsvKeluar(csvText) {
         if (!ex.driveUrl && item.driveUrl) {
           ex.driveUrl = item.driveUrl;
           ex.lampiran = item.lampiran;
+        }
+        if (!ex.status && item.status) {
+          ex.status = true;
         }
         continue;
       }
@@ -3712,8 +3784,10 @@ function parseCsvMasuk(csvText) {
     const perihal = (r[4] || "").trim();
     const noAgenda = (r[1] || "").trim();
     const lampiranVal = (r[9] || "").trim();
+    const normalizedDriveUrlM = normalizeDriveFileUrl(lampiranVal);
+    const hasDriveFileM = Boolean(normalizedDriveUrlM || (lampiranVal && (lampiranVal.includes("http") || lampiranVal.startsWith("/d/") || lampiranVal.startsWith("/1") || /^[a-zA-Z0-9_-]{20,}$/.test(lampiranVal))));
 
-        // Abaikan baris template kosong di mana kolom B hanya berisi angka urutan (218, 219, dst) tanpa perihal
+    // Abaikan baris template kosong di mana kolom B hanya berisi angka urutan (218, 219, dst) tanpa perihal
     if (!perihal && (!noAgenda || /^\d+$/.test(noAgenda))) continue;
 
     let tglSuratVal = formatDateIndo((r[2] || "").trim());
@@ -3733,6 +3807,7 @@ function parseCsvMasuk(csvText) {
       id: "M-" + (i + 1),
       rowIndex: i + 1,
       noUrut: (r[0] || "").trim(),
+      status: hasDriveFileM,
       noAgenda: noAgenda || "-",
       tglSurat: tglSuratVal,
       tglMasuk: tglMasukVal,
@@ -3741,8 +3816,8 @@ function parseCsvMasuk(csvText) {
       kepada: (r[6] || "SMA YWKA").trim(),
       kodeKlasifikasi: (r[7] || "").trim(),
       keterangan: (r[8] || "").trim(),
-      lampiran: lampiranVal || "Surat Masuk",
-      driveUrl: lampiranVal.includes("drive.google.com") ? lampiranVal : ""
+      lampiran: normalizedDriveUrlM || lampiranVal || (hasDriveFileM ? normalizedDriveUrlM : "Surat Masuk"),
+      driveUrl: normalizedDriveUrlM
     });
   }
 
@@ -3777,6 +3852,9 @@ function parseCsvMasuk(csvText) {
         if (!existing.driveUrl && item.driveUrl) {
           existing.driveUrl = item.driveUrl;
           existing.lampiran = item.lampiran;
+        }
+        if (!existing.status && item.status) {
+          existing.status = true;
         }
 
         // Jika nomor urut yang lama bentrok (misal 209 bentrok dengan Polban) sedangkan yang baru 210, ambil 210
@@ -3960,14 +4038,14 @@ function renderSuratKeluarTable() {
   currentSlice.forEach((item, idx) => {
     const rowNum = start + idx + 1;
     const isSelected = state.selectedKeluarIds ? state.selectedKeluarIds.has(item.id) : false;
-    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
-    const targetDriveHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveKeluarUrl || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5"));
+    const hasDriveFile = hasDriveFileAttached(item);
+    const targetDriveHref = getDriveLinkHref(item, "keluar");
     const driveLinkHtml = hasDriveFile
-      ? `<a href="${targetDriveHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas di Google Drive">
-           <i class="fa-brands fa-google-drive text-emerald"></i> Berkas Drive
+      ? `<a href="${targetDriveHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Berkas sudah tersedia di Google Drive (Klik untuk membuka berkas)">
+           <i class="fa-brands fa-google-drive"></i> Berkas Drive
          </a>`
-      : `<button type="button" class="btn-upload-direct" title="Upload berkas ke Google Drive Surat Keluar" onclick="openUploadModalKeluar('${item.id}')">
-           <i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Upload Drive
+      : `<button type="button" class="btn-upload-direct" title="Berkas belum diunggah ke Google Drive Surat Keluar (Klik untuk mengunggah)" onclick="openUploadModalKeluar('${item.id}')">
+           <i class="fa-solid fa-cloud-arrow-up"></i> Upload Drive
          </button>`;
 
     html += `
@@ -4102,14 +4180,14 @@ function renderSuratMasukTable() {
   let html = "";
   currentSlice.forEach((item, idx) => {
     const rowNum = start + idx + 1;
-    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.status === true);
-    const targetDriveMasukHref = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : (state.driveMasukUrl || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W"));
+    const hasDriveFile = hasDriveFileAttached(item);
+    const targetDriveMasukHref = getDriveLinkHref(item, "masuk");
     const driveLinkHtml = hasDriveFile
-      ? `<a href="${targetDriveMasukHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-mini" title="Buka berkas scan di Google Drive">
-           <i class="fa-brands fa-google-drive text-emerald"></i> Berkas Drive
+      ? `<a href="${targetDriveMasukHref}" target="_blank" rel="noopener noreferrer" class="btn-drive-link" title="Berkas scan sudah tersedia di Google Drive (Klik untuk membuka berkas)">
+           <i class="fa-brands fa-google-drive"></i> Berkas Drive
          </a>`
-      : `<button type="button" class="btn-upload-direct" title="Upload berkas scan ke Google Drive Surat Masuk" onclick="openUploadModalMasuk('${item.id}')">
-           <i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Upload Drive
+      : `<button type="button" class="btn-upload-direct" title="Berkas scan belum diunggah ke Google Drive Surat Masuk (Klik untuk mengunggah)" onclick="openUploadModalMasuk('${item.id}')">
+           <i class="fa-solid fa-cloud-arrow-up"></i> Upload Drive
          </button>`;
 
     const isSelected = state.selectedMasukIds ? state.selectedMasukIds.has(item.id) : false;
@@ -5004,8 +5082,8 @@ function openDirectPrint(id, type = "keluar", initialTab = "disposisi") {
   if (!modal) return;
 
   const isMasuk = (type === "masuk");
-  const rawFileUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64 || "";
-  const hasFile = Boolean(rawFileUrl);
+  const rawFileUrl = getDriveLinkHref(item, type);
+  const hasFile = hasDriveFileAttached(item);
 
   currentPrintData = { item, type, hasFile, rawFileUrl };
 
@@ -6796,9 +6874,10 @@ function openEditModalKeluar(id) {
   if (txtKet) txtKet.value = item.keterangan || "";
 
   if (curFile) {
-    const hasDrive = item.driveUrl || (item.lampiran && item.lampiran.includes("http"));
+    const hasDrive = hasDriveFileAttached(item);
+    const driveHref = getDriveLinkHref(item, "keluar");
     curFile.innerHTML = hasDrive 
-      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" class="text-emerald font-bold"><i class="fa-brands fa-google-drive"></i> Berkas Drive Tersedia</a>`
+      ? `<a href="${driveHref}" target="_blank" class="text-emerald font-bold"><i class="fa-brands fa-google-drive"></i> Berkas Drive Tersedia</a>`
       : `<span style="color: #64748b;">${escapeHtml(item.lampiran || "Belum ada berkas")}</span>`;
   }
   if (fileInput) fileInput.value = "";
@@ -7036,9 +7115,10 @@ function openEditModalMasuk(id) {
   if (selKode) selKode.value = item.kodeKlasifikasi || "";
 
   if (curFile) {
-    const hasDrive = item.driveUrl || (item.lampiran && item.lampiran.includes("http"));
+    const hasDrive = hasDriveFileAttached(item);
+    const driveHref = getDriveLinkHref(item, "masuk");
     curFile.innerHTML = hasDrive
-      ? `<a href="${item.driveUrl || item.lampiran}" target="_blank" class="text-emerald font-bold"><i class="fa-brands fa-google-drive"></i> Berkas Scan Drive Tersedia</a>`
+      ? `<a href="${driveHref}" target="_blank" class="text-emerald font-bold"><i class="fa-brands fa-google-drive"></i> Berkas Scan Drive Tersedia</a>`
       : `<span style="color: #64748b;">${escapeHtml(item.lampiran || "Belum ada berkas scan")}</span>`;
   }
   if (fileInput) fileInput.value = "";
@@ -7444,8 +7524,7 @@ function renderBatchPrintItemsTable() {
 
   let hasFileCount = 0;
   items.forEach(item => {
-    const rawUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64;
-    if (rawUrl) hasFileCount++;
+    if (hasDriveFileAttached(item)) hasFileCount++;
   });
 
   if (scopeBadge) scopeBadge.textContent = `${total} Surat Terpilih`;
@@ -7466,8 +7545,7 @@ function renderBatchPrintItemsTable() {
 
   let html = "";
   items.forEach((item, idx) => {
-    const rawUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64;
-    const hasFile = Boolean(rawUrl);
+    const hasFile = hasDriveFileAttached(item);
     const agendaText = isMasuk ? (item.noAgenda || "-") : (item.noAgenda || item.noUrut || "-");
     const tglText = isMasuk ? (item.tglSurat || "-") : (item.tanggal || "-");
     const instansiText = isMasuk ? (item.dari || "-") : (item.kepada || "-");
@@ -7634,9 +7712,7 @@ function executeBatchPrintDisposisi() {
  */
 function executeBatchPrintFiles() {
   const items = state.batchPrintItems || [];
-  const filesToPrint = items.filter(item => {
-    return Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")) || item.fileBase64);
-  });
+  const filesToPrint = items.filter(item => hasDriveFileAttached(item));
 
   if (filesToPrint.length === 0) {
     showToast("Tidak ada surat terpilih yang memiliki berkas lampiran!", "warning");
@@ -7647,7 +7723,7 @@ function executeBatchPrintFiles() {
 
   // Buka popup antrean cetak atau buka jendela preview cetak untuk berkas pertama dan selanjutnya
   filesToPrint.forEach((item, idx) => {
-    const rawUrl = item.driveUrl || (item.lampiran && item.lampiran.includes("http") ? item.lampiran : "") || item.fileBase64;
+    const rawUrl = getDriveLinkHref(item, state.batchPrintType || "keluar");
     const embedUrl = getGoogleDriveEmbedUrl(rawUrl);
 
     setTimeout(() => {
