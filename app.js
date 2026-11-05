@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ===================================================================
  * APLIKASI AGENDA SURAT SMA YWKA BANDUNG
  * app.js - Controller, Drive Upload, 12 Kode Surat & No. Agenda
@@ -2014,6 +2014,7 @@ function doPost(e) {
       if (foundRow > 0) {
         sheet.getRange(foundRow, 2).setValue(true);
         sheet.getRange(foundRow, 14).setValue(driveUrl);
+        SpreadsheetApp.flush();
       }
 
       return createJsonResponse({
@@ -2343,45 +2344,81 @@ function doPost(e) {
 
       const noAgendaStr = String(payload.no_agenda || "").trim();
       const noUrutStr = String(payload.no_urut || "").trim();
+      const rowIndex = payload.row_index ? parseInt(payload.row_index, 10) : -1;
+
       if (!payload.fileBase64 || !payload.fileName) {
         return createJsonResponse({ status: "error", message: "Berkas upload tidak ditemukan!" });
       }
+
+      const lastRow = Math.max(sheet.getLastRow(), 302);
+      let foundRow = -1;
+      let existingLampiran = "";
+
+      // 1. Validasi baris target berdasarkan row_index jika diberikan
+      if (!isNaN(rowIndex) && rowIndex >= 2 && rowIndex <= lastRow) {
+        const rowUrut = String(sheet.getRange(rowIndex, 1).getValue()).trim();
+        const rowAgenda = String(sheet.getRange(rowIndex, 2).getValue()).trim();
+        if ((noUrutStr && rowUrut === noUrutStr) || (noAgendaStr && noAgendaStr !== "-" && rowAgenda === noAgendaStr)) {
+          foundRow = rowIndex;
+          existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+        }
+      }
+
+      // 2. Jika belum ditemukan, scan berdasarkan nomor urut (Kolom A) dan no agenda (Kolom B)
+      if (foundRow === -1 && lastRow >= 2) {
+        const totalScan = lastRow - 1;
+        const urutColValues = sheet.getRange(2, 1, totalScan, 1).getValues();
+        const agendaColValues = sheet.getRange(2, 2, totalScan, 1).getValues();
+
+        // Utamakan pencarian berdasarkan no_urut terlebih dahulu jika ada
+        if (noUrutStr) {
+          for (let i = 0; i < totalScan; i++) {
+            if (String(urutColValues[i][0]).trim() === noUrutStr) {
+              foundRow = i + 2;
+              existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+              break;
+            }
+          }
+        }
+
+        // Jika belum cocok dan ada no_agenda valid (bukan "-" atau kosong)
+        if (foundRow === -1 && noAgendaStr && noAgendaStr !== "-") {
+          for (let i = 0; i < totalScan; i++) {
+            if (String(agendaColValues[i][0]).trim() === noAgendaStr) {
+              foundRow = i + 2;
+              existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+              break;
+            }
+          }
+        }
+      }
+
+      const oldDriveUrl = payload.old_drive_url || existingLampiran;
 
       const driveUrl = uploadFileToGoogleDrive(
         payload.fileBase64,
         payload.fileName,
         payload.fileMime || "application/pdf",
-        "Surat Masuk 2026"
+        "Surat Masuk 2026",
+        oldDriveUrl,
+        noUrutStr ? ("No " + noUrutStr + (noAgendaStr && noAgendaStr !== "-" ? " - " + noAgendaStr : "")) : noAgendaStr
       );
 
       if (!driveUrl) {
         return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
       }
 
-      const lastRow = Math.max(sheet.getLastRow(), 302);
-      let foundRow = -1;
-      if (lastRow >= 2) {
-        const totalScan = lastRow - 1;
-        const agendaColValues = sheet.getRange(2, 2, totalScan, 1).getValues();
-        const urutColValues = sheet.getRange(2, 1, totalScan, 1).getValues();
-        for (let i = 0; i < totalScan; i++) {
-          if ((noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr) ||
-              (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
-            foundRow = i + 2;
-            break;
-          }
-        }
-      }
-
       if (foundRow > 0) {
         sheet.getRange(foundRow, 10).setValue(driveUrl);
+        SpreadsheetApp.flush();
       }
 
       return createJsonResponse({
         status: "success",
-        message: "Berkas berhasil diupload ke Google Drive Surat Masuk!",
+        message: "Berkas berhasil diupload ke Google Drive Surat Masuk & tautan disimpan ke Spreadsheet!",
         drive_file_url: driveUrl,
         no_agenda: noAgendaStr,
+        no_urut: noUrutStr,
         target_row: foundRow
       });
     }
@@ -3511,6 +3548,11 @@ async function loadDataFromSpreadsheet() {
         if (localItem) {
           if ((!kItem.tanggal || kItem.tanggal === "-") && (localItem.tanggal && localItem.tanggal !== "-")) {
             kItem.tanggal = localItem.tanggal;
+          if (!kItem.driveUrl && localItem.driveUrl) {
+            kItem.driveUrl = localItem.driveUrl;
+            kItem.lampiran = localItem.lampiran || localItem.driveUrl;
+            kItem.status = true;
+          }
           }
         }
       });
@@ -3550,13 +3592,18 @@ async function loadDataFromSpreadsheet() {
       }
 
       liveMasuk.forEach(mItem => {
-        const localItem = state.suratMasuk.find(s => (s.noAgenda && mItem.noAgenda && s.noAgenda === mItem.noAgenda) || (s.noUrut && mItem.noUrut && s.noUrut === mItem.noUrut));
+        const localItem = state.suratMasuk.find(s => (s.noAgenda && mItem.noAgenda && s.noAgenda !== "-" && mItem.noAgenda !== "-" && s.noAgenda === mItem.noAgenda) || (s.noUrut && mItem.noUrut && String(s.noUrut).trim() === String(mItem.noUrut).trim()));
         if (localItem) {
           if ((!mItem.tglSurat || mItem.tglSurat === "-") && (localItem.tglSurat && localItem.tglSurat !== "-")) {
             mItem.tglSurat = localItem.tglSurat;
           }
           if ((!mItem.tglMasuk || mItem.tglMasuk === "-") && (localItem.tglMasuk && localItem.tglMasuk !== "-")) {
             mItem.tglMasuk = localItem.tglMasuk;
+          if (!mItem.driveUrl && localItem.driveUrl) {
+            mItem.driveUrl = localItem.driveUrl;
+            mItem.lampiran = localItem.lampiran || localItem.driveUrl;
+            mItem.status = true;
+          }
           }
         }
       });
@@ -5366,6 +5413,8 @@ function openUploadModalKeluar(id) {
   const targetIdInput = document.getElementById("uploadModalTargetId");
   const targetAgendaInput = document.getElementById("uploadModalTargetAgenda");
   const targetTypeInput = document.getElementById("uploadModalTargetType");
+  const targetUrutInput = document.getElementById("uploadModalTargetUrut");
+  const targetRowIndexInput = document.getElementById("uploadModalTargetRowIndex");
   const nomorText = document.getElementById("uploadModalNomorLengkap");
   const perihalText = document.getElementById("uploadModalPerihal");
   const fileInput = document.getElementById("inputUploadRowFile");
@@ -5376,6 +5425,8 @@ function openUploadModalKeluar(id) {
   if (targetIdInput) targetIdInput.value = item.id;
   const noAgendaVal = item.noAgenda || item.noUrut || "";
   if (targetAgendaInput) targetAgendaInput.value = noAgendaVal;
+  if (targetUrutInput) targetUrutInput.value = item.noUrut || noAgendaVal;
+  if (targetRowIndexInput) targetRowIndexInput.value = item.rowIndex || "";
   if (nomorText) nomorText.textContent = item.nomorLengkap || `No. Agenda: ${noAgendaVal}`;
   if (perihalText) perihalText.textContent = item.perihal || "-";
   if (fileInput) fileInput.value = "";
@@ -5407,8 +5458,13 @@ function openUploadModalMasuk(id) {
   if (folderInfo) folderInfo.innerHTML = `<i class="fa-solid fa-folder-tree"></i> Tersimpan otomatis ke folder: <strong>Surat Masuk 2026</strong> pada Google Drive SMA YWKA`;
   if (targetTypeInput) targetTypeInput.value = "masuk";
   if (targetIdInput) targetIdInput.value = item.id;
-  if (targetAgendaInput) targetAgendaInput.value = item.noAgenda || item.noUrut || "";
-  if (nomorText) nomorText.textContent = item.noAgenda ? `No. Asal/Agenda: ${item.noAgenda}` : `No. Urut: ${item.noUrut}`;
+  const targetUrutInput = document.getElementById("uploadModalTargetUrut");
+  const targetRowIndexInput = document.getElementById("uploadModalTargetRowIndex");
+  const cleanAgenda = (item.noAgenda && item.noAgenda !== "-") ? item.noAgenda.trim() : "";
+  if (targetAgendaInput) targetAgendaInput.value = cleanAgenda;
+  if (targetUrutInput) targetUrutInput.value = item.noUrut || "";
+  if (targetRowIndexInput) targetRowIndexInput.value = item.rowIndex || "";
+  if (nomorText) nomorText.textContent = cleanAgenda ? `No. Asal/Agenda: ${cleanAgenda} (No. Urut: ${item.noUrut || "-"})` : `No. Urut: ${item.noUrut || "-"}`;
   if (perihalText) perihalText.textContent = `${item.perihal || "-"} (Pengirim: ${item.dari || "-"})`;
   if (fileInput) fileInput.value = "";
 
@@ -5424,6 +5480,8 @@ async function handleExecuteUploadRowDrive(e) {
   const targetId = document.getElementById("uploadModalTargetId")?.value;
   const targetAgenda = document.getElementById("uploadModalTargetAgenda")?.value;
   const targetType = document.getElementById("uploadModalTargetType")?.value || "keluar";
+  const targetUrut = document.getElementById("uploadModalTargetUrut")?.value || "";
+  const targetRowIndex = document.getElementById("uploadModalTargetRowIndex")?.value || "";
   const fileInput = document.getElementById("inputUploadRowFile");
   const btnSubmit = document.getElementById("btnSubmitUploadRowDrive");
   const modal = document.getElementById("modalUploadRowDrive");
@@ -5457,12 +5515,15 @@ async function handleExecuteUploadRowDrive(e) {
 
     const isMasuk = (targetType === "masuk");
     const targetItem = isMasuk
-      ? state.suratMasuk.find(m => m.id === targetId || m.noAgenda === targetAgenda)
+      ? state.suratMasuk.find(m => m.id === targetId || (targetUrut && m.noUrut && String(m.noUrut).trim() === String(targetUrut).trim()) || (targetAgenda && targetAgenda !== "-" && m.noAgenda && m.noAgenda === targetAgenda))
       : state.suratKeluar.find(s => s.id === targetId || s.noAgenda === targetAgenda);
 
     const payload = {
       action: isMasuk ? "upload_lampiran_masuk" : "upload_lampiran_keluar",
       no_agenda: targetAgenda,
+      no_urut: targetUrut,
+      row_index: targetRowIndex,
+
       fileName: fileName,
       fileBase64: fileBase64,
       fileMime: fileMime,
@@ -5478,10 +5539,11 @@ async function handleExecuteUploadRowDrive(e) {
     const resJson = await res.json();
     if (resJson && resJson.status === "success" && resJson.drive_file_url) {
       if (isMasuk) {
-        const item = state.suratMasuk.find(m => m.id === targetId || m.noAgenda === targetAgenda);
+        const item = state.suratMasuk.find(m => m.id === targetId || (targetUrut && m.noUrut && String(m.noUrut).trim() === String(targetUrut).trim()) || (targetAgenda && targetAgenda !== "-" && m.noAgenda && m.noAgenda === targetAgenda));
         if (item) {
           item.driveUrl = resJson.drive_file_url;
           item.lampiran = resJson.drive_file_url;
+          item.status = true;
         }
         localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
         filterSuratMasukData();
@@ -8253,4 +8315,4 @@ function triggerPwaInstall() {
     // Petunjuk manual jika sudah terinstall atau browser belum fire event
     showToast("💡 Buka menu browser HP (titik tiga ⋮) lalu pilih 'Tambahkan ke Layar Utama' atau 'Install Aplikasi'.", "info");
   }
-}
+}

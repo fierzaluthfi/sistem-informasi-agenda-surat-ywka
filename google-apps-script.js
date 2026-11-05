@@ -179,89 +179,89 @@ function sinkronkanBerkasDriveKeSpreadsheet() {
     const fKeluar = getSuratKeluarFolder();
     const sheetKeluar = ss ? ss.getSheetByName(SHEET_SURAT_KELUAR) : null;
 
-  if (fKeluar && sheetKeluar) {
-    const lastRow = sheetKeluar.getLastRow();
-    if (lastRow >= 4) {
-      const totalScan = lastRow - 3;
-      const rangeKeluar = sheetKeluar.getRange(4, 1, totalScan, 14);
-      const valuesKeluar = rangeKeluar.getValues();
+    if (fKeluar && sheetKeluar) {
+      const lastRow = sheetKeluar.getLastRow();
+      if (lastRow >= 4) {
+        const totalScan = lastRow - 3;
+        const rangeKeluar = sheetKeluar.getRange(4, 1, totalScan, 14);
+        const valuesKeluar = rangeKeluar.getValues();
 
-      // Buat pemetaan: no_agenda -> indeks baris di valuesKeluar
-      const agendaToIndices = {};
-      for (let i = 0; i < totalScan; i++) {
-        const rawAg = String(valuesKeluar[i][3] || "").trim(); // Kolom D (Index 3)
-        if (rawAg) {
-          if (!agendaToIndices[rawAg]) agendaToIndices[rawAg] = [];
-          agendaToIndices[rawAg].push(i);
-        }
-      }
-
-      Logger.log("📁 Memindai berkas di folder: \"" + fKeluar.getName() + "\" (" + fKeluar.getId() + ")");
-      const filesIter = fKeluar.getFiles();
-      let hasChanges = false;
-
-      while (filesIter.hasNext()) {
-        const file = filesIter.next();
-        if (file.isTrashed()) continue;
-        result.keluarScanned++;
-
-        const fileName = file.getName();
-        const fileId = file.getId();
-        const fileUrl = "https://drive.google.com/file/d/" + fileId + "/view?usp=drivesdk";
-
-        // Set sharing View bagi siapa saja yang memiliki tautan
-        try {
-          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        } catch (e) { }
-
-        const extractedAgenda = extractAgendaFromFileName(fileName);
-        if (!extractedAgenda) continue;
-
-        // Cari baris yang cocok di Spreadsheet
-        let targetIndices = agendaToIndices[extractedAgenda];
-        if (!targetIndices || targetIndices.length === 0) {
-          const numAg = parseInt(extractedAgenda, 10);
-          if (!isNaN(numAg)) {
-            targetIndices = agendaToIndices[String(numAg)] || agendaToIndices[String(numAg).padStart(3, "0")];
+        // Buat pemetaan: no_agenda -> indeks baris di valuesKeluar
+        const agendaToIndices = {};
+        for (let i = 0; i < totalScan; i++) {
+          const rawAg = String(valuesKeluar[i][3] || "").trim(); // Kolom D (Index 3)
+          if (rawAg) {
+            if (!agendaToIndices[rawAg]) agendaToIndices[rawAg] = [];
+            agendaToIndices[rawAg].push(i);
           }
         }
 
-        if (targetIndices && targetIndices.length > 0) {
-          result.keluarMatched++;
-          if (result.matchedAgendas.indexOf(extractedAgenda) === -1) {
-            result.matchedAgendas.push(extractedAgenda);
+        Logger.log("📁 Memindai berkas di folder: \"" + fKeluar.getName() + "\" (" + fKeluar.getId() + ")");
+        const filesIter = fKeluar.getFiles();
+        let hasChanges = false;
+
+        while (filesIter.hasNext()) {
+          const file = filesIter.next();
+          if (file.isTrashed()) continue;
+          result.keluarScanned++;
+
+          const fileName = file.getName();
+          const fileId = file.getId();
+          const fileUrl = "https://drive.google.com/file/d/" + fileId + "/view?usp=drivesdk";
+
+          // Set sharing View bagi siapa saja yang memiliki tautan
+          try {
+            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          } catch (e) { }
+
+          const extractedAgenda = extractAgendaFromFileName(fileName);
+          if (!extractedAgenda) continue;
+
+          // Cari baris yang cocok di Spreadsheet
+          let targetIndices = agendaToIndices[extractedAgenda];
+          if (!targetIndices || targetIndices.length === 0) {
+            const numAg = parseInt(extractedAgenda, 10);
+            if (!isNaN(numAg)) {
+              targetIndices = agendaToIndices[String(numAg)] || agendaToIndices[String(numAg).padStart(3, "0")];
+            }
           }
 
-          for (let k = 0; k < targetIndices.length; k++) {
-            const rIdx = targetIndices[k];
-            const curChecked = valuesKeluar[rIdx][1];
-            const curLampiran = String(valuesKeluar[rIdx][13] || "").trim();
+          if (targetIndices && targetIndices.length > 0) {
+            result.keluarMatched++;
+            if (result.matchedAgendas.indexOf(extractedAgenda) === -1) {
+              result.matchedAgendas.push(extractedAgenda);
+            }
 
-            if (!curChecked || !curLampiran.includes("drive.google.com") || curLampiran !== fileUrl) {
-              valuesKeluar[rIdx][1] = true; // Kolom B: Checkbox TRUE
-              valuesKeluar[rIdx][13] = fileUrl; // Kolom N: Link Drive
-              hasChanges = true;
-              result.keluarUpdated++;
-              const msg = "✅ [Surat Keluar Agenda " + extractedAgenda + "] Dipasangkan dengan \"" + fileName + "\"";
-              result.details.push(msg);
-              Logger.log(msg);
+            for (let k = 0; k < targetIndices.length; k++) {
+              const rIdx = targetIndices[k];
+              const curChecked = valuesKeluar[rIdx][1];
+              const curLampiran = String(valuesKeluar[rIdx][13] || "").trim();
+
+              if (!curChecked || !curLampiran.includes("drive.google.com") || curLampiran !== fileUrl) {
+                valuesKeluar[rIdx][1] = true; // Kolom B: Checkbox TRUE
+                valuesKeluar[rIdx][13] = fileUrl; // Kolom N: Link Drive
+                hasChanges = true;
+                result.keluarUpdated++;
+                const msg = "✅ [Surat Keluar Agenda " + extractedAgenda + "] Dipasangkan dengan \"" + fileName + "\"";
+                result.details.push(msg);
+                Logger.log(msg);
+              }
             }
           }
         }
-      }
 
-      if (hasChanges) {
-        // Tulis HANYA Kolom B (Kolom 2) dan Kolom N (Kolom 14) secara presisi agar tidak menyentuh kolom lain
-        const colBValues = valuesKeluar.map(r => [r[1]]);
-        const colNValues = valuesKeluar.map(r => [r[13]]);
-        sheetKeluar.getRange(4, 2, totalScan, 1).setValues(colBValues);
-        sheetKeluar.getRange(4, 14, totalScan, 1).setValues(colNValues);
-        SpreadsheetApp.flush();
-        Logger.log("💾 Kolom B dan Kolom N di Sheet " + SHEET_SURAT_KELUAR + " berhasil diperbarui!");
+        if (hasChanges) {
+          // Tulis HANYA Kolom B (Kolom 2) dan Kolom N (Kolom 14) secara presisi agar tidak menyentuh kolom lain
+          const colBValues = valuesKeluar.map(r => [r[1]]);
+          const colNValues = valuesKeluar.map(r => [r[13]]);
+          sheetKeluar.getRange(4, 2, totalScan, 1).setValues(colBValues);
+          sheetKeluar.getRange(4, 14, totalScan, 1).setValues(colNValues);
+          SpreadsheetApp.flush();
+          Logger.log("💾 Kolom B dan Kolom N di Sheet " + SHEET_SURAT_KELUAR + " berhasil diperbarui!");
+        }
       }
     }
-  }
-} catch (errKeluar) {
+  } catch (errKeluar) {
     Logger.log("⚠️ Kendala sinkronisasi Surat Keluar: " + errKeluar.toString());
   }
 
@@ -600,46 +600,12 @@ function rapikanNomorAgendaKeluar() {
 }
 
 function perbaikiBarisSuratMasuk() {
-  const ss = getTargetSpreadsheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_SURAT_MASUK);
   if (!sheet) {
     Logger.log("Sheet tidak ditemukan: " + SHEET_SURAT_MASUK);
     return "Sheet tidak ditemukan";
   }
-
-  // 1. Rapikan template surat masuk: Pindahkan nomor urut 218..300 dari Kolom B ke Kolom A jika Kolom A kosong
-  const lastRow = Math.max(sheet.getLastRow(), 301);
-  const totalRows = lastRow - 1;
-  const values = sheet.getRange(2, 1, totalRows, 10).getValues();
-  let fixedCount = 0;
-
-  for (let i = 0; i < values.length; i++) {
-    const curRow = i + 2;
-    const colA = String(values[i][0]).trim();
-    const colB = String(values[i][1]).trim();
-    const colE = String(values[i][4]).trim();
-
-    // Jika Kolom A kosong, tapi Kolom B adalah angka murni (misal 218..300) dan belum ada perihal (Col E)
-    if (!colA && /^\d+$/.test(colB) && !colE) {
-      sheet.getRange(curRow, 1).setValue(colB); // Pindahkan ke Kolom A (No. Urut)
-      sheet.getRange(curRow, 2).setValue("");   // Kosongkan Kolom B (No. Agenda)
-      if (!values[i][5]) sheet.getRange(curRow, 6).setValue("CABANG DINAS WIL.VII");
-      if (!values[i][6]) sheet.getRange(curRow, 7).setValue("SMA YWKA");
-      if (!values[i][9]) sheet.getRange(curRow, 10).setValue("Surat Masuk");
-      fixedCount++;
-    }
-  }
-
-  // 2. Relokasi baris salah di bawah baris 301 jika ada
-  const hasilRelocate = autoRelocateMisplacedSuratMasuk(sheet);
-  const hasil = "Template Surat Masuk berhasil dirapikan (" + fixedCount + " nomor urut template disesuaikan). " + hasilRelocate;
-  Logger.log(hasil);
-  return hasil;
-}
-
-function rapikanNomorUrutSuratMasuk() {
-  return perbaikiBarisSuratMasuk();
-}
   const hasil = autoRelocateMisplacedSuratMasuk(sheet);
   Logger.log(hasil);
   return hasil;
@@ -1517,6 +1483,7 @@ function doPost(e) {
       if (foundRow > 0) {
         sheet.getRange(foundRow, 2).setValue(true);
         sheet.getRange(foundRow, 14).setValue(driveUrl);
+        SpreadsheetApp.flush();
       }
 
       return createJsonResponse({
@@ -1895,6 +1862,8 @@ function doPost(e) {
 
       const noAgendaStr = String(payload.no_agenda || "").trim();
       const noUrutStr = String(payload.no_urut || "").trim();
+      const rowIndex = payload.row_index ? parseInt(payload.row_index, 10) : -1;
+
       if (!payload.fileBase64 || !payload.fileName) {
         return createJsonResponse({ status: "error", message: "Berkas upload tidak ditemukan!" });
       }
@@ -1902,16 +1871,42 @@ function doPost(e) {
       const lastRow = Math.max(sheet.getLastRow(), 302);
       let foundRow = -1;
       let existingLampiran = "";
-      if (lastRow >= 2) {
+
+      // 1. Validasi baris target berdasarkan row_index jika diberikan
+      if (!isNaN(rowIndex) && rowIndex >= 2 && rowIndex <= lastRow) {
+        const rowUrut = String(sheet.getRange(rowIndex, 1).getValue()).trim();
+        const rowAgenda = String(sheet.getRange(rowIndex, 2).getValue()).trim();
+        if ((noUrutStr && rowUrut === noUrutStr) || (noAgendaStr && noAgendaStr !== "-" && rowAgenda === noAgendaStr)) {
+          foundRow = rowIndex;
+          existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+        }
+      }
+
+      // 2. Jika belum ditemukan, scan berdasarkan nomor urut (Kolom A) dan no agenda (Kolom B)
+      if (foundRow === -1 && lastRow >= 2) {
         const totalScan = lastRow - 1;
-        const agendaColValues = sheet.getRange(2, 2, totalScan, 1).getValues();
         const urutColValues = sheet.getRange(2, 1, totalScan, 1).getValues();
-        for (let i = 0; i < totalScan; i++) {
-          if ((noAgendaStr && String(agendaColValues[i][0]).trim() === noAgendaStr) ||
-            (noUrutStr && String(urutColValues[i][0]).trim() === noUrutStr)) {
-            foundRow = i + 2;
-            existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
-            break;
+        const agendaColValues = sheet.getRange(2, 2, totalScan, 1).getValues();
+
+        // Utamakan pencarian berdasarkan no_urut terlebih dahulu jika ada
+        if (noUrutStr) {
+          for (let i = 0; i < totalScan; i++) {
+            if (String(urutColValues[i][0]).trim() === noUrutStr) {
+              foundRow = i + 2;
+              existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+              break;
+            }
+          }
+        }
+
+        // Jika belum cocok dan ada no_agenda valid (bukan "-" atau kosong)
+        if (foundRow === -1 && noAgendaStr && noAgendaStr !== "-") {
+          for (let i = 0; i < totalScan; i++) {
+            if (String(agendaColValues[i][0]).trim() === noAgendaStr) {
+              foundRow = i + 2;
+              existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+              break;
+            }
           }
         }
       }
@@ -1924,7 +1919,7 @@ function doPost(e) {
         payload.fileMime || "application/pdf",
         "Surat Masuk 2026",
         oldDriveUrl,
-        noAgendaStr || noUrutStr
+        noUrutStr ? ("No " + noUrutStr + (noAgendaStr && noAgendaStr !== "-" ? " - " + noAgendaStr : "")) : noAgendaStr
       );
 
       if (!driveUrl) {
@@ -1933,13 +1928,15 @@ function doPost(e) {
 
       if (foundRow > 0) {
         sheet.getRange(foundRow, 10).setValue(driveUrl);
+        SpreadsheetApp.flush();
       }
 
       return createJsonResponse({
         status: "success",
-        message: "Berkas berhasil diupload ke Google Drive Surat Masuk (versi lama digantikan tanpa duplikat)!",
+        message: "Berkas berhasil diupload ke Google Drive Surat Masuk & tautan disimpan ke Spreadsheet!",
         drive_file_url: driveUrl,
         no_agenda: noAgendaStr,
+        no_urut: noUrutStr,
         target_row: foundRow
       });
     }
