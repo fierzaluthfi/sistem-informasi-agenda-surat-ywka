@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
@@ -410,7 +410,7 @@
                     <th style="width: 160px;">Tujuan / Kepada</th>
                     <th style="width: 110px;">Petugas / PIC</th>
                     <th style="width: 145px; text-align: center;">Berkas Lampiran</th>
-                    <th style="width: 170px; text-align: center;">Aksi</th>
+                    <th style="width: 185px; text-align: center;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="tbodySuratKeluar">
@@ -566,7 +566,7 @@
                     <th style="width: 180px;">Dari (Pengirim)</th>
                     <th style="width: 110px;">Keterangan</th>
                     <th style="width: 145px; text-align: center;">Berkas Lampiran</th>
-                    <th style="width: 170px; text-align: center;">Aksi</th>
+                    <th style="width: 185px; text-align: center;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="tbodySuratMasuk">
@@ -969,6 +969,32 @@
                   <small class="helper-text">URL ini didapat setelah menyalin skrip v2.8 di bawah ke Apps Script Google Sheets Anda lalu klik Deploy > Web App.</small>
                 </div>
 
+                <div class="form-group" style="border-top: 1.5px dashed #cbd5e1; padding-top: 14px; margin-top: 14px; background: #f0fdf4; border-radius: 8px; padding: 14px 16px;">
+                  <label class="form-label font-bold" style="color: #065f46; display: flex; align-items: center; gap: 8px; font-size: 14.5px;">
+                    <i class="fa-brands fa-whatsapp text-emerald" style="font-size: 20px;"></i> 5. Pengaturan Notifikasi Laporan Bukti Kerja WhatsApp:
+                  </label>
+                  <p style="margin: 2px 0 12px 0; font-size: 12px; color: #15803d;">
+                    Otomatis mengirimkan laporan pengerjaan & bukti link berkas Drive ke nomor WhatsApp pribadi Anda atau Grup Administrasi TAS.
+                  </p>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+                    <div>
+                      <label for="inputWaPhone" class="form-label font-semibold" style="font-size: 12.5px;">Nomor WhatsApp Pribadi / Admin:</label>
+                      <input type="tel" id="inputWaPhone" class="form-control" placeholder="0895328047492 atau +62895328047492" value="0895328047492">
+                      <small class="helper-text">Format: <code>0895328047492</code> / <code>+62895328047492</code> (Tersimpan otomatis).</small>
+                    </div>
+                    <div>
+                      <label for="inputWaPetugas" class="form-label font-semibold" style="font-size: 12.5px;">Nama Petugas / Identitas TAS:</label>
+                      <input type="text" id="inputWaPetugas" class="form-control" placeholder="Fierza (Admin TAS YWKA)" value="Fierza (Admin TAS YWKA)">
+                      <small class="helper-text">Nama admin yang tercantum dalam format laporan bukti kerja.</small>
+                    </div>
+                  </div>
+                  <div style="margin-top: 10px; display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-outline btn-sm" id="btnTestWaMessage" style="background: #ffffff; color: #059669; border-color: #10b981;">
+                      <i class="fa-brands fa-whatsapp"></i> Uji Coba Format Laporan WhatsApp (+62895328047492)
+                    </button>
+                  </div>
+                </div>
+
                 <div class="form-actions-bar">
                   <button type="button" class="btn btn-secondary" id="btnTestConnection">
                     <i class="fa-solid fa-plug-circle-check"></i> Uji Koneksi
@@ -1309,17 +1335,25 @@
             <i class="fa-brands fa-google-drive text-emerald" style="font-size: 24px;"></i>
             <div>
               <strong style="font-size: 13.5px; color: #166534;">Berkas Dokumen Asli Tersedia di Google Drive</strong>
-              <p style="margin: 2px 0 0 0; font-size: 12px; color: #15803d;">Untuk melihat atau mencetak berkas scan PDF fisik asli, silakan buka langsung di Google Drive.</p>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: #15803d;">Gunakan tombol printer bawaan Google Drive di pojok kanan atas untuk cetak fisik lengkap.</p>
             </div>
           </div>
-          <a href="#" id="dispDriveLink" target="_blank" rel="noopener noreferrer" class="btn btn-emerald btn-sm" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
-            <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka di Drive
-          </a>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" class="btn btn-outline btn-sm" id="btnShareWaFromBanner" style="background: #ffffff; color: #059669; border-color: #10b981;" title="Kirim bukti kerja laporan ke WhatsApp">
+              <i class="fa-brands fa-whatsapp"></i> Laporan WA
+            </button>
+            <a href="#" id="dispDriveLink" target="_blank" rel="noopener noreferrer" class="btn btn-emerald btn-sm" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka di Drive
+            </a>
+          </div>
         </div>
       </div>
 
       <div class="modal-footer no-print">
         <button type="button" class="btn btn-secondary" id="btnCloseDisposisi">Tutup</button>
+        <button type="button" class="btn btn-outline" id="btnShareWaDisposisi" style="color: #059669; border-color: #10b981;" title="Kirim ringkasan surat & bukti kerja ini ke WhatsApp">
+          <i class="fa-brands fa-whatsapp"></i> Kirim ke WhatsApp
+        </button>
         <button type="button" class="btn btn-primary btn-lg" id="btnPrintDisposisiDoc">
           <i class="fa-solid fa-print"></i> Cetak Lembar Disposisi
         </button>
@@ -2124,9 +2158,67 @@
     </div>
   </div>
 
+  <!-- ================= MODAL: LAPORAN BUKTI KERJA WHATSAPP ================= -->
+  <div class="modal-backdrop" id="modalWaReport">
+    <div class="modal-dialog modal-md">
+      <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff;">
+        <h3 class="modal-title" style="color: #ffffff; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-brands fa-whatsapp" style="font-size: 22px;"></i> Laporan Bukti Kerja WhatsApp
+        </h3>
+        <button class="modal-close-btn" id="btnCloseModalWaReport" aria-label="Tutup" style="color: #ffffff;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px;">
+        <div style="background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <i class="fa-solid fa-circle-check text-emerald" style="font-size: 24px;"></i>
+            <div>
+              <strong style="color: #065f46; font-size: 14px;">Berkas Terunggah & Disinkronkan!</strong>
+              <p style="margin: 2px 0 0; font-size: 12px; color: #047857;">
+                Kirimkan bukti pengerjaan ini langsung ke nomor WhatsApp Anda atau bagikan ke Grup Administrasi TAS YWKA.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail Preview Laporan -->
+        <div class="form-group" style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label font-bold" style="margin-bottom: 0;">Pratinjau Format Laporan:</label>
+            <button type="button" class="btn btn-outline btn-xs" id="btnCopyWaText" style="padding: 3px 8px; font-size: 11.5px;">
+              <i class="fa-solid fa-copy"></i> Salin Teks
+            </button>
+          </div>
+          <textarea id="waReportPreviewText" class="form-control" rows="8" readonly style="font-family: monospace; font-size: 12px; line-height: 1.45; background: #f8fafc; color: #1e293b; resize: none;"></textarea>
+        </div>
+
+        <!-- Info Penerima Target -->
+        <div style="background: #f1f5f9; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: #475569; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div>
+            <i class="fa-solid fa-user-check text-primary"></i> <strong>Nomor WhatsApp Anda:</strong> <span id="waTargetPhoneDisplay" class="font-bold text-dark">+62895328047492</span>
+          </div>
+          <a href="#" id="linkEditWaPhone" style="font-size: 11.5px; color: #2563eb; text-decoration: underline;">Ubah</a>
+        </div>
+
+        <!-- Tombol Aksi Kirim -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button type="button" class="btn btn-emerald btn-lg" id="btnSendWaPersonal" style="width: 100%; justify-content: center; font-size: 14px; padding: 12px; font-weight: 700; gap: 8px;">
+            <i class="fa-brands fa-whatsapp" style="font-size: 19px;"></i> Kirim ke WhatsApp Saya (+62895328047492)
+          </button>
+          <button type="button" class="btn btn-outline btn-lg" id="btnSendWaGroup" style="width: 100%; justify-content: center; font-size: 14px; padding: 12px; color: #047857; border-color: #10b981; font-weight: 600; gap: 8px;">
+            <i class="fa-solid fa-users" style="font-size: 16px;"></i> Bagikan ke Grup Administrasi TAS / Kontak Lain
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px;">
+        <button type="button" class="btn btn-secondary" id="btnCloseWaReportFooter">Selesai / Tutup</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Container Cetak Bersih Disposisi Gabungan (Disembunyikan di layar, ditampilkan saat print) -->
   <div id="batchPrintArea" style="display: none;"></div>
 
 </body>
-</html>
 </html>

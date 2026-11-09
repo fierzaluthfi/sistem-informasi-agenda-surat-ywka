@@ -1123,6 +1123,16 @@ body {
   border-color: #fecdd3;
 }
 
+.btn-table-action.btn-wa-action {
+  color: #10b981;
+}
+
+.btn-table-action.btn-wa-action:hover {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
 /* Badge Format Tanggal Real-time */
 .date-format-badge {
   display: inline-flex;

@@ -20,6 +20,10 @@ const URL_EXPORT_MASUK = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_I
 // Masukkan URL Web App Apps Script di sini agar siapapun yang membuka di komputer lain langsung terhubung otomatis!
 const DEFAULT_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCUFM2sloMXHsvCqdil17RXugR9WOcRZFiXSHEnjIHCWajRXnVQTPtAWTmvm4BvBazyQ/exec";
 
+// Konfigurasi Notifikasi Laporan Bukti Kerja WhatsApp
+const DEFAULT_WA_PHONE = "62895328047492"; // Nomor Pribadi Admin Fierza (+62895328047492 / 0895328047492)
+const DEFAULT_WA_PETUGAS = "Fierza (Admin TAS YWKA)";
+
 // State Global Aplikasi
 let state = {
   suratKeluar: [],
@@ -35,6 +39,8 @@ let state = {
   appsScriptUrl: localStorage.getItem("sma_ywka_apps_script_url") || DEFAULT_APPS_SCRIPT_URL,
   driveKeluarUrl: localStorage.getItem("sma_ywka_drive_keluar_url") || "https://drive.google.com/drive/folders/15sHeKCXOjXDAFfHJtzKKZYA9OpYQb3R5",
   driveMasukUrl: localStorage.getItem("sma_ywka_drive_masuk_url") || "https://drive.google.com/drive/folders/11QCXz3fc9TCr993YIWIrH5JPwBr3my2W",
+  waPhone: localStorage.getItem("settings_wa_phone") || DEFAULT_WA_PHONE,
+  waPetugas: localStorage.getItem("settings_wa_petugas") || DEFAULT_WA_PETUGAS,
   lastFilledAgendaNumber: "620",
   nextKeluarAgenda: "621",
   isSyncing: false,
@@ -932,6 +938,7 @@ document.addEventListener("DOMContentLoaded", () => {
   try { initTemplateChips(); } catch (e) { console.error("Error initTemplateChips:", e); }
   try { initAppsScriptInstructions(); } catch (e) { console.error("Error initAppsScriptInstructions:", e); }
   try { initFileUploadHandlers(); } catch (e) { console.error("Error initFileUploadHandlers:", e); }
+  try { initWaModule(); } catch (e) { console.error("Error initWaModule:", e); }
   try { initEventListeners(); } catch (e) { console.error("Error initEventListeners:", e); }
   try { updateDriveLinksInUI(); } catch (e) { console.error("Error updateDriveLinksInUI:", e); }
   try { checkConnectionBanners(); } catch (e) { console.error("Error checkConnectionBanners:", e); }
@@ -1601,6 +1608,15 @@ function initAppsScriptInstructions() {
   }
   if (inputMasuk && state.driveMasukUrl) {
     inputMasuk.value = state.driveMasukUrl;
+  }
+
+  const inputWaPhone = document.getElementById("inputWaPhone");
+  const inputWaPetugas = document.getElementById("inputWaPetugas");
+  if (inputWaPhone) {
+    inputWaPhone.value = state.waPhone || localStorage.getItem("settings_wa_phone") || DEFAULT_WA_PHONE;
+  }
+  if (inputWaPetugas) {
+    inputWaPetugas.value = state.waPetugas || localStorage.getItem("settings_wa_petugas") || DEFAULT_WA_PETUGAS;
   }
 
   const scriptCode = `/**
@@ -2849,6 +2865,17 @@ function initEventListeners() {
       if (inputDriveMasuk) {
         state.driveMasukUrl = inputDriveMasuk.value.trim() || "https://drive.google.com/drive/folders/1e3YGwqV7cK0f7LVGyyxClgC7hTtVEL8A";
         localStorage.setItem("sma_ywka_drive_masuk_url", state.driveMasukUrl);
+      }
+
+      const inputWaPhone = document.getElementById("inputWaPhone");
+      const inputWaPetugas = document.getElementById("inputWaPetugas");
+      if (inputWaPhone) {
+        state.waPhone = inputWaPhone.value.trim() || DEFAULT_WA_PHONE;
+        localStorage.setItem("settings_wa_phone", state.waPhone);
+      }
+      if (inputWaPetugas) {
+        state.waPetugas = inputWaPetugas.value.trim() || DEFAULT_WA_PETUGAS;
+        localStorage.setItem("settings_wa_petugas", state.waPetugas);
       }
 
       updateDriveLinksInUI();
@@ -4127,6 +4154,9 @@ function renderSuratKeluarTable() {
             <button type="button" class="btn-table-action btn-print-action" title="Cetak Lembar Disposisi & Agenda" onclick="openDirectPrint('${item.id}', 'keluar')">
               <i class="fa-solid fa-print"></i>
             </button>
+            <button type="button" class="btn-table-action btn-wa-action" title="Kirim Laporan / Bukti Kerja ke WhatsApp (+62895328047492 / Grup TAS)" onclick="openWaReportForRow('${item.id}', 'keluar')">
+              <i class="fa-brands fa-whatsapp"></i>
+            </button>
             <button type="button" class="btn-table-action btn-edit-action" title="Edit Data Surat Keluar" onclick="openEditModalKeluar('${item.id}')">
               <i class="fa-solid fa-pen-to-square"></i>
             </button>
@@ -4261,6 +4291,9 @@ function renderSuratMasukTable() {
             </button>
             <button type="button" class="btn-table-action btn-print-action" title="Cetak Lembar Disposisi & Agenda" onclick="openDirectPrint('${item.id}', 'masuk')">
               <i class="fa-solid fa-print"></i>
+            </button>
+            <button type="button" class="btn-table-action btn-wa-action" title="Kirim Laporan / Bukti Kerja ke WhatsApp (+62895328047492 / Grup TAS)" onclick="openWaReportForRow('${item.id}', 'masuk')">
+              <i class="fa-brands fa-whatsapp"></i>
             </button>
             <button type="button" class="btn-table-action btn-edit-action" title="Edit Data Surat Masuk" onclick="openEditModalMasuk('${item.id}')">
               <i class="fa-solid fa-pen-to-square"></i>
@@ -5234,10 +5267,13 @@ function executePrintAttachedFile() {
 
   // 3. Fallback: Buka pop-up preview bersih khusus cetak
   const embedUrl = getGoogleDriveEmbedUrl(rawUrl);
-  const printWin = window.open(embedUrl, "CetakBerkasYWKA", "width=960,height=800,menubar=no,toolbar=no,scrollbars=yes");
+  const match = String(rawUrl).match(/\/d\/([a-zA-Z0-9_-]+)/) || String(rawUrl).match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  const fileId = match ? match[1] : null;
+  const targetUrl = fileId ? "https://drive.google.com/file/d/$fileId/view" : rawUrl;
+  const printWin = window.open(targetUrl, "_blank");
   if (printWin) {
     printWin.focus();
-    showToast("Jendela pratinjau berkas terbuka. Silakan tekan Ctrl+P atau ikon printer untuk mencetak.", "info");
+    showToast("📄 Berkas Google Drive dibuka. Gunakan ikon printer bawaan Google Drive di pojok kanan atas untuk cetak fisik lengkap tanpa lembar kosong.", "info", 5000);
   }
 }
 
@@ -5550,6 +5586,13 @@ async function handleExecuteUploadRowDrive(e) {
         updateDashboardUI();
         if (modal) modal.classList.remove("show");
         showToast(`✅ Berkas surat masuk berhasil diunggah ke Google Drive!`, "success");
+        setTimeout(() => {
+          openWaReportModal({
+            type: "masuk",
+            item: item,
+            driveUrl: resJson.drive_file_url
+          });
+        }, 350);
       } else {
         const item = state.suratKeluar.find(s => s.id === targetId || s.noAgenda === targetAgenda);
         if (item) {
@@ -5572,6 +5615,13 @@ async function handleExecuteUploadRowDrive(e) {
         updateDashboardUI();
         if (modal) modal.classList.remove("show");
         showToast(`✅ Berkas berhasil diunggah ke Google Drive & checkbox spreadsheet telah diceklis!`, "success");
+        setTimeout(() => {
+          openWaReportModal({
+            type: "keluar",
+            item: item,
+            driveUrl: resJson.drive_file_url
+          });
+        }, 350);
       }
     } else {
       throw new Error(resJson?.message || "Gagal mengunggah berkas");
@@ -7370,6 +7420,271 @@ window.openEditModalMasuk = openEditModalMasuk;
 window.handleExecuteEditSuratMasuk = handleExecuteEditSuratMasuk;
 window.openUploadModalKeluar = openUploadModalKeluar;
 window.openUploadModalMasuk = openUploadModalMasuk;
+// ===================================================================
+// MODUL LAPORAN BUKTI KERJA WHATSAPP (PERSONAL & GRUP ADMINISTRASI TAS)
+// ===================================================================
+
+let currentWaReportData = null;
+
+/**
+ * Normalisasi nomor WhatsApp ke standar internasional (contoh: 0895328047492 -> 62895328047492)
+ */
+function normalizeWaPhone(phone) {
+  if (!phone) return DEFAULT_WA_PHONE;
+  let clean = String(phone).replace(/[^\d+]/g, "").trim();
+  if (clean.startsWith("+")) clean = clean.substring(1);
+  if (clean.startsWith("0")) clean = "62" + clean.substring(1);
+  if (clean.startsWith("8")) clean = "62" + clean;
+  return clean || DEFAULT_WA_PHONE;
+}
+
+/**
+ * Format tampilan nomor telepon dengan awalan +
+ */
+function formatWaPhoneDisplay(phone) {
+  const norm = normalizeWaPhone(phone);
+  return "+" + norm;
+}
+
+/**
+ * Buat Teks Laporan Bukti Kerja WhatsApp Resmi
+ */
+function generateWaReportText({ type = "keluar", item = {}, driveUrl = "" }) {
+  const isMasuk = (type === "masuk");
+  const jenisTitle = isMasuk ? "Surat Masuk" : "Surat Keluar";
+  const noAgenda = isMasuk ? (item.noUrut || item.noAgenda || "-") : (item.noAgenda || item.noUrut || "-");
+  const noSurat = isMasuk ? (item.noAgenda || "-") : (item.nomorLengkap || "-");
+  const tgl = isMasuk
+    ? (item.tglSurat ? formatDateIndo(item.tglSurat) : "-") + (item.tglMasuk ? ` (Diterima: ${formatDateIndo(item.tglMasuk)})` : "")
+    : (item.tanggal ? formatDateIndo(item.tanggal) : "-");
+  const dari = item.dari || "-";
+  const kepada = item.kepada || "-";
+  const perihal = item.perihal || "-";
+  const petugas = state.waPetugas || localStorage.getItem("settings_wa_petugas") || DEFAULT_WA_PETUGAS;
+
+  const finalDriveUrl = driveUrl || item.driveUrl || (item.lampiran && item.lampiran.startsWith("http") ? item.lampiran : "");
+
+  // Format waktu pengerjaan saat ini
+  const now = new Date();
+  const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  const dayStr = dayNames[now.getDay()];
+  const dateStr = `${now.getDate()} ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} WIB`;
+
+  let msg = `*📢 LAPORAN BUKTI KERJA ADMINISTRASI TAS YWKA*\n`;
+  msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `✅ *Status:* Berkas Berhasil Diunggah & Disinkronkan\n`;
+  msg += `📁 *Jenis Agenda:* ${jenisTitle}\n`;
+  msg += `🔢 *No. Urut / Agenda:* ${noAgenda}\n`;
+  msg += `📜 *Nomor Surat:* ${noSurat}\n`;
+  msg += `📅 *Tanggal Surat:* ${tgl}\n`;
+  if (isMasuk) {
+    msg += `🏢 *Pengirim / Asal Surat:* ${dari}\n`;
+    if (kepada && kepada !== "-") msg += `🎯 *Ditujukan Kepada:* ${kepada}\n`;
+  } else {
+    msg += `🎯 *Ditujukan Kepada:* ${kepada}\n`;
+    if (dari && dari !== "-") msg += `🏢 *Pengirim / Pengonsep:* ${dari}\n`;
+  }
+  msg += `📝 *Perihal:* ${perihal}\n`;
+  msg += `👤 *Petugas Administrasi:* ${petugas}\n`;
+  msg += `🕒 *Waktu Pengerjaan:* ${dayStr}, ${dateStr} ${timeStr}\n\n`;
+
+  if (finalDriveUrl) {
+    msg += `🔗 *Tautan Berkas Google Drive:*\n${finalDriveUrl}\n\n`;
+  } else {
+    msg += `⚠️ *Tautan Berkas:* Belum dilampirkan link Drive\n\n`;
+  }
+
+  msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `_Laporan otomatis Sistem Agenda Surat SMAS YWKA Bandung sebagai bukti fisik pengerjaan administrasi._`;
+
+  return msg;
+}
+
+/**
+ * Buka Modal Laporan Bukti Kerja WhatsApp
+ */
+function openWaReportModal({ type = "keluar", item = {}, driveUrl = "" }) {
+  if (!item) return;
+
+  const finalDriveUrl = driveUrl || item.driveUrl || (item.lampiran && item.lampiran.startsWith("http") ? item.lampiran : "");
+  const text = generateWaReportText({ type, item, driveUrl: finalDriveUrl });
+
+  currentWaReportData = {
+    type,
+    item,
+    driveUrl: finalDriveUrl,
+    text
+  };
+
+  const modal = document.getElementById("modalWaReport");
+  const textArea = document.getElementById("waReportPreviewText");
+  const phoneDisplay = document.getElementById("waTargetPhoneDisplay");
+
+  const targetPhone = state.waPhone || localStorage.getItem("settings_wa_phone") || DEFAULT_WA_PHONE;
+
+  if (textArea) textArea.value = text;
+  if (phoneDisplay) phoneDisplay.textContent = formatWaPhoneDisplay(targetPhone);
+
+  const btnSendPersonal = document.getElementById("btnSendWaPersonal");
+  if (btnSendPersonal) {
+    btnSendPersonal.innerHTML = `<i class="fa-brands fa-whatsapp" style="font-size: 19px;"></i> Kirim ke WhatsApp Saya (${formatWaPhoneDisplay(targetPhone)})`;
+  }
+
+  if (modal) modal.classList.add("show");
+}
+
+/**
+ * Eksekusi Kirim WhatsApp (Personal atau Bagikan ke Grup TAS / Kontak Lain)
+ */
+function sendWaReport(isPersonal = true) {
+  if (!currentWaReportData || !currentWaReportData.text) {
+    showToast("Tidak ada data laporan yang siap dikirim!", "warning");
+    return;
+  }
+
+  const text = currentWaReportData.text;
+  let url = "";
+
+  if (isPersonal) {
+    const rawPhone = state.waPhone || localStorage.getItem("settings_wa_phone") || DEFAULT_WA_PHONE;
+    const normPhone = normalizeWaPhone(rawPhone);
+    url = `https://api.whatsapp.com/send?phone=${normPhone}&text=${encodeURIComponent(text)}`;
+    showToast(`Membuka WhatsApp untuk mengirim bukti kerja ke ${formatWaPhoneDisplay(normPhone)}...`, "info");
+  } else {
+    url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    showToast("Membuka WhatsApp untuk memilih Grup Administrasi TAS / kontak tujuan...", "info");
+  }
+
+  window.open(url, "_blank");
+}
+
+/**
+ * Buka Laporan WA langsung dari baris tabel
+ */
+function openWaReportForRow(id, type = "keluar") {
+  const isMasuk = (type === "masuk");
+  const item = isMasuk
+    ? state.suratMasuk.find(m => m.id === id)
+    : state.suratKeluar.find(s => s.id === id);
+
+  if (!item) {
+    showToast("Data surat tidak ditemukan!", "error");
+    return;
+  }
+
+  const driveUrl = getDriveLinkHref(item, type);
+  openWaReportModal({ type, item, driveUrl });
+}
+
+/**
+ * Inisialisasi Event Listener Modul WhatsApp
+ */
+function initWaModule() {
+  const modal = document.getElementById("modalWaReport");
+  const btnClose = document.getElementById("btnCloseModalWaReport");
+  const btnCloseFooter = document.getElementById("btnCloseWaReportFooter");
+  const btnSendPersonal = document.getElementById("btnSendWaPersonal");
+  const btnSendGroup = document.getElementById("btnSendWaGroup");
+  const btnCopy = document.getElementById("btnCopyWaText");
+  const linkEdit = document.getElementById("linkEditWaPhone");
+  const btnTestWa = document.getElementById("btnTestWaMessage");
+  const btnShareDisposisi = document.getElementById("btnShareWaDisposisi");
+  const btnShareBanner = document.getElementById("btnShareWaFromBanner");
+
+  if (btnClose && modal) {
+    btnClose.addEventListener("click", () => modal.classList.remove("show"));
+  }
+  if (btnCloseFooter && modal) {
+    btnCloseFooter.addEventListener("click", () => modal.classList.remove("show"));
+  }
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.classList.remove("show");
+    });
+  }
+
+  if (btnSendPersonal) {
+    btnSendPersonal.addEventListener("click", () => sendWaReport(true));
+  }
+  if (btnSendGroup) {
+    btnSendGroup.addEventListener("click", () => sendWaReport(false));
+  }
+
+  if (btnCopy) {
+    btnCopy.addEventListener("click", () => {
+      const text = currentWaReportData?.text || document.getElementById("waReportPreviewText")?.value || "";
+      if (text) {
+        copyText(text, "✅ Format laporan bukti kerja WhatsApp berhasil disalin ke clipboard!");
+      } else {
+        showToast("Teks laporan masih kosong!", "warning");
+      }
+    });
+  }
+
+  if (linkEdit && modal) {
+    linkEdit.addEventListener("click", (e) => {
+      e.preventDefault();
+      modal.classList.remove("show");
+      switchTab("tab-koneksi");
+      const input = document.getElementById("inputWaPhone");
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+  }
+
+  if (btnTestWa) {
+    btnTestWa.addEventListener("click", () => {
+      const inputWaPhone = document.getElementById("inputWaPhone");
+      const inputWaPetugas = document.getElementById("inputWaPetugas");
+      const testPhone = inputWaPhone ? inputWaPhone.value.trim() : DEFAULT_WA_PHONE;
+      const testPetugas = inputWaPetugas ? inputWaPetugas.value.trim() : DEFAULT_WA_PETUGAS;
+
+      const normPhone = normalizeWaPhone(testPhone);
+      const testMsg = `*📢 UJI COBA KONEKSI WHATSAPP ADMINISTRASI TAS YWKA*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `✅ *Status:* Format Notifikasi Berhasil Terhubung!\n` +
+        `👤 *Petugas Pengirim:* ${testPetugas}\n` +
+        `📱 *Nomor Tujuan:* +${normPhone}\n` +
+        `🕒 *Waktu Uji:* ${new Date().toLocaleString("id-ID")} WIB\n\n` +
+        `_Pesan ini membuktikan bahwa integrasi laporan bukti kerja otomatis di website Sistem Agenda Surat SMA YWKA Bandung telah aktif dan siap digunakan._`;
+
+      const url = `https://api.whatsapp.com/send?phone=${normPhone}&text=${encodeURIComponent(testMsg)}`;
+      showToast(`Membuka WhatsApp untuk mengirim uji coba ke +${normPhone}...`, "success");
+      window.open(url, "_blank");
+    });
+  }
+
+  if (btnShareDisposisi) {
+    btnShareDisposisi.addEventListener("click", () => {
+      if (currentPrintData && currentPrintData.item) {
+        openWaReportForRow(currentPrintData.item.id, currentPrintData.type);
+      } else {
+        showToast("Pilih surat terlebih dahulu!", "warning");
+      }
+    });
+  }
+
+  if (btnShareBanner) {
+    btnShareBanner.addEventListener("click", () => {
+      if (currentPrintData && currentPrintData.item) {
+        openWaReportForRow(currentPrintData.item.id, currentPrintData.type);
+      } else {
+        showToast("Pilih surat terlebih dahulu!", "warning");
+      }
+    });
+  }
+}
+
+// Window exports
+window.openWaReportForRow = openWaReportForRow;
+window.openWaReportModal = openWaReportModal;
+window.sendWaReport = sendWaReport;
+window.initWaModule = initWaModule;
+
 window.handleExecuteUploadRowDrive = handleExecuteUploadRowDrive;
 window.openBatchUploadModalKeluar = openBatchUploadModalKeluar;
 window.removeBatchFile = removeBatchFile;
