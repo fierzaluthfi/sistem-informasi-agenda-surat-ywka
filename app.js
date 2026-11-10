@@ -3105,6 +3105,10 @@ function initEventListeners() {
   if (formUploadRow) {
     formUploadRow.addEventListener("submit", handleExecuteUploadRowDrive);
   }
+  const btnDeleteExisting = document.getElementById("btnDeleteExistingDriveFile");
+  if (btnDeleteExisting) {
+    btnDeleteExisting.addEventListener("click", handleDeleteExistingDriveFile);
+  }
 
   // =========================================================================
   // BATCH UPLOAD SURAT KELUAR & CHECKBOX LISTENERS
@@ -5467,6 +5471,27 @@ function openUploadModalKeluar(id) {
   if (perihalText) perihalText.textContent = item.perihal || "-";
   if (fileInput) fileInput.value = "";
 
+  // Deteksi berkas lama di Drive (Skema Pembaruan Bersih)
+  const existingUrl = item.driveUrl || (item.lampiran && item.lampiran.startsWith("http") ? item.lampiran : "");
+  const existingBox = document.getElementById("uploadModalExistingBox");
+  const existingLink = document.getElementById("uploadModalExistingLink");
+  const modalTitle = document.getElementById("uploadModalTitleText");
+  const btnSubmit = document.getElementById("btnSubmitUploadRowDrive");
+  const labelFile = document.getElementById("labelUploadRowFile");
+
+  if (existingUrl) {
+    if (existingBox) existingBox.style.display = "block";
+    if (existingLink) existingLink.href = existingUrl;
+    if (modalTitle) modalTitle.innerHTML = `<i class="fa-solid fa-arrows-rotate text-emerald"></i> Perbarui Berkas Google Drive`;
+    if (btnSubmit) btnSubmit.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Perbarui Berkas ke Google Drive`;
+    if (labelFile) labelFile.innerHTML = `Pilih Berkas Baru Pengganti (PDF / DOCX / Gambar / Scan): <span class="text-danger">*</span>`;
+  } else {
+    if (existingBox) existingBox.style.display = "none";
+    if (modalTitle) modalTitle.innerHTML = `<i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas ke Google Drive`;
+    if (btnSubmit) btnSubmit.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Unggah ke Google Drive`;
+    if (labelFile) labelFile.innerHTML = `Pilih Berkas Lampiran Surat (PDF / DOCX / Gambar / Scan): <span class="text-danger">*</span>`;
+  }
+
   if (modal) modal.classList.add("show");
 }
 
@@ -5504,6 +5529,27 @@ function openUploadModalMasuk(id) {
   if (perihalText) perihalText.textContent = `${item.perihal || "-"} (Pengirim: ${item.dari || "-"})`;
   if (fileInput) fileInput.value = "";
 
+  // Deteksi berkas lama di Drive (Skema Pembaruan Bersih)
+  const existingUrl = item.driveUrl || (item.lampiran && item.lampiran.startsWith("http") ? item.lampiran : "");
+  const existingBox = document.getElementById("uploadModalExistingBox");
+  const existingLink = document.getElementById("uploadModalExistingLink");
+  const modalTitle = document.getElementById("uploadModalTitleText");
+  const btnSubmit = document.getElementById("btnSubmitUploadRowDrive");
+  const labelFile = document.getElementById("labelUploadRowFile");
+
+  if (existingUrl) {
+    if (existingBox) existingBox.style.display = "block";
+    if (existingLink) existingLink.href = existingUrl;
+    if (modalTitle) modalTitle.innerHTML = `<i class="fa-solid fa-arrows-rotate text-emerald"></i> Perbarui Berkas Google Drive`;
+    if (btnSubmit) btnSubmit.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Perbarui Berkas ke Google Drive`;
+    if (labelFile) labelFile.innerHTML = `Pilih Berkas Baru Pengganti (PDF / DOCX / Gambar / Scan): <span class="text-danger">*</span>`;
+  } else {
+    if (existingBox) existingBox.style.display = "none";
+    if (modalTitle) modalTitle.innerHTML = `<i class="fa-brands fa-google-drive text-emerald"></i> Upload Berkas ke Google Drive`;
+    if (btnSubmit) btnSubmit.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> Unggah ke Google Drive`;
+    if (labelFile) labelFile.innerHTML = `Pilih Berkas Lampiran Surat (PDF / DOCX / Gambar / Scan): <span class="text-danger">*</span>`;
+  }
+
   if (modal) modal.classList.add("show");
 }
 
@@ -5533,9 +5579,31 @@ async function handleExecuteUploadRowDrive(e) {
     return;
   }
 
+  const isMasuk = (targetType === "masuk");
+  const targetItem = isMasuk
+    ? state.suratMasuk.find(m => m.id === targetId || (targetUrut && m.noUrut && String(m.noUrut).trim() === String(targetUrut).trim()) || (targetAgenda && targetAgenda !== "-" && m.noAgenda && m.noAgenda === targetAgenda))
+    : state.suratKeluar.find(s => s.id === targetId || s.noAgenda === targetAgenda);
+
+  const hasExistingFile = Boolean(targetItem?.driveUrl || (targetItem?.lampiran && targetItem.lampiran.startsWith("http")));
+
   const origBtnHtml = btnSubmit.innerHTML;
   btnSubmit.disabled = true;
-  btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengunggah ke Drive...`;
+
+  if (hasExistingFile) {
+    btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 1/3 Menghapus link Spreadsheet...`;
+    setTimeout(() => {
+      if (btnSubmit && btnSubmit.disabled) {
+        btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 2/3 Membersihkan duplikat Drive...`;
+      }
+    }, 1400);
+    setTimeout(() => {
+      if (btnSubmit && btnSubmit.disabled) {
+        btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 3/3 Mengunggah berkas baru...`;
+      }
+    }, 2800);
+  } else {
+    btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengunggah ke Drive...`;
+  }
 
   try {
     const fileBase64 = await readFileAsBase64(file);
@@ -5585,7 +5653,7 @@ async function handleExecuteUploadRowDrive(e) {
         filterSuratMasukData();
         updateDashboardUI();
         if (modal) modal.classList.remove("show");
-        showToast(`✅ Berkas surat masuk berhasil diunggah ke Google Drive!`, "success");
+        showToast(hasExistingFile ? `✅ Berkas berhasil diperbarui! Link lama di Spreadsheet telah dihapus, duplikat Drive dibersihkan ke Sampah, dan berkas baru berhasil ditautkan.` : `✅ Berkas surat masuk berhasil diunggah ke Google Drive!`, "success");
         setTimeout(() => {
           openWaReportModal({
             type: "masuk",
@@ -5614,7 +5682,7 @@ async function handleExecuteUploadRowDrive(e) {
         filterSuratKeluarData();
         updateDashboardUI();
         if (modal) modal.classList.remove("show");
-        showToast(`✅ Berkas berhasil diunggah ke Google Drive & checkbox spreadsheet telah diceklis!`, "success");
+        showToast(hasExistingFile ? `✅ Berkas berhasil diperbarui! Link lama di Spreadsheet telah dihapus, duplikat Drive dibersihkan ke Sampah, dan berkas baru berhasil ditautkan.` : `✅ Berkas berhasil diunggah ke Google Drive & checkbox spreadsheet telah diceklis!`, "success");
         setTimeout(() => {
           openWaReportModal({
             type: "keluar",
@@ -7684,6 +7752,90 @@ window.openWaReportForRow = openWaReportForRow;
 window.openWaReportModal = openWaReportModal;
 window.sendWaReport = sendWaReport;
 window.initWaModule = initWaModule;
+
+/**
+ * Hapus Berkas Drive yang ada (Kosongkan tautan di Spreadsheet & buang berkas di Drive ke Sampah)
+ */
+async function handleDeleteExistingDriveFile() {
+  const targetId = document.getElementById("uploadModalTargetId")?.value;
+  const targetAgenda = document.getElementById("uploadModalTargetAgenda")?.value;
+  const targetType = document.getElementById("uploadModalTargetType")?.value || "keluar";
+  const targetUrut = document.getElementById("uploadModalTargetUrut")?.value || "";
+  const targetRowIndex = document.getElementById("uploadModalTargetRowIndex")?.value || "";
+  const modal = document.getElementById("modalUploadRowDrive");
+  const btnDelete = document.getElementById("btnDeleteExistingDriveFile");
+
+  const isMasuk = (targetType === "masuk");
+  const targetItem = isMasuk
+    ? state.suratMasuk.find(m => m.id === targetId || (targetUrut && m.noUrut && String(m.noUrut).trim() === String(targetUrut).trim()) || (targetAgenda && targetAgenda !== "-" && m.noAgenda && m.noAgenda === targetAgenda))
+    : state.suratKeluar.find(s => s.id === targetId || s.noAgenda === targetAgenda);
+
+  const oldUrl = targetItem?.driveUrl || (targetItem?.lampiran && targetItem.lampiran.startsWith("http") ? targetItem.lampiran : "");
+
+  if (!confirm("Hapus berkas Google Drive untuk surat ini?\n\nSkema: Link di Spreadsheet akan dikosongkan dan berkas di Google Drive akan dibuang ke Sampah.")) {
+    return;
+  }
+
+  const origBtnHtml = btnDelete ? btnDelete.innerHTML : "";
+  if (btnDelete) {
+    btnDelete.disabled = true;
+    btnDelete.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghapus...`;
+  }
+
+  try {
+    if (state.appsScriptUrl) {
+      const payload = {
+        action: "delete_lampiran_drive",
+        type: targetType,
+        no_agenda: targetAgenda,
+        no_urut: targetUrut,
+        row_index: targetRowIndex,
+        old_drive_url: oldUrl
+      };
+
+      const res = await fetch(state.appsScriptUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      });
+      const resJson = await res.json();
+      if (resJson && resJson.status !== "success") {
+        throw new Error(resJson.message || "Gagal menghapus berkas di Apps Script");
+      }
+    }
+
+    if (isMasuk) {
+      if (targetItem) {
+        targetItem.driveUrl = "";
+        targetItem.lampiran = "Surat Masuk";
+        targetItem.status = false;
+      }
+      localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
+      filterSuratMasukData();
+    } else {
+      if (targetItem) {
+        targetItem.driveUrl = "";
+        targetItem.lampiran = "Surat Keluar";
+        targetItem.status = false;
+      }
+      localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+      filterSuratKeluarData();
+    }
+
+    updateDashboardUI();
+    if (modal) modal.classList.remove("show");
+    showToast("✅ Berkas berhasil dihapus! Tautan di Spreadsheet telah dikosongkan dan berkas di Google Drive dipindahkan ke Sampah.", "success");
+  } catch (err) {
+    console.error("Gagal menghapus berkas Drive:", err);
+    showToast(`⚠️ Gagal menghapus berkas: ${err.message || err}`, "error");
+  } finally {
+    if (btnDelete) {
+      btnDelete.disabled = false;
+      btnDelete.innerHTML = origBtnHtml;
+    }
+  }
+}
+window.handleDeleteExistingDriveFile = handleDeleteExistingDriveFile;
 
 window.handleExecuteUploadRowDrive = handleExecuteUploadRowDrive;
 window.openBatchUploadModalKeluar = openBatchUploadModalKeluar;

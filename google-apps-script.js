@@ -1,7 +1,7 @@
 ﻿/**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 3.5 (PERBAIKAN PRESISI TEMPLATE NO. URUT 218 SURAT MASUK, PENEMPATAN AUTO-FOLLOW SURAT KELUAR 620->621, & CLEAR-ONLY DELETE)
+ * VERSI 3.6 (SKEMA BERSIH UPDATE DRIVE: HAPUS LINK SPREADSHEET DULU -> HAPUS DUPLIKAT DRIVE -> UNGGAH BERKAS BARU)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -1243,6 +1243,15 @@ function doPost(e) {
 
       let driveFileUrl = "";
       if (payload.fileBase64 && payload.fileName) {
+        // TAHAP 1: Hapus link di Spreadsheet terlebih dahulu
+        if (targetRowIndex > 0 && (existingLampiran || oldDriveUrl)) {
+          sheet.getRange(targetRowIndex, 14).setValue("");
+          sheet.getRange(targetRowIndex, 2).setValue(false);
+          SpreadsheetApp.flush();
+          Logger.log("✅ Tahap 1: Link drive lama di Surat Keluar agenda " + oldAgendaStr + " telah dikosongkan saat edit.");
+        }
+
+        // TAHAP 2 & 3: Hapus duplikat di Drive lalu unggah berkas baru
         driveFileUrl = uploadFileToGoogleDrive(
           payload.fileBase64,
           payload.fileName,
@@ -1467,6 +1476,19 @@ function doPost(e) {
 
       const oldDriveUrl = payload.old_drive_url || existingLampiran;
 
+      // ===================================================================
+      // TAHAP 1: HAPUS DULU LINK DRIVE DI SPREADSHEET (SURAT KELUAR)
+      // ===================================================================
+      if (foundRow > 0 && (existingLampiran || oldDriveUrl)) {
+        sheet.getRange(foundRow, 14).setValue(""); // Kosongkan tautan di Kolom N (14)
+        sheet.getRange(foundRow, 2).setValue(false); // Uncheck checklist di Kolom B (2)
+        SpreadsheetApp.flush();
+        Logger.log("✅ Tahap 1: Link drive lama di Surat Keluar agenda " + noAgendaStr + " telah dikosongkan dari Spreadsheet.");
+      }
+
+      // ===================================================================
+      // TAHAP 2 & 3: HAPUS DUPLIKAT DI DRIVE LALU UNGGAH BERKAS BARU
+      // ===================================================================
       const driveUrl = uploadFileToGoogleDrive(
         payload.fileBase64,
         payload.fileName,
@@ -1480,15 +1502,19 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
       }
 
+      // ===================================================================
+      // TAHAP 4: SIMPAN TAUTAN BERKAS BARU KE SPREADSHEET
+      // ===================================================================
       if (foundRow > 0) {
         sheet.getRange(foundRow, 2).setValue(true);
         sheet.getRange(foundRow, 14).setValue(driveUrl);
         SpreadsheetApp.flush();
+        Logger.log("✅ Tahap 4: Tautan berkas Drive baru berhasil disimpan ke Spreadsheet Surat Keluar.");
       }
 
       return createJsonResponse({
         status: "success",
-        message: "Berkas berhasil diupload ke Google Drive Surat Keluar (versi lama digantikan tanpa duplikat)!",
+        message: "Pembaruan berkas berhasil! Link lama di Spreadsheet telah dihapus, file duplikat di Drive dibersihkan ke Sampah, dan berkas baru berhasil diunggah.",
         drive_file_url: driveUrl,
         no_agenda: noAgendaStr,
         target_row: foundRow
@@ -1798,6 +1824,14 @@ function doPost(e) {
 
       let driveFileUrl = "";
       if (payload.fileBase64 && payload.fileName) {
+        // TAHAP 1: Hapus link di Spreadsheet terlebih dahulu
+        if (foundRow > 0 && (existingLampiran || oldDriveUrl)) {
+          sheet.getRange(foundRow, 10).setValue("");
+          SpreadsheetApp.flush();
+          Logger.log("✅ Tahap 1: Link drive lama di Surat Masuk baris " + foundRow + " telah dikosongkan saat edit.");
+        }
+
+        // TAHAP 2 & 3: Hapus duplikat di Drive lalu unggah berkas baru
         driveFileUrl = uploadFileToGoogleDrive(
           payload.fileBase64,
           payload.fileName,
@@ -1913,6 +1947,18 @@ function doPost(e) {
 
       const oldDriveUrl = payload.old_drive_url || existingLampiran;
 
+      // ===================================================================
+      // TAHAP 1: HAPUS DULU LINK DRIVE DI SPREADSHEET (SURAT MASUK)
+      // ===================================================================
+      if (foundRow > 0 && (existingLampiran || oldDriveUrl)) {
+        sheet.getRange(foundRow, 10).setValue(""); // Kosongkan link di Kolom J (10)
+        SpreadsheetApp.flush();
+        Logger.log("✅ Tahap 1: Link drive lama di Surat Masuk baris " + foundRow + " telah dikosongkan dari Spreadsheet.");
+      }
+
+      // ===================================================================
+      // TAHAP 2 & 3: HAPUS DUPLIKAT DI DRIVE LALU UNGGAH BERKAS BARU
+      // ===================================================================
       const driveUrl = uploadFileToGoogleDrive(
         payload.fileBase64,
         payload.fileName,
@@ -1926,18 +1972,100 @@ function doPost(e) {
         return createJsonResponse({ status: "error", message: "Gagal mengunggah berkas ke Google Drive!" });
       }
 
+      // ===================================================================
+      // TAHAP 4: SIMPAN TAUTAN BERKAS BARU KE SPREADSHEET
+      // ===================================================================
       if (foundRow > 0) {
         sheet.getRange(foundRow, 10).setValue(driveUrl);
         SpreadsheetApp.flush();
+        Logger.log("✅ Tahap 4: Tautan berkas Drive baru berhasil disimpan ke Spreadsheet Surat Masuk.");
       }
 
       return createJsonResponse({
         status: "success",
-        message: "Berkas berhasil diupload ke Google Drive Surat Masuk & tautan disimpan ke Spreadsheet!",
+        message: "Pembaruan berkas berhasil! Link lama di Spreadsheet telah dihapus, file duplikat di Drive dibersihkan ke Sampah, dan berkas baru berhasil diunggah.",
         drive_file_url: driveUrl,
         no_agenda: noAgendaStr,
         no_urut: noUrutStr,
         target_row: foundRow
+      });
+    }
+
+    // ==========================================
+    // 7.B. HAPUS TAUTAN & BERKAS GOOGLE DRIVE (MENDUKUNG KELUAR & MASUK)
+    // ==========================================
+    if (action === "delete_lampiran_drive" || action === "delete_drive_file") {
+      const isMasuk = (String(payload.type).toLowerCase() === "masuk");
+      const targetSheetName = isMasuk ? SHEET_SURAT_MASUK : SHEET_SURAT_KELUAR;
+      const sheet = ss.getSheetByName(targetSheetName);
+      if (!sheet) {
+        return createJsonResponse({ status: "error", message: "Sheet " + targetSheetName + " tidak ditemukan!" });
+      }
+
+      const noAgendaStr = String(payload.no_agenda || "").trim();
+      const noUrutStr = String(payload.no_urut || "").trim();
+      const rowIndex = payload.row_index ? parseInt(payload.row_index, 10) : -1;
+      const lastRow = Math.max(sheet.getLastRow(), isMasuk ? 302 : 4);
+      let foundRow = -1;
+      let existingLampiran = "";
+
+      if (isMasuk) {
+        if (!isNaN(rowIndex) && rowIndex >= 2 && rowIndex <= lastRow) {
+          foundRow = rowIndex;
+        } else if (noUrutStr && lastRow >= 2) {
+          const colUrut = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+          for (let i = 0; i < colUrut.length; i++) {
+            if (String(colUrut[i][0]).trim() === noUrutStr) {
+              foundRow = i + 2;
+              break;
+            }
+          }
+        }
+        if (foundRow > 0) {
+          existingLampiran = String(sheet.getRange(foundRow, 10).getValue()).trim();
+          sheet.getRange(foundRow, 10).setValue(""); // Hapus link di Kolom J (10)
+          SpreadsheetApp.flush();
+        }
+      } else {
+        if (lastRow >= 4 && noAgendaStr) {
+          const colAgenda = sheet.getRange(4, 4, lastRow - 3, 1).getValues();
+          for (let i = 0; i < colAgenda.length; i++) {
+            if (String(colAgenda[i][0]).trim() === noAgendaStr) {
+              foundRow = i + 4;
+              break;
+            }
+          }
+        }
+        if (foundRow > 0) {
+          existingLampiran = String(sheet.getRange(foundRow, 14).getValue()).trim();
+          sheet.getRange(foundRow, 14).setValue(""); // Hapus link di Kolom N (14)
+          sheet.getRange(foundRow, 2).setValue(false); // Uncheck di Kolom B (2)
+          SpreadsheetApp.flush();
+        }
+      }
+
+      // Hapus berkas lama & duplikat di Google Drive
+      const fileUrlToTrash = payload.old_drive_url || existingLampiran;
+      const fileId = extractDriveFileId(fileUrlToTrash);
+      let trashedFromDrive = false;
+
+      if (fileId) {
+        try {
+          const f = DriveApp.getFileById(fileId);
+          if (f && !f.isTrashed()) {
+            f.setTrashed(true);
+            trashedFromDrive = true;
+          }
+        } catch (e) {
+          Logger.log("Info trash drive file: " + e.toString());
+        }
+      }
+
+      return createJsonResponse({
+        status: "success",
+        message: "Tautan di Spreadsheet berhasil dihapus dan berkas di Google Drive telah dibuang ke Sampah!",
+        target_row: foundRow,
+        trashed_from_drive: trashedFromDrive
       });
     }
 
@@ -2189,29 +2317,9 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName, 
     const oldId = extractDriveFileId(oldFileUrl);
 
     // ==============================================================
-    // CARA 1: MENIMPA KONTEN FILE SECARA IN-PLACE (JIKA DRIVE API AKTIF)
+    // SKEMA BERSIH: HAPUS FILE LAMA & SELURUH DUPLIKAT DI DRIVE, LALU BUAT BARU
     // ==============================================================
-    if (oldId && typeof Drive !== "undefined" && Drive.Files && Drive.Files.update) {
-      try {
-        const updated = Drive.Files.update(
-          { title: fileName, mimeType: mimeType },
-          oldId,
-          blob,
-          { newRevision: true }
-        );
-        if (updated && updated.id) {
-          Logger.log("? Berhasil menimpa (in-place) konten berkas Drive ID: " + oldId);
-          return "https://drive.google.com/file/d/" + oldId + "/view";
-        }
-      } catch (errInPlace) {
-        Logger.log("Info: In-place update dilewati, beralih ke penggantian bersih: " + errInPlace.toString());
-      }
-    }
-
-    // ==============================================================
-    // CARA 2: PENGGANTIAN BERSIH (REPLACE & TRASH SELURUH VERSI LAMA)
-    // ==============================================================
-    // 1. Pindahkan file lama ke sampah berdasarkan oldFileId
+    // 1. Pindahkan berkas lama ke Sampah berdasarkan oldFileId
     if (oldId) {
       try {
         const oldFile = DriveApp.getFileById(oldId);
