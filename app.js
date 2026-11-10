@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ===================================================================
  * APLIKASI AGENDA SURAT SMA YWKA BANDUNG
  * app.js - Controller, Drive Upload, 12 Kode Surat & No. Agenda
@@ -1278,6 +1278,10 @@ function initNavigation() {
         } else {
           openUploadModalKeluar(currentPrintData.item.id);
         }
+      }
+    });
+  }
+
   // Surat Masuk Table Checkbox Listeners
   const tbodyMasuk = document.getElementById("tbodySuratMasuk");
   if (tbodyMasuk) {
@@ -1421,10 +1425,6 @@ function initNavigation() {
   const btnExecuteBatchPrintFiles = document.getElementById("btnExecuteBatchPrintFiles");
   if (btnExecuteBatchPrintFiles) {
     btnExecuteBatchPrintFiles.addEventListener("click", executeBatchPrintFiles);
-  }
-
-      }
-    });
   }
 }
 
@@ -5776,6 +5776,7 @@ function updateBatchKeluarBar() {
   const bar = document.getElementById("batchKeluarBar");
   const countBadge = document.getElementById("batchKeluarCountBadge");
   const btnCount = document.getElementById("batchKeluarBtnCount");
+  const printBtnCount = document.getElementById("batchPrintKeluarBtnCount");
   const editBtnCount = document.getElementById("batchEditBtnCount");
   const editCount = document.getElementById("batchEditKeluarCount");
   const editApplyCount = document.getElementById("batchEditApplyCount");
@@ -5783,6 +5784,7 @@ function updateBatchKeluarBar() {
 
   if (countBadge) countBadge.textContent = count;
   if (btnCount) btnCount.textContent = count;
+  if (printBtnCount) printBtnCount.textContent = count;
   if (editBtnCount) editBtnCount.textContent = count;
   if (editCount) editCount.textContent = count;
   if (editApplyCount) editApplyCount.textContent = count;
