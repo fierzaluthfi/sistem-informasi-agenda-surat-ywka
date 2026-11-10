@@ -1,7 +1,7 @@
-﻿/**
+/**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 3.6 (SKEMA BERSIH UPDATE DRIVE: HAPUS LINK SPREADSHEET DULU -> HAPUS DUPLIKAT DRIVE -> UNGGAH BERKAS BARU)
+ * VERSI 3.7 (INTEGRASI SKEMA BERSIH UPDATE & HAPUS DRIVE PADA EDIT BATCH & SINGLE EDIT)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -1261,6 +1261,21 @@ function doPost(e) {
           newAgendaStr,
           oldAgendaStr
         );
+      } else if (payload.clear_drive_files === true || payload.clear_drive_files === "true") {
+        // SKEMA BERSIH: Kosongkan link di Spreadsheet & buang berkas di Drive ke Sampah
+        if (targetRowIndex > 0) {
+          sheet.getRange(targetRowIndex, 14).setValue("");
+          sheet.getRange(targetRowIndex, 2).setValue(false);
+          SpreadsheetApp.flush();
+        }
+        const fileId = extractDriveFileId(oldDriveUrl);
+        if (fileId) {
+          try {
+            const oldFile = DriveApp.getFileById(fileId);
+            if (oldFile && !oldFile.isTrashed()) oldFile.setTrashed(true);
+          } catch (eTrash) { }
+        }
+        existingLampiran = "";
       }
 
       if (targetRowIndex > 0) {
@@ -1273,10 +1288,10 @@ function doPost(e) {
         const existingValues = sheet.getRange(targetRowIndex, 1, 1, 14).getValues()[0];
         const existingNoUrut = existingValues[0] || newAgendaStr;
         const existingChecked = existingValues[1];
-        const existingLampiran = existingValues[13] || "Surat Keluar";
+        const existingLampiranVal = (payload.clear_drive_files === true || payload.clear_drive_files === "true") ? "" : (existingValues[13] || "Surat Keluar");
 
-        const finalLampiran = driveFileUrl || existingLampiran;
-        const isChecked = Boolean(driveFileUrl || existingChecked || (finalLampiran && finalLampiran.includes("http")));
+        const finalLampiran = driveFileUrl || existingLampiranVal;
+        const isChecked = (payload.clear_drive_files === true || payload.clear_drive_files === "true") ? false : Boolean(driveFileUrl || existingChecked || (finalLampiran && finalLampiran.includes("http")));
 
         const rowData = [
           existingNoUrut,
@@ -1421,6 +1436,51 @@ function doPost(e) {
           // Kolom M (Index 12): Keterangan
           if (item.keterangan !== undefined && item.keterangan !== null && item.keterangan !== "keep") {
             allValues[targetIdx][12] = item.keterangan;
+          }
+
+          // Kolom B (Index 1) & Kolom N (Index 13): Berkas Drive (Skema Bersih: Hapus Link Spreadsheet Dulu -> Hapus File & Duplikat Drive)
+          if (item.clear_drive_files === true || item.clear_drive_files === "true") {
+            const currentDriveCell = String(allValues[targetIdx][13] || "").trim();
+            const fileUrlToTrash = item.old_drive_url || currentDriveCell;
+
+            // 1. Kosongkan link di Kolom N (14) & uncheck status di Kolom B (2)
+            allValues[targetIdx][13] = "";
+            allValues[targetIdx][1] = false;
+
+            // 2. Buang berkas lama ke Sampah berdasarkan ID
+            const fileId = extractDriveFileId(fileUrlToTrash);
+            if (fileId) {
+              try {
+                const oldFile = DriveApp.getFileById(fileId);
+                if (oldFile && !oldFile.isTrashed()) {
+                  Logger.log("Batch edit: membuang berkas Drive ke Sampah (by ID): " + fileId);
+                  oldFile.setTrashed(true);
+                }
+              } catch (eTrash) {
+                Logger.log("Info trash batch drive file ID " + fileId + ": " + eTrash.toString());
+              }
+            }
+
+            // 3. Bersihkan juga duplikat berkas di folder Surat Keluar berdasarkan nomor agenda
+            try {
+              if (FOLDER_SURAT_KELUAR_ID && targetAgenda && targetAgenda !== "-" && targetAgenda !== "0") {
+                const targetFolderKeluar = DriveApp.getFolderById(FOLDER_SURAT_KELUAR_ID);
+                if (targetFolderKeluar) {
+                  const escapedAg = targetAgenda.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                  const agRegex = new RegExp("(?:^|[^0-9])(?:no\\.?\\s*|agenda\\s*)?" + escapedAg + "(?![0-9a-zA-Z])", "i");
+                  const fIter = targetFolderKeluar.getFiles();
+                  while (fIter.hasNext()) {
+                    const f = fIter.next();
+                    if (!f.isTrashed() && agRegex.test(f.getName())) {
+                      Logger.log("Batch edit: membuang duplikat berkas Drive: " + f.getName());
+                      f.setTrashed(true);
+                    }
+                  }
+                }
+              }
+            } catch (eCleanFolder) {
+              Logger.log("Info clean duplikat folder batch: " + eCleanFolder.toString());
+            }
           }
 
           successCount++;

@@ -3230,6 +3230,13 @@ function initEventListeners() {
     });
   }
 
+  const selBatchLampiranMode = document.getElementById("batchEditLampiranMode");
+  if (selBatchLampiranMode) {
+    selBatchLampiranMode.addEventListener("change", () => {
+      renderBatchEditPreview();
+    });
+  }
+
   const btnSubmitBatchEdit = document.getElementById("btnSubmitBatchEditKeluar");
   if (btnSubmitBatchEdit) {
     btnSubmitBatchEdit.addEventListener("click", () => executeBatchEditKeluar());
@@ -3247,6 +3254,21 @@ function initEventListeners() {
       renderSuratKeluarTable();
       updateBatchKeluarBar();
       showToast(`Dipilih ${noDrive.length} surat keluar yang belum memiliki berkas Google Drive`, "info");
+    });
+  }
+
+  const btnSelectAllHasDrive = document.getElementById("btnSelectAllHasDriveKeluar");
+  if (btnSelectAllHasDrive) {
+    btnSelectAllHasDrive.addEventListener("click", () => {
+      const hasDrive = state.filteredKeluar.filter(item => item.driveUrl || (item.lampiran && item.lampiran.includes("http")));
+      if (hasDrive.length === 0) {
+        showToast("Tidak ada surat keluar pada filter ini yang memiliki berkas Google Drive!", "info");
+        return;
+      }
+      hasDrive.forEach(item => state.selectedKeluarIds.add(item.id));
+      renderSuratKeluarTable();
+      updateBatchKeluarBar();
+      showToast(`Dipilih ${hasDrive.length} surat keluar yang memiliki berkas Google Drive`, "info");
     });
   }
 
@@ -6284,6 +6306,9 @@ function openBatchEditModalKeluar(targetIds = null) {
     inputKet.style.display = "none";
   }
 
+  const selLampiranMode = document.getElementById("batchEditLampiranMode");
+  if (selLampiranMode) selLampiranMode.value = "keep";
+
   // Sembunyikan progress box
   const progressBox = document.getElementById("batchEditProgressBox");
   if (progressBox) progressBox.style.display = "none";
@@ -6321,7 +6346,7 @@ function renderBatchEditPreview() {
   if (!tbody) return;
 
   if (total === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">Tidak ada surat yang dipilih.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 24px;">Tidak ada surat yang dipilih.</td></tr>`;
     return;
   }
 
@@ -6349,6 +6374,9 @@ function renderBatchEditPreview() {
       if (mIdx >= 0 && mIdx < 12) newRomanMonth = ROMAN_MONTHS[mIdx];
     }
   }
+
+  const selLampiranMode = document.getElementById("batchEditLampiranMode")?.value || "keep";
+  const isClearingDrive = (selLampiranMode === "clear_drive");
 
   tbody.innerHTML = state.batchEditKeluarItems.map(item => {
     const oldKode = item.kodeKlasifikasi || "421.3";
@@ -6383,6 +6411,22 @@ function renderBatchEditPreview() {
          </div>`
       : `<span style="font-size: 12px; color: #475569;">${escapeHtml(oldTgl)}</span>`;
 
+    const hasDriveFile = Boolean(item.driveUrl || (item.lampiran && item.lampiran.startsWith("http")));
+    let driveHtml = "";
+    if (hasDriveFile) {
+      if (isClearingDrive) {
+        driveHtml = `<div class="badge-diff-wrapper">
+          <span class="badge-diff-old" style="font-size: 11px; color: #0284c7;"><i class="fa-brands fa-google-drive"></i> Ada Berkas</span>
+          <i class="fa-solid fa-arrow-right badge-diff-arrow"></i>
+          <span class="badge-diff-new" style="background: #fee2e2; color: #dc2626; border-color: #fca5a5; font-size: 11px;"><i class="fa-solid fa-trash-can"></i> Dihapus</span>
+        </div>`;
+      } else {
+        driveHtml = `<span class="badge badge-success" style="font-size: 11px; padding: 2px 6px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;"><i class="fa-brands fa-google-drive"></i> Ada Berkas</span>`;
+      }
+    } else {
+      driveHtml = `<span style="font-size: 11.5px; color: #94a3b8; font-style: italic;"><i class="fa-solid fa-file-circle-xmark"></i> Kosong</span>`;
+    }
+
     return `
       <tr>
         <td style="text-align: center;">
@@ -6397,6 +6441,7 @@ function renderBatchEditPreview() {
           </div>
           ${item.kepada ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;"><i class="fa-solid fa-paper-plane"></i> ${escapeHtml(item.kepada)}</div>` : ''}
         </td>
+        <td style="text-align: center;">${driveHtml}</td>
         <td style="text-align: center;">
           <button type="button" class="btn-batch-remove-file" title="Keluarkan surat ini dari batch edit" onclick="removeBatchEditItem('${item.id}')">
             <i class="fa-solid fa-trash-can"></i>
@@ -6489,13 +6534,25 @@ async function executeBatchEditKeluar() {
     newKet = "";
   }
 
+  const selLampiranMode = document.getElementById("batchEditLampiranMode")?.value || "keep";
+  const isClearingDrive = (selLampiranMode === "clear_drive");
+
   // Validasi: Apakah ada kolom yang diubah?
-  if (!newKode && !newTglIndo && !newDari && newPetugas === null && newKet === null) {
-    showToast("⚠️ Anda belum memilih perubahan apapun! Tentukan setidaknya satu kolom yang ingin diubah (misalnya Kode Klasifikasi).", "warning");
+  if (!newKode && !newTglIndo && !newDari && newPetugas === null && newKet === null && !isClearingDrive) {
+    showToast("⚠️ Anda belum memilih perubahan apapun! Tentukan setidaknya satu kolom yang ingin diubah (misalnya Kode Klasifikasi atau Berkas Drive).", "warning");
     return;
   }
 
-  const confirmSubmit = confirm(`Anda akan memperbarui ${items.length} Surat Keluar terpilih sekaligus:\n${newKode ? `• Kode Klasifikasi Baru: ${newKode}\n` : ''}${newTglIndo ? `• Tanggal Surat Baru: ${newTglIndo}\n` : ''}${newDari ? `• Dari: ${newDari}\n` : ''}${newPetugas !== null ? `• Petugas: ${newPetugas || '(kosong)'}\n` : ''}${newKet !== null ? `• Keterangan: ${newKet || '(kosong)'}\n` : ''}\nLanjutkan pembaruan ke Spreadsheet?`);
+  const confirmSubmit = confirm(
+    `Anda akan memperbarui ${items.length} Surat Keluar terpilih sekaligus:\n` +
+    (newKode ? `• Kode Klasifikasi Baru: ${newKode}\n` : '') +
+    (newTglIndo ? `• Tanggal Surat Baru: ${newTglIndo}\n` : '') +
+    (newDari ? `• Dari: ${newDari}\n` : '') +
+    (newPetugas !== null ? `• Petugas: ${newPetugas || '(kosong)'}\n` : '') +
+    (newKet !== null ? `• Keterangan: ${newKet || '(kosong)'}\n` : '') +
+    (isClearingDrive ? `• Berkas Google Drive: HAPUS & KOSONGKAN TAUTAN DRIVE (Skema Bersih)\n` : '') +
+    `\nLanjutkan pembaruan ke Spreadsheet?`
+  );
   if (!confirmSubmit) return;
 
   const btnSubmit = document.getElementById("btnSubmitBatchEditKeluar");
@@ -6526,6 +6583,10 @@ async function executeBatchEditKeluar() {
     if (newDari) upd.dari = newDari;
     if (newPetugas !== null) upd.petugas = newPetugas;
     if (newKet !== null) upd.keterangan = newKet;
+    if (isClearingDrive) {
+      upd.clear_drive_files = true;
+      upd.old_drive_url = item.driveUrl || (item.lampiran && item.lampiran.startsWith("http") ? item.lampiran : "");
+    }
     return upd;
   });
 
@@ -6577,7 +6638,9 @@ async function executeBatchEditKeluar() {
         tahun: u.tahun || undefined,
         dari: u.dari || undefined,
         petugas: u.petugas !== undefined ? u.petugas : undefined,
-        keterangan: u.keterangan !== undefined ? u.keterangan : undefined
+        keterangan: u.keterangan !== undefined ? u.keterangan : undefined,
+        clear_drive_files: u.clear_drive_files || undefined,
+        old_drive_url: u.old_drive_url || undefined
       };
 
       try {
@@ -6614,12 +6677,27 @@ async function executeBatchEditKeluar() {
       if (newDari) realItem.dari = newDari;
       if (newPetugas !== null) realItem.petugas = newPetugas;
       if (newKet !== null) realItem.keterangan = newKet;
+      if (isClearingDrive) {
+        realItem.driveUrl = "";
+        realItem.lampiran = "Surat Keluar";
+        realItem.status = false;
+      }
 
       // Rekalkulasi nomorLengkap
       const kCode = realItem.kodeKlasifikasi || "421.3";
       const bRom = realItem.bulanRomawi || "X";
       const thn = realItem.tahun || "2026";
       realItem.nomorLengkap = `${kCode}/${realItem.noAgenda}/SMA YWKA/TU/${bRom}/${thn}`.replace(/\/{2,}/g, "/");
+
+      // Sinkronkan ke unsynced jika ada
+      const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+      const unIdx = unsyncedList.findIndex(x => x.id === target.id || x.noAgenda === target.noAgenda);
+      if (unIdx !== -1 && isClearingDrive) {
+        unsyncedList[unIdx].driveUrl = "";
+        unsyncedList[unIdx].lampiran = "Surat Keluar";
+        unsyncedList[unIdx].status = false;
+        localStorage.setItem("unsynced_surat_keluar", JSON.stringify(unsyncedList));
+      }
     }
   });
 
