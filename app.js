@@ -2695,7 +2695,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
     btnCopyScript.addEventListener("click", () => {
       const codeToCopy = (codeArea && codeArea.value) ? codeArea.value : scriptCode;
       navigator.clipboard.writeText(codeToCopy);
-      showToast("Kode Google Apps Script v3.3 berhasil disalin ke clipboard!", "success");
+      showToast("Kode Google Apps Script v3.8 berhasil disalin ke clipboard!", "success");
     });
   }
 }
@@ -2992,7 +2992,7 @@ function initEventListeners() {
         showToast("URL Google Apps Script belum disetel! Harap simpan URL Web App di tab Pengaturan.", "warning");
         return;
       }
-      const confirmRun = confirm("Apakah Anda ingin memulihkan urutan nomor agenda Surat Keluar 612 s/d 620 agar rapi kembali berurutan?\n\nSistem akan memperbaiki baris yang sempat tertukar/duplikat.");
+      const confirmRun = confirm("Apakah Anda ingin merapikan posisi & urutan No. Agenda Surat Keluar di Spreadsheet?\n\nSistem akan memindahkan surat yang tersimpan melompat ke baris bawah (seperti No. Agenda 691 ke slot yang tepat setelah 690) dan menghapus baris nyasar di bawah.");
       if (!confirmRun) return;
 
       btnRapikanKeluar.disabled = true;
@@ -4631,6 +4631,7 @@ async function handleCreateSuratKeluar(e) {
 
   const payload = {
     action: "create_surat_keluar",
+    no_agenda: noAgenda,
     no_urut: noAgenda,
     kode_klasifikasi: kode,
     nomor_urut: noAgenda,
@@ -4719,6 +4720,8 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
           newItem.driveUrl = resJson.drive_file_url;
           newItem.lampiran = resJson.drive_file_url;
         }
+        if (resJson.target_row) newItem.rowIndex = resJson.target_row;
+        newItem.status = resJson.is_checked !== undefined ? Boolean(resJson.is_checked) : Boolean(newItem.driveUrl);
         syncSuccess = true;
         newItem.isUnsynced = false;
       } else if (resJson && resJson.status === "error") {

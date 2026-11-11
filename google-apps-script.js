@@ -1,7 +1,7 @@
 /**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 3.7 (INTEGRASI SKEMA BERSIH UPDATE & HAPUS DRIVE PADA EDIT BATCH & SINGLE EDIT)
+ * VERSI 3.8 (PENEMPATAN PRESISI SLOT TEMPLATE SURAT KELUAR 691+ & RELOKASI OTOMATIS BARIS NYASAR)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -513,90 +513,245 @@ function rapikanNomorAgendaKeluar() {
   const sheet = ss.getSheetByName(SHEET_SURAT_KELUAR);
   if (!sheet) return "Sheet Surat Keluar tidak ditemukan!";
 
+  const messages = [];
+
+  // 1. Pindahkan surat keluar yang nyasar di bawah blok kosong (misal No. Agenda 691 di baris 730 -> baris 713)
+  const relocateMsg = autoRelocateMisplacedSuratKeluar(sheet);
+  if (relocateMsg) messages.push(relocateMsg);
+
+  // 2. Pengaman urutan historis baris 635 s/d 642 hanya jika masih tertukar (baris 637 masih tertulis 617 ganda)
   const lastRow = sheet.getLastRow();
-  if (lastRow < 634) return "Data belum mencapai baris 634.";
+  if (lastRow >= 642) {
+    const checkRow637 = String(sheet.getRange(637, 4).getValue()).trim();
+    if (checkRow637 === "617" || checkRow637 === "") {
+      // 1. Baris 635 (No. Urut 656) -> Agenda 613 (Pengawas Silang TKA)
+      sheet.getRange(635, 1).setValue(656);
+      sheet.getRange(635, 2).setValue(true);
+      sheet.getRange(635, 3).setValue("421.3/");
+      sheet.getRange(635, 4).setValue("613");
+      sheet.getRange(635, 5).setValue("/SMA YWKA TU/ ");
+      sheet.getRange(635, 6).setValue("X");
+      sheet.getRange(635, 7).setValue("/2026");
+      sheet.getRange(635, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+      sheet.getRange(635, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
+      sheet.getRange(635, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
 
-  // Koreksi langsung baris 635 s/d 639 sesuai data riil SMA YWKA
-  // 1. Baris 635 (No. Urut 656) -> Agenda 613 (Pengawas Silang TKA)
-  sheet.getRange(635, 1).setValue(656);
-  sheet.getRange(635, 2).setValue(true);
-  sheet.getRange(635, 3).setValue("421.3/");
-  sheet.getRange(635, 4).setValue("613");
-  sheet.getRange(635, 5).setValue("/SMA YWKA TU/ ");
-  sheet.getRange(635, 6).setValue("X");
-  sheet.getRange(635, 7).setValue("/2026");
-  sheet.getRange(635, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
-  sheet.getRange(635, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
-  sheet.getRange(635, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+      // 2. Baris 636 (No. Urut 657) -> Agenda 614 (Pengawas Silang TKA)
+      sheet.getRange(636, 1).setValue(657);
+      sheet.getRange(636, 2).setValue(true);
+      sheet.getRange(636, 3).setValue("421.3/");
+      sheet.getRange(636, 4).setValue("614");
+      sheet.getRange(636, 5).setValue("/SMA YWKA TU/ ");
+      sheet.getRange(636, 6).setValue("X");
+      sheet.getRange(636, 7).setValue("/2026");
+      sheet.getRange(636, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+      sheet.getRange(636, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
+      sheet.getRange(636, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
 
-  // 2. Baris 636 (No. Urut 657) -> Agenda 614 (Pengawas Silang TKA)
-  sheet.getRange(636, 1).setValue(657);
-  sheet.getRange(636, 2).setValue(true);
-  sheet.getRange(636, 3).setValue("421.3/");
-  sheet.getRange(636, 4).setValue("614");
-  sheet.getRange(636, 5).setValue("/SMA YWKA TU/ ");
-  sheet.getRange(636, 6).setValue("X");
-  sheet.getRange(636, 7).setValue("/2026");
-  sheet.getRange(636, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
-  sheet.getRange(636, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
-  sheet.getRange(636, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+      // 3. Baris 637 (No. Urut 658) -> Agenda 615 (Pengawas Silang TKA)
+      sheet.getRange(637, 1).setValue(658);
+      sheet.getRange(637, 2).setValue(true);
+      sheet.getRange(637, 3).setValue("421.3/");
+      sheet.getRange(637, 4).setValue("615");
+      sheet.getRange(637, 5).setValue("/SMA YWKA TU/ ");
+      sheet.getRange(637, 6).setValue("X");
+      sheet.getRange(637, 7).setValue("/2026");
+      sheet.getRange(637, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+      sheet.getRange(637, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
+      sheet.getRange(637, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
 
-  // 3. Baris 637 (No. Urut 658) -> Agenda 615 (Pengawas Silang TKA - membatalkan tertimpa 617)
-  sheet.getRange(637, 1).setValue(658);
-  sheet.getRange(637, 2).setValue(true);
-  sheet.getRange(637, 3).setValue("421.3/");
-  sheet.getRange(637, 4).setValue("615");
-  sheet.getRange(637, 5).setValue("/SMA YWKA TU/ ");
-  sheet.getRange(637, 6).setValue("X");
-  sheet.getRange(637, 7).setValue("/2026");
-  sheet.getRange(637, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
-  sheet.getRange(637, 9).setValue("Surat Pengawas Silang TKA an Achmad Chaidir Hidayat, S. Psi");
-  sheet.getRange(637, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+      // 4. Baris 638 (No. Urut 659) -> Agenda 616 (Surat Edaran Kegiatan ASAS)
+      sheet.getRange(638, 1).setValue(659);
+      sheet.getRange(638, 3).setValue("421.3/");
+      sheet.getRange(638, 4).setValue("616");
+      sheet.getRange(638, 5).setValue("/SMA YWKA TU/ ");
+      sheet.getRange(638, 6).setValue("X");
+      sheet.getRange(638, 7).setValue("/2026");
+      sheet.getRange(638, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
+      sheet.getRange(638, 9).setValue("Surat Edaran Kegiatan ASAS");
 
-  // 4. Baris 638 (No. Urut 659) -> Agenda 616 (Surat Edaran Kegiatan ASAS)
-  sheet.getRange(638, 1).setValue(659);
-  sheet.getRange(638, 3).setValue("421.3/");
-  sheet.getRange(638, 4).setValue("616");
-  sheet.getRange(638, 5).setValue("/SMA YWKA TU/ ");
-  sheet.getRange(638, 6).setValue("X");
-  sheet.getRange(638, 7).setValue("/2026");
-  sheet.getRange(638, 8).setValue(parseDateForSheet("26/10/2026")).setNumberFormat("dd/mm/yyyy");
-  sheet.getRange(638, 9).setValue("Surat Edaran Kegiatan ASAS");
+      // 5. Baris 639 (No. Urut 660) -> Agenda 617 (Surat Dispensasi FinExpo Asli)
+      sheet.getRange(639, 1).setValue(660);
+      sheet.getRange(639, 2).setValue(true);
+      sheet.getRange(639, 3).setValue("421.7/");
+      sheet.getRange(639, 4).setValue("617");
+      sheet.getRange(639, 5).setValue("/SMA YWKA TU/ ");
+      sheet.getRange(639, 6).setValue("X");
+      sheet.getRange(639, 7).setValue("/2026");
+      sheet.getRange(639, 8).setValue(parseDateForSheet("29/10/2026")).setNumberFormat("dd/mm/yyyy");
+      sheet.getRange(639, 9).setValue("Surat Dispensasi untuk Lomba Cerdas Cermat SMP & SMA FINEXPO OJK2026");
+      sheet.getRange(639, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
 
-  // 5. Baris 639 (No. Urut 660) -> Agenda 617 (Surat Dispensasi FinExpo Asli)
-  sheet.getRange(639, 1).setValue(660);
-  sheet.getRange(639, 2).setValue(true);
-  sheet.getRange(639, 3).setValue("421.7/");
-  sheet.getRange(639, 4).setValue("617");
-  sheet.getRange(639, 5).setValue("/SMA YWKA TU/ ");
-  sheet.getRange(639, 6).setValue("X");
-  sheet.getRange(639, 7).setValue("/2026");
-  sheet.getRange(639, 8).setValue(parseDateForSheet("29/10/2026")).setNumberFormat("dd/mm/yyyy");
-  sheet.getRange(639, 9).setValue("Surat Dispensasi untuk Lomba Cerdas Cermat SMP & SMA FINEXPO OJK2026");
-  sheet.getRange(639, 10).setValue("Syarif Hasanudin, S.Pd., Gr., M.M.");
+      // 6. Baris 640 s/d 642 -> Agenda 618, 619, 620
+      sheet.getRange(640, 1).setValue(661);
+      sheet.getRange(640, 4).setValue("618");
+      sheet.getRange(641, 1).setValue(662);
+      sheet.getRange(641, 4).setValue("619");
+      sheet.getRange(642, 1).setValue(663);
+      sheet.getRange(642, 4).setValue("620");
+      messages.push("Baris 635 s/d 642 (Agenda 613-620) telah dikoreksi.");
+    }
+  }
 
-  // 6. Baris 640 s/d 642 -> Pastikan Agenda 618, 619, 620
-  sheet.getRange(640, 1).setValue(661);
-  sheet.getRange(640, 4).setValue("618");
-  sheet.getRange(641, 1).setValue(662);
-  sheet.getRange(641, 4).setValue("619");
-  sheet.getRange(642, 1).setValue(663);
-  sheet.getRange(642, 4).setValue("620");
+  return messages.join(" ") || "Semua urutan & posisi baris Surat Keluar sudah rapi.";
+}
 
-  Logger.log("=================================================");
-  Logger.log("? BERHASIL MERAPIKAN URUTAN AGENDA SURAT KELUAR!");
-  Logger.log("Baris 634 (655): Agenda 612 (Pengawas Silang)");
-  Logger.log("Baris 635 (656): Agenda 613 (Pengawas Silang)");
-  Logger.log("Baris 636 (657): Agenda 614 (Pengawas Silang)");
-  Logger.log("Baris 637 (658): Agenda 615 (Pengawas Silang)");
-  Logger.log("Baris 638 (659): Agenda 616 (Surat Edaran ASAS)");
-  Logger.log("Baris 639 (660): Agenda 617 (Dispensasi FinExpo)");
-  Logger.log("Baris 640 (661): Agenda 618 (Guru Pendamping)");
-  Logger.log("Baris 641 (662): Agenda 619 (Guru Pendamping)");
-  Logger.log("Baris 642 (663): Agenda 620 (Pernyataan Peserta)");
-  Logger.log("=================================================");
+/**
+ * Otomatis mendeteksi & memindahkan baris Surat Keluar yang tersimpan melompat ke paling bawah
+ * (melewati blok baris template kosong seperti No. Agenda 691 di baris 730 -> baris 713 / No. Urut 734)
+ */
+function autoRelocateMisplacedSuratKeluar(sheet) {
+  if (!sheet) return "Sheet Surat Keluar tidak valid.";
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 5) return "Data Surat Keluar masih sedikit.";
 
-  return "Berhasil merapikan urutan Surat Keluar! Baris 634 s/d 642 kini tersusun rapi berurutan dari 612 hingga 620 tanpa duplikat.";
+  const totalScan = lastRow - 3;
+  const values = sheet.getRange(4, 1, totalScan, 14).getValues();
+
+  // Cari baris kosong paling bawah (Kolom D agenda & Kolom I perihal sama-sama kosong)
+  let lastEmptyIdx = -1;
+  for (let i = values.length - 1; i >= 0; i--) {
+    const colD = String(values[i][3] || "").trim();
+    const colI = String(values[i][8] || "").trim();
+    if (!colD && !colI) {
+      lastEmptyIdx = i;
+      break;
+    }
+  }
+
+  if (lastEmptyIdx < 0) {
+    return "Tidak ada celah baris kosong di Surat Keluar.";
+  }
+
+  // Kumpulkan baris terisi yang berada DI BAWAH lastEmptyIdx (baris nyasar akibat appendRow)
+  const misplacedItems = [];
+  for (let i = lastEmptyIdx + 1; i < values.length; i++) {
+    const colD = String(values[i][3] || "").trim();
+    const colI = String(values[i][8] || "").trim();
+    if (colD || colI) {
+      misplacedItems.push({
+        srcIdx: i,
+        srcRow: i + 4,
+        data: values[i].slice(),
+        numAgenda: parseInt(colD, 10) || 999999
+      });
+    }
+  }
+
+  if (misplacedItems.length === 0) {
+    return "Semua baris Surat Keluar sudah berada pada posisi template yang benar.";
+  }
+
+  // Pengaman ketat: jangan pernah sentuh celah kosong historis jauh di tengah tahun (misal baris 437)
+  if (lastEmptyIdx < 700 || misplacedItems.length > 25) {
+    return "Tidak ada baris nyasar di blok akhir yang perlu direlokasi.";
+  }
+
+  // Telusuri mundur dari lastEmptyIdx untuk menemukan awal blok baris template kosong di akhir
+  let firstEmptyOfTrailingBlock = lastEmptyIdx;
+  while (firstEmptyOfTrailingBlock > 0) {
+    const prevD = String(values[firstEmptyOfTrailingBlock - 1][3] || "").trim();
+    const prevI = String(values[firstEmptyOfTrailingBlock - 1][8] || "").trim();
+    if (!prevD && !prevI) {
+      firstEmptyOfTrailingBlock--;
+    } else {
+      break;
+    }
+  }
+
+  // Urutkan baris nyasar berdasarkan No. Agenda (misal 691, 692, ...)
+  misplacedItems.sort((a, b) => a.numAgenda - b.numAgenda);
+
+  const movedAgendas = [];
+  let slotIdx = firstEmptyOfTrailingBlock;
+  const anchorTemplateRow = Math.max(4, (firstEmptyOfTrailingBlock > 0 ? firstEmptyOfTrailingBlock - 1 : 0) + 4);
+
+  for (let k = 0; k < misplacedItems.length; k++) {
+    const item = misplacedItems[k];
+    const movedAgendaStr = String(item.data[3] || "").trim();
+    const movedPerihalLower = String(item.data[8] || "").trim().toLowerCase().substring(0, 20);
+
+    // Cek anti-duplikasi: apakah surat yang persis sama sudah ada di atas celah kosong?
+    let alreadyExistsAbove = false;
+    if (movedAgendaStr && movedPerihalLower) {
+      for (let chk = 0; chk < firstEmptyOfTrailingBlock; chk++) {
+        const exD = String(values[chk][3] || "").trim();
+        const exI = String(values[chk][8] || "").trim().toLowerCase().substring(0, 20);
+        if (exD === movedAgendaStr && exI && (exI === movedPerihalLower || exI.indexOf(movedPerihalLower) !== -1)) {
+          alreadyExistsAbove = true;
+          break;
+        }
+      }
+    }
+    if (alreadyExistsAbove) {
+      continue;
+    }
+
+    // Pastikan tidak menimpa baris yang sudah terisi
+    while (slotIdx < item.srcIdx) {
+      const sD = String(values[slotIdx][3] || "").trim();
+      const sI = String(values[slotIdx][8] || "").trim();
+      if (!sD && !sI) break;
+      slotIdx++;
+    }
+
+    if (slotIdx >= item.srcIdx) continue;
+
+    const targetRow = slotIdx + 4;
+    const existingNoUrut = values[slotIdx][0] || item.data[0];
+    const rowData = item.data.slice();
+    rowData[0] = existingNoUrut; // Pertahankan No. Urut slot template (misal 734 di baris 713!)
+
+    const driveLinkStr = String(rowData[13] || "").trim();
+    rowData[1] = Boolean(driveLinkStr && (driveLinkStr.indexOf("http") !== -1 || rowData[1] === true || String(rowData[1]).toUpperCase() === "TRUE"));
+
+    // Salin format & validasi checkbox dari baris anchor di atas sebelum menulis data
+    try {
+      sheet.getRange(anchorTemplateRow, 2, 1, 13).copyTo(
+        sheet.getRange(targetRow, 2, 1, 13),
+        SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+        false
+      );
+      sheet.getRange(anchorTemplateRow, 2, 1, 1).copyTo(
+        sheet.getRange(targetRow, 2, 1, 1),
+        SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION,
+        false
+      );
+    } catch (eCopy) { }
+
+    const tglRaw = rowData[7];
+    const tglStr = formatToIndoDate(tglRaw);
+    rowData[7] = tglStr;
+
+    sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
+    const dObj = parseDateForSheet(tglStr);
+    if (dObj instanceof Date) {
+      sheet.getRange(targetRow, 8).setValue(dObj).setNumberFormat("dd/mm/yyyy");
+    }
+
+    values[slotIdx] = rowData;
+    movedAgendas.push(String(rowData[3] || existingNoUrut) + " -> Baris " + targetRow);
+    slotIdx++;
+  }
+
+  // Hapus baris nyasar di posisi bawah dari bawah ke atas (atau kosongkan jika masih di dalam template <= 750)
+  for (let k = misplacedItems.length - 1; k >= 0; k--) {
+    const srcRow = misplacedItems[k].srcRow;
+    const srcUrut = Number(misplacedItems[k].data[0]);
+    try {
+      if (srcRow > 729 || (!isNaN(srcUrut) && srcUrut > 750)) {
+        sheet.deleteRow(srcRow);
+      } else {
+        sheet.getRange(srcRow, 2).setValue(false);
+        sheet.getRange(srcRow, 3, 1, 12).clearContent();
+      }
+    } catch (eDel) {
+      sheet.getRange(srcRow, 3, 1, 12).clearContent();
+    }
+  }
+
+  SpreadsheetApp.flush();
+  return "Berhasil merelokasi " + movedAgendas.length + " surat keluar (" + movedAgendas.join(", ") + ") ke posisi baris template yang benar!";
 }
 
 function perbaikiBarisSuratMasuk() {
@@ -914,6 +1069,10 @@ function doGet(e) {
         try {
           autoRelocateMisplacedSuratMasuk(sheet);
         } catch (e) { }
+      } else {
+        try {
+          autoRelocateMisplacedSuratKeluar(sheet);
+        } catch (e) { }
       }
 
       const rawValues = sheet.getDataRange().getValues();
@@ -955,7 +1114,7 @@ function doGet(e) {
       return createJsonResponse(resSync);
     }
 
-    if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar") {
+    if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar" || action === "perbaiki_baris_keluar") {
       const msg = rapikanNomorAgendaKeluar();
       return createJsonResponse({
         status: "success",
@@ -1015,7 +1174,7 @@ function doPost(e) {
       return createJsonResponse(resSync);
     }
 
-    if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar") {
+    if (action === "rapikan_agenda_keluar" || action === "auto_fix_keluar" || action === "perbaiki_baris_keluar") {
       const msg = rapikanNomorAgendaKeluar();
       return createJsonResponse({
         status: "success",
@@ -1030,6 +1189,13 @@ function doPost(e) {
       const sheet = ss.getSheetByName(SHEET_SURAT_KELUAR);
       if (!sheet) {
         return createJsonResponse({ status: "error", message: "Sheet " + SHEET_SURAT_KELUAR + " tidak ditemukan!" });
+      }
+
+      // 0. Pastikan baris nyasar di bawah celah kosong template dirapikan terlebih dahulu (misal agenda 691 di baris 730 -> baris 713)
+      try {
+        autoRelocateMisplacedSuratKeluar(sheet);
+      } catch (eReloc) {
+        Logger.log("Info pre-relocate create_surat_keluar: " + eReloc.toString());
       }
 
       const noAgendaStr = String(payload.no_agenda || payload.nomor_urut || "").trim();
@@ -1063,19 +1229,71 @@ function doPost(e) {
       // Checkbox Kolom B: Diceklis (TRUE) HANYA jika file surat keluar sudah masuk ke Drive
       const isChecked = Boolean(driveFileUrl);
 
-      // 1.B. Cek apakah nomor agenda ini sudah ada di baris template spreadsheet
+      // 1.B. Cari posisi baris yang TEPAT pada template spreadsheet (TIDAK langsung appendRow ke bawah celah kosong!)
       const lastRow = sheet.getLastRow();
       let targetRowIndex = -1;
 
       if (lastRow >= 4) {
         const totalScan = lastRow - 3;
-        const agendaColValues = sheet.getRange(4, 4, totalScan, 1).getValues(); // Kolom D (Agenda)
+        const allValues = sheet.getRange(4, 1, totalScan, 14).getValues();
 
-        for (let i = 0; i < agendaColValues.length; i++) {
-          const rowAgenda = String(agendaColValues[i][0]).trim();
-          if (rowAgenda === noAgendaStr) {
-            targetRowIndex = i + 4;
-            break;
+        // Step 1: Cek apakah no_agenda ini sudah tertulis di Kolom D (scan dari bawah ke atas, prioritaskan yang belum ada perihal)
+        if (noAgendaStr) {
+          for (let i = allValues.length - 1; i >= 0; i--) {
+            const rowAgenda = String(allValues[i][3] || "").trim();
+            const rowPerihal = String(allValues[i][8] || "").trim();
+            if (rowAgenda === noAgendaStr) {
+              if (!rowPerihal) {
+                targetRowIndex = i + 4;
+                break;
+              }
+              if (targetRowIndex < 0) {
+                targetRowIndex = i + 4;
+              }
+            }
+          }
+        }
+
+        // Step 2: Jika no_agenda belum ada di Kolom D (seperti 691, 692, 693 pada template baris 713..729),
+        // temukan baris anchor terakhir sebelum blok kosong di akhir & ambil slot kosong PERTAMA tepat di bawahnya!
+        if (targetRowIndex < 0) {
+          const parsedTargetNum = parseInt(noAgendaStr, 10);
+          let anchorIdx = -1;
+
+          if (!isNaN(parsedTargetNum)) {
+            for (let i = allValues.length - 1; i >= 0; i--) {
+              const rowAgenda = String(allValues[i][3] || "").trim();
+              const rowPerihal = String(allValues[i][8] || "").trim();
+              if (rowAgenda || rowPerihal) {
+                const rowAgNum = parseInt(rowAgenda, 10);
+                if (!isNaN(rowAgNum) && rowAgNum <= parsedTargetNum) {
+                  anchorIdx = i;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Fallback anchor: baris terisi paling akhir
+          if (anchorIdx < 0) {
+            for (let i = allValues.length - 1; i >= 0; i--) {
+              const rowAgenda = String(allValues[i][3] || "").trim();
+              const rowPerihal = String(allValues[i][8] || "").trim();
+              if (rowAgenda || rowPerihal) {
+                anchorIdx = i;
+                break;
+              }
+            }
+          }
+
+          // Cari baris template kosong PERTAMA tepat setelah anchorIdx (misal anchorIdx = baris 712 [690] -> slot kosong = baris 713 [No. Urut 734])
+          for (let j = anchorIdx + 1; j < allValues.length; j++) {
+            const sD = String(allValues[j][3] || "").trim();
+            const sI = String(allValues[j][8] || "").trim();
+            if (!sD && !sI) {
+              targetRowIndex = j + 4;
+              break;
+            }
           }
         }
       }
@@ -1083,8 +1301,23 @@ function doPost(e) {
       if (targetRowIndex > 0) {
         const existingValues = sheet.getRange(targetRowIndex, 1, 1, 14).getValues()[0];
         const existingNoUrut = existingValues[0] || noAgendaStr;
-        const existingLampiran = existingValues[13] || "Surat Keluar";
+        const existingLampiran = (existingValues[13] && String(existingValues[13]).includes("http")) ? existingValues[13] : "Surat Keluar";
         const finalLampiran = driveFileUrl ? driveFileUrl : existingLampiran;
+        const formatRefRow = Math.max(4, targetRowIndex - 1);
+
+        // Salin format & validasi checkbox dari baris di atas agar kotak centang & border tetap rapi
+        try {
+          sheet.getRange(formatRefRow, 2, 1, 13).copyTo(
+            sheet.getRange(targetRowIndex, 2, 1, 13),
+            SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+            false
+          );
+          sheet.getRange(formatRefRow, 2, 1, 1).copyTo(
+            sheet.getRange(targetRowIndex, 2, 1, 1),
+            SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION,
+            false
+          );
+        } catch (eFmt) { }
 
         const rowData = [
           existingNoUrut,
@@ -1112,9 +1345,26 @@ function doPost(e) {
           sheet.getRange(targetRowIndex, 8).setValue(tglSurat || "");
         }
       } else {
+        // Hanya dijalankan jika SEMUA baris template yang ada sudah terisi penuh seluruhnya
         const prevNoUrut = lastRow >= 4 ? Number(sheet.getRange(lastRow, 1).getValue()) || (lastRow - 3) : 1;
         const newNoUrut = prevNoUrut + 1;
         const finalLampiran = driveFileUrl ? driveFileUrl : "Surat Keluar";
+        targetRowIndex = Math.max(lastRow + 1, 4);
+        const formatRefRow = Math.max(4, targetRowIndex - 1);
+
+        // Salin format, border & widget checkbox sebelum menulis data agar TIDAK menjadi teks "TRUE" mentah
+        try {
+          sheet.getRange(formatRefRow, 1, 1, 14).copyTo(
+            sheet.getRange(targetRowIndex, 1, 1, 14),
+            SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+            false
+          );
+          sheet.getRange(formatRefRow, 2, 1, 1).copyTo(
+            sheet.getRange(targetRowIndex, 2, 1, 1),
+            SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION,
+            false
+          );
+        } catch (eFmtNew) { }
 
         const rowData = [
           newNoUrut,
@@ -1133,8 +1383,7 @@ function doPost(e) {
           finalLampiran
         ];
 
-        sheet.appendRow(rowData);
-        targetRowIndex = sheet.getLastRow();
+        sheet.getRange(targetRowIndex, 1, 1, rowData.length).setValues([rowData]);
         const dObj = parseDateForSheet(tglSurat);
         if (dObj instanceof Date) {
           sheet.getRange(targetRowIndex, 8).setValue(dObj).setNumberFormat("dd/mm/yyyy");
@@ -1147,7 +1396,7 @@ function doPost(e) {
 
       return createJsonResponse({
         status: "success",
-        message: "Surat Keluar berhasil disimpan sesuai format Spreadsheet & Drive!",
+        message: "Surat Keluar agenda " + noAgendaStr + " berhasil disimpan ke baris " + targetRowIndex + " di Spreadsheet & Drive!",
         no_agenda: noAgendaStr,
         is_checked: isChecked,
         nomor_lengkap: fullGenerated,
