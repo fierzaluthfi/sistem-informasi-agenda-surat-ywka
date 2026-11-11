@@ -1,5 +1,5 @@
 // Service Worker untuk Sistem Informasi Agenda Surat (SIAS) SMAS YWKA Bandung
-const CACHE_NAME = "sias-ywka-v2.1";
+const CACHE_NAME = "sias-ywka-v3.9";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -37,30 +37,31 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 3. Fetch Event: Network First for API/Spreadsheet, Stale-While-Revalidate for Static Assets
+// 3. Fetch Event: Network First agar update kode & skrip Apps Script v3.9 langsung terbaca (cache hanya fallback offline)
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Jangan cache request non-GET atau request ke Google Apps Script / Drive API
-  if (req.method !== "GET" || url.origin.includes("script.google.com") || url.origin.includes("drive.google.com")) {
+  // Jangan cache request non-GET atau request ke Google Apps Script / Drive / Docs API
+  if (
+    req.method !== "GET" ||
+    url.origin.includes("script.google.com") ||
+    url.origin.includes("script.googleusercontent.com") ||
+    url.origin.includes("drive.google.com") ||
+    url.origin.includes("docs.google.com")
+  ) {
     return;
   }
 
   event.respondWith(
-    caches.match(req).then((cachedResponse) => {
-      const fetchPromise = fetch(req).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
+    fetch(req)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && url.origin === self.location.origin) {
           const resClone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
         }
         return networkResponse;
-      }).catch(() => {
-        // Jika offline, kembalikan cachedResponse
-        return cachedResponse;
-      });
-
-      return cachedResponse || fetchPromise;
-    })
+      })
+      .catch(() => caches.match(req))
   );
 });

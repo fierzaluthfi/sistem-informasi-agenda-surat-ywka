@@ -19,6 +19,7 @@ const URL_EXPORT_MASUK = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_I
 // URL Default Web App Google Apps Script SMA YWKA (Bawaan Otomatis untuk Semua Komputer / Demo Vercel)
 // Masukkan URL Web App Apps Script di sini agar siapapun yang membuka di komputer lain langsung terhubung otomatis!
 const DEFAULT_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxCUFM2sloMXHsvCqdil17RXugR9WOcRZFiXSHEnjIHCWajRXnVQTPtAWTmvm4BvBazyQ/exec";
+const REQUIRED_APPS_SCRIPT_MINOR = 3.8; // Versi minimum Apps Script agar penempatan baris 691+ presisi (v3.8 / v3.9)
 
 // Konfigurasi Notifikasi Laporan Bukti Kerja WhatsApp
 const DEFAULT_WA_PHONE = "62895328047492"; // Nomor Pribadi Admin Fierza (+62895328047492 / 0895328047492)
@@ -44,6 +45,8 @@ let state = {
   lastFilledAgendaNumber: "620",
   nextKeluarAgenda: "621",
   isSyncing: false,
+  appsScriptVersion: null,
+  appsScriptOutdated: false,
   selectedCategory: "all",
   stagedFileKeluar: null,
   stagedFileMasuk: null,
@@ -950,6 +953,13 @@ document.addEventListener("DOMContentLoaded", () => {
     loadDataFromSpreadsheet();
   } catch (err) {
     console.error("Gagal memulai loadDataFromSpreadsheet:", err);
+  }
+
+  // 4. Verifikasi versi Web App Apps Script yang aktif di Google Cloud
+  try {
+    checkAppsScriptVersionStatus(false);
+  } catch (err) {
+    console.warn("Gagal memeriksa versi Apps Script:", err);
   }
 });
 
@@ -2679,11 +2689,11 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
 
   if (codeArea) {
     codeArea.value = scriptCode;
-    // Muat langsung dari google-apps-script.js agar selalu sinkron dengan versi terbaru v3.0
-    fetch("google-apps-script.js")
+    // Muat langsung dari google-apps-script.js tanpa cache agar selalu sinkron dengan versi terbaru v3.9
+    fetch("google-apps-script.js?t=" + Date.now(), { cache: "no-store" })
       .then(res => res.text())
       .then(latestCode => {
-        if (latestCode && (latestCode.includes("VERSI 3.") || latestCode.includes("VERSI 2."))) {
+        if (latestCode && latestCode.includes("VERSI 3.")) {
           codeArea.value = latestCode;
         }
       })
@@ -2692,11 +2702,123 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
 
   const btnCopyScript = document.getElementById("btnCopyScriptCode");
   if (btnCopyScript) {
-    btnCopyScript.addEventListener("click", () => {
-      const codeToCopy = (codeArea && codeArea.value) ? codeArea.value : scriptCode;
-      navigator.clipboard.writeText(codeToCopy);
-      showToast("Kode Google Apps Script v3.8 berhasil disalin ke clipboard!", "success");
+    btnCopyScript.addEventListener("click", async () => {
+      let codeToCopy = (codeArea && codeArea.value) ? codeArea.value : scriptCode;
+      if (!codeToCopy.includes("VERSI 3.9")) {
+        try {
+          const freshRes = await fetch("google-apps-script.js?t=" + Date.now(), { cache: "no-store" });
+          const freshCode = await freshRes.text();
+          if (freshCode && freshCode.includes("VERSI 3.")) {
+            codeToCopy = freshCode;
+            if (codeArea) codeArea.value = freshCode;
+          }
+        } catch (e) {}
+      }
+      if (!codeToCopy.includes("VERSI 3.")) {
+        showToast("⚠️ Gagal memuat kode v3.9 terbaru (mode offline/file lokal). Silakan salin langsung dari file google-apps-script.js di folder proyek!", "warning");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(codeToCopy);
+      } catch (clipErr) {
+        if (codeArea) {
+          codeArea.select();
+          document.execCommand("copy");
+        }
+      }
+      showToast("✅ Kode Google Apps Script v3.9 berhasil disalin! Jangan lupa Deploy > Kelola deployment > Versi baru.", "success");
     });
+  }
+}
+
+/**
+ * Tampilkan / sembunyikan banner peringatan jika Google Apps Script di Google Cloud masih versi lama (< v3.8)
+ */
+function renderAppsScriptOutdatedBanner(isOutdated, detectedVersionLabel = "Lama (v2.7)") {
+  const existingBanners = document.querySelectorAll(".gas-outdated-alert-banner");
+  if (!isOutdated) {
+    existingBanners.forEach(el => el.remove());
+    return;
+  }
+
+  const buildBannerEl = (idSuffix) => {
+    const div = document.createElement("div");
+    div.id = `appsScriptOutdatedBanner_${idSuffix}`;
+    div.className = "connection-banner warning-banner gas-outdated-alert-banner";
+    div.style.cssText = "display:flex; background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; margin-bottom:16px; border-radius:12px; padding:14px 18px; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;";
+    div.innerHTML = `
+      <div class="banner-content" style="display:flex; align-items:flex-start; gap:12px; flex:1; min-width:240px;">
+        <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626; font-size:1.25rem; margin-top:2px;"></i>
+        <div>
+          <strong style="display:block; margin-bottom:2px;">Google Apps Script Masih Versi ${detectedVersionLabel} (Penyebab Baris Masih Loncat ke Bawah!)</strong>
+          <span style="font-size:0.86rem; color:#7f1d1d; line-height:1.45; display:block;">
+            Website sudah di-update ke v3.9, namun Web App Google Apps Script di akun Google Anda belum di-deploy ulang dengan kode v3.9.
+            Buka <strong>Pengaturan Koneksi &rarr; Salin Skrip v3.9</strong>, tempel &amp; Simpan di Apps Script Google Sheets, lalu WAJIB klik
+            <strong>Deploy &rarr; Kelola deployment &rarr; Edit (pensil) &rarr; Versi baru &rarr; Deploy</strong>.
+          </span>
+        </div>
+      </div>
+      <button type="button" class="btn btn-sm" style="background:#dc2626; color:#fff; border:none; white-space:nowrap; font-weight:600; padding:8px 14px; border-radius:8px; cursor:pointer;" onclick="if (typeof switchTab === 'function') { switchTab('tab-koneksi'); } else { const b = document.querySelector('[data-tab=tab-koneksi]'); if (b) b.click(); } const btn = document.getElementById('btnCopyScriptCode'); if (btn) setTimeout(() => btn.scrollIntoView({behavior:'smooth', block:'center'}), 150);">
+        <i class="fa-solid fa-wrench"></i> Update Skrip Sekarang
+      </button>
+    `;
+    return div;
+  };
+
+  // Pasang di tab Surat Keluar (jika belum ada)
+  const keluarPane = document.getElementById("tab-surat-keluar");
+  if (keluarPane && !document.getElementById("appsScriptOutdatedBanner_keluar")) {
+    keluarPane.prepend(buildBannerEl("keluar"));
+  }
+
+  // Pasang juga di tab Pengaturan Koneksi (jika belum ada)
+  const koneksiPane = document.getElementById("tab-koneksi");
+  if (koneksiPane && !document.getElementById("appsScriptOutdatedBanner_koneksi")) {
+    koneksiPane.prepend(buildBannerEl("koneksi"));
+  }
+}
+
+/**
+ * Periksa versi live Web App Google Apps Script yang terhubung di Google Cloud
+ */
+async function checkAppsScriptVersionStatus(showFeedbackToast = false, overrideUrl = null) {
+  let url = (overrideUrl !== null ? String(overrideUrl) : (typeof getCleanAppsScriptUrl === "function" ? getCleanAppsScriptUrl() : state.appsScriptUrl || "")).trim();
+  if (url.endsWith("/dev")) {
+    url = url.substring(0, url.length - 4) + "/exec";
+  }
+  if (!url) return { ok: false, outdated: false };
+
+  try {
+    const pingUrl = url + (url.includes("?") ? "&" : "?") + "action=ping&t=" + Date.now();
+    const res = await fetch(pingUrl, { cache: "no-store" });
+    const json = await res.json();
+    const rawVer = json && (json.version || json.scriptVersion || "");
+    const verNum = parseFloat(rawVer);
+    const isModern = !isNaN(verNum) && verNum >= REQUIRED_APPS_SCRIPT_MINOR;
+
+    state.appsScriptVersion = rawVer ? String(rawVer) : "Lama (v2.7)";
+    state.appsScriptOutdated = !isModern;
+
+    if (isModern) {
+      renderAppsScriptOutdatedBanner(false);
+      updateConnectionStatus(true, `Tersambung Google Sheets (Apps Script v${rawVer})`);
+      if (showFeedbackToast) {
+        showToast(`✅ Koneksi Apps Script v${rawVer} Aktif & Siap! (${json.message || "OK"})`, "success");
+      }
+      return { ok: true, outdated: false, version: String(rawVer), json };
+    } else {
+      renderAppsScriptOutdatedBanner(true, state.appsScriptVersion);
+      updateConnectionStatus(true, "Apps Script Versi Lama (Perlu Update v3.9)");
+      if (showFeedbackToast) {
+        showToast("⚠️ Terhubung, TAPI Google Apps Script Anda masih VERSI LAMA! Wajib update skrip v3.9 lalu Deploy > Kelola deployment > Versi baru.", "warning");
+      }
+      return { ok: true, outdated: true, version: state.appsScriptVersion, json };
+    }
+  } catch (err) {
+    if (showFeedbackToast) {
+      showToast("⚠️ Uji koneksi terkirim, namun respons gagal dibaca. Pastikan Apps Script dideploy sebagai Web app akses 'Anyone'.", "info");
+    }
+    return { ok: false, outdated: false, error: err };
   }
 }
 
@@ -2880,8 +3002,9 @@ function initEventListeners() {
 
       updateDriveLinksInUI();
       checkConnectionBanners();
-      showToast("Pengaturan koneksi berhasil disimpan!", "success");
+      showToast("Pengaturan koneksi berhasil disimpan! Memeriksa versi Apps Script...", "success");
       updateConnectionStatus(true, "Tersambung Google Sheets & Drive");
+      checkAppsScriptVersionStatus(true);
     });
   }
 
@@ -2895,11 +3018,7 @@ function initEventListeners() {
       }
       try {
         btnTestConn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menguji...`;
-        const res = await fetch(url + (url.includes("?") ? "&" : "?") + "action=ping");
-        const json = await res.json();
-        showToast("✅ Koneksi Apps Script Sukses: " + (json.message || "OK"), "success");
-      } catch (err) {
-        showToast("⚠️ Uji koneksi terkirim. Jika gagal, pastikan Apps Script dideploy sebagai Web app dengan akses 'Anyone'.", "info");
+        await checkAppsScriptVersionStatus(true, url);
       } finally {
         btnTestConn.innerHTML = `<i class="fa-solid fa-plug-circle-check"></i> Uji Koneksi`;
       }
@@ -4724,6 +4843,13 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
         newItem.status = resJson.is_checked !== undefined ? Boolean(resJson.is_checked) : Boolean(newItem.driveUrl);
         syncSuccess = true;
         newItem.isUnsynced = false;
+        const returnedVer = parseFloat(resJson.version || "0");
+        if (isNaN(returnedVer) || returnedVer < REQUIRED_APPS_SCRIPT_MINOR || (resJson.target_row && Number(resJson.target_row) > 729)) {
+          state.appsScriptOutdated = true;
+          state.appsScriptVersion = resJson.version ? String(resJson.version) : "Lama (v2.7)";
+          renderAppsScriptOutdatedBanner(true, state.appsScriptVersion);
+          errorDetail = `Baris mendarat di Baris ${resJson.target_row || "bawah"} karena Web App Apps Script Google Anda masih VERSI LAMA! Update ke v3.9 & Deploy > Kelola deployment > Versi baru.`;
+        }
       } else if (resJson && resJson.status === "error") {
         errorDetail = resJson.message || "Apps Script mengembalikan error.";
         newItem.isUnsynced = true;
@@ -4773,7 +4899,11 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
   updateDashboardUI();
 
   if (syncSuccess) {
-    showToast(`✅ No. Agenda ${newItem.noAgenda} berhasil tersimpan ke Google Spreadsheet & Drive!`, "success");
+    if (errorDetail) {
+      showToast(`⚠️ ${errorDetail}`, "warning");
+    } else {
+      showToast(`✅ No. Agenda ${newItem.noAgenda} berhasil tersimpan ke Baris ${newItem.rowIndex || "template"} Google Spreadsheet & Drive!`, "success");
+    }
   } else if (!state.appsScriptUrl) {
     showToast(`⚠️ No. Agenda ${newItem.noAgenda} tersimpan aman di browser. Hubungkan Web App URL di Pengaturan agar tersinkron ke Google Sheets.`, "warning");
   } else {

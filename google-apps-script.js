@@ -1,7 +1,7 @@
 /**
  * ===================================================================
  * GOOGLE APPS SCRIPT - SISTEM AGENDA SURAT SMA YWKA BANDUNG
- * VERSI 3.8 (PENEMPATAN PRESISI SLOT TEMPLATE SURAT KELUAR 691+ & RELOKASI OTOMATIS BARIS NYASAR)
+ * VERSI 3.9 (PENEMPATAN PRESISI SLOT TEMPLATE SURAT KELUAR 691+, RELOKASI OTOMATIS & DETEKSI VERSI)
  * ===================================================================
  * 
  * PANDUAN CEPAT PERBAIKAN:
@@ -750,6 +750,33 @@ function autoRelocateMisplacedSuratKeluar(sheet) {
     }
   }
 
+  // Bersihkan sisa baris kosong hasil appendRow lama di ekor (> Baris 729 & No. Urut > 750) agar kembali rapi ke 729 baris
+  let extraTailDeleted = 0;
+  let tailRow = sheet.getLastRow();
+  while (tailRow > 729 && extraTailDeleted < 15) {
+    const tailVals = sheet.getRange(tailRow, 1, 1, 14).getValues()[0];
+    const tailUrut = Number(tailVals[0]);
+    let tailHasData = false;
+    for (let c = 2; c < 14; c++) {
+      const s = String(tailVals[c] || "").trim();
+      if (s && s !== "-" && s !== "/SMA YWKA TU/" && s !== "/2026") {
+        tailHasData = true;
+        break;
+      }
+    }
+    if (!tailHasData && !isNaN(tailUrut) && tailUrut > 750) {
+      try {
+        sheet.deleteRow(tailRow);
+        extraTailDeleted++;
+        tailRow--;
+      } catch (eTailDel) {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
   SpreadsheetApp.flush();
   return "Berhasil merelokasi " + movedAgendas.length + " surat keluar (" + movedAgendas.join(", ") + ") ke posisi baris template yang benar!";
 }
@@ -1027,7 +1054,8 @@ function doGet(e) {
       } catch (e) { }
       return createJsonResponse({
         status: "success",
-        message: "Koneksi Google Apps Script SMA YWKA Aktif & Format Tanggal Diperbaiki!",
+        version: "3.9",
+        message: "Koneksi Google Apps Script SMA YWKA v3.9 Aktif & Siap!",
         timestamp: new Date().toISOString(),
         spreadsheetName: ss.getName()
       });
@@ -1396,6 +1424,7 @@ function doPost(e) {
 
       return createJsonResponse({
         status: "success",
+        version: "3.9",
         message: "Surat Keluar agenda " + noAgendaStr + " berhasil disimpan ke baris " + targetRowIndex + " di Spreadsheet & Drive!",
         no_agenda: noAgendaStr,
         is_checked: isChecked,

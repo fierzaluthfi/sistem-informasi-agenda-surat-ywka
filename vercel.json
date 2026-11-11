@@ -25,6 +25,15 @@
       ]
     },
     {
+      "source": "/(app\\.js|google-apps-script\\.js|index\\.html)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
