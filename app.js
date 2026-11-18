@@ -84,6 +84,101 @@ function getRomanMonth(val) {
 }
 
 /**
+ * Helper: Ekstrak nomor bulan (1 s/d 12) dari string tanggal (DD/MM/YYYY, YYYY-MM-DD, dsb.)
+ * Mencegah kesalahan matching di mana hari (DD) dianggap sebagai bulan.
+ */
+function extractMonthFromDateString(dateStr) {
+  if (!dateStr || dateStr === "-" || dateStr === "null" || dateStr === "undefined") return null;
+  const s = String(dateStr).trim().replace(/^'+/, "");
+  if (!s) return null;
+
+  // 1. Format ISO: YYYY-MM-DD atau YYYY/MM/DD
+  const matchIso = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (matchIso) {
+    const m = parseInt(matchIso[2], 10);
+    if (m >= 1 && m <= 12) return m;
+  }
+
+  // 2. Format DD/MM/YYYY atau DD-MM-YYYY (standar Indonesia)
+  const matchDmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (matchDmy) {
+    const p1 = parseInt(matchDmy[1], 10);
+    const p2 = parseInt(matchDmy[2], 10);
+    // Jika part2 > 12 dan part1 <= 12, maka formatnya US MM/DD/YYYY (part1 adalah bulan)
+    if (p2 > 12 && p1 >= 1 && p1 <= 12) {
+      return p1;
+    }
+    // Standar Indonesia DD/MM/YYYY: part2 adalah bulan (1 s/d 12)
+    if (p2 >= 1 && p2 <= 12) {
+      return p2;
+    }
+    if (p1 >= 1 && p1 <= 12) {
+      return p1;
+    }
+  }
+
+  // 3. Fallback jika string dapat di-parse oleh Date()
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime())) {
+    return dt.getMonth() + 1;
+  }
+
+  return null;
+}
+
+/**
+ * Helper: Ambil nomor bulan (1 s/d 12) dari sebuah item Surat Keluar atau Surat Masuk
+ * Menyelaraskan Bulan Romawi resmi (kolom F Surat Keluar) dan Tanggal Surat secara akurat.
+ */
+function getItemMonth(item) {
+  if (!item) return null;
+
+  // 1. Cek Bulan Romawi resmi jika valid (Surat Keluar)
+  const romanStr = (item.bulanRomawi || "").trim().toUpperCase();
+  const romanIdx = ROMAN_MONTHS.indexOf(romanStr);
+  const romanMonth = romanIdx !== -1 ? (romanIdx + 1) : null;
+
+  // 2. Cek Tanggal Surat / Tanggal Diterima
+  const dateStr = item.tanggal || item.tglSurat || item.tglMasuk || "";
+  const dateMonth = extractMonthFromDateString(dateStr);
+
+  // Jika keduanya ada dan selaras
+  if (romanMonth !== null && dateMonth !== null && romanMonth === dateMonth) {
+    return romanMonth;
+  }
+
+  // Jika ada bulan romawi dan tanggal, selesaikan kemungkinan format MM/DD/YYYY
+  if (romanMonth !== null && dateStr) {
+    const mDmy = String(dateStr).trim().match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (mDmy) {
+      const p1 = parseInt(mDmy[1], 10);
+      const p2 = parseInt(mDmy[2], 10);
+      if (p1 === romanMonth || p2 === romanMonth) {
+        return romanMonth;
+      }
+    }
+    // Surat keluar resmi: utamakan bulan romawi nomor agenda
+    return romanMonth;
+  }
+
+  // Jika tidak ada bulan romawi, gunakan tanggal yang ter-parse
+  if (dateMonth !== null) {
+    return dateMonth;
+  }
+
+  // Fallback: coba ekstrak dari nomorLengkap jika mengandung bulan romawi (misal: /X/2026)
+  if (item.nomorLengkap) {
+    const mRom = String(item.nomorLengkap).match(/\/([IVXLCDM]+)\/(?:20\d\d|\d{4})/i);
+    if (mRom) {
+      const rIdx = ROMAN_MONTHS.indexOf(mRom[1].toUpperCase());
+      if (rIdx !== -1) return rIdx + 1;
+    }
+  }
+
+  return romanMonth;
+}
+
+/**
  * Helper: Parse Tanggal secara fleksibel tanpa bias timezone UTC
  */
 function parseDateParts(val) {
@@ -2939,6 +3034,7 @@ function initEventListeners() {
   // Search & Filter Surat Masuk
   const searchMasuk = document.getElementById("searchMasukInput");
   const filterMasukPengirim = document.getElementById("filterMasukPengirim");
+  const filterMasukBulan = document.getElementById("filterMasukBulan");
   const btnClearSearchMasuk = document.getElementById("btnClearSearchMasuk");
 
   if (searchMasuk) {
@@ -2957,6 +3053,7 @@ function initEventListeners() {
     });
   }
   if (filterMasukPengirim) filterMasukPengirim.addEventListener("change", filterSuratMasukData);
+  if (filterMasukBulan) filterMasukBulan.addEventListener("change", filterSuratMasukData);
 
   // Export CSV
   const btnExportKeluar = document.getElementById("btnExportKeluarCsv");
@@ -4205,10 +4302,8 @@ function filterSuratKeluarData() {
 
     let matchBulan = true;
     if (filterBulan) {
-      const targetRoman = ROMAN_MONTHS[parseInt(filterBulan, 10) - 1];
-      matchBulan = item.bulanRomawi === targetRoman ||
-                   item.tanggal.startsWith(filterBulan + "/") ||
-                   item.tanggal.includes("/" + filterBulan + "/");
+      const targetMonth = parseInt(filterBulan, 10);
+      matchBulan = (getItemMonth(item) === targetMonth);
     }
 
     return matchSearch && matchKlas && matchBulan;
@@ -4349,6 +4444,7 @@ function renderSuratKeluarTable() {
 function filterSuratMasukData() {
   const search = (document.getElementById("searchMasukInput")?.value || "").toLowerCase();
   const filterPengirim = document.getElementById("filterMasukPengirim")?.value || "";
+  const filterBulan = document.getElementById("filterMasukBulan")?.value || "";
 
   state.filteredMasuk = state.suratMasuk.filter(item => {
     const matchSearch = !search ||
@@ -4359,7 +4455,13 @@ function filterSuratMasukData() {
 
     const matchPengirim = !filterPengirim || item.dari.toUpperCase().includes(filterPengirim);
 
-    return matchSearch && matchPengirim;
+    let matchBulan = true;
+    if (filterBulan) {
+      const targetMonth = parseInt(filterBulan, 10);
+      matchBulan = (getItemMonth(item) === targetMonth);
+    }
+
+    return matchSearch && matchPengirim && matchBulan;
   });
 
   state.pagination.masukPage = 1;
@@ -4497,7 +4599,7 @@ function updateDashboardUI() {
 
   const currentMonthIdx = new Date().getMonth() + 1;
   const currentRoman = ROMAN_MONTHS[currentMonthIdx - 1];
-  const bulanIniCount = state.suratKeluar.filter(s => s.bulanRomawi === currentRoman).length;
+  const bulanIniCount = state.suratKeluar.filter(s => getItemMonth(s) === currentMonthIdx).length;
   const statBulanIni = document.getElementById("statKeluarBulanIni");
   const statBulanLabel = document.getElementById("statKeluarBulanLabel");
 
@@ -5238,12 +5340,10 @@ function renderStatistics() {
   if (tbodyRecap) {
     let recapHtml = "";
     MONTH_NAMES.forEach((mName, idx) => {
+      const targetMonth = idx + 1;
       const roman = ROMAN_MONTHS[idx];
-      const kCount = state.suratKeluar.filter(s => s.bulanRomawi === roman).length;
-      const mCount = state.suratMasuk.filter(m => {
-        const d = m.tglMasuk || m.tglSurat || "";
-        return d.includes(`/${idx + 1}/`) || d.startsWith(`${idx + 1}/`);
-      }).length;
+      const kCount = state.suratKeluar.filter(s => getItemMonth(s) === targetMonth).length;
+      const mCount = state.suratMasuk.filter(m => getItemMonth(m) === targetMonth).length;
 
       recapHtml += `
         <tr>
