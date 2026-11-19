@@ -1075,21 +1075,20 @@ function deduplicateItems(list, type = "masuk") {
     if (type === "keluar") {
       key = item.noAgenda ? `keluar:${item.noAgenda.trim().toLowerCase()}` : `id:${item.id}`;
     } else {
+      const sigUrut = item.noUrut ? item.noUrut.trim() : "";
       const sigAgenda = (item.noAgenda && item.noAgenda !== "-") ? item.noAgenda.trim().toLowerCase() : "";
       const sigPerihal = item.perihal ? item.perihal.trim().toLowerCase() : "";
-      if (sigAgenda) {
-        key = `masuk_agenda:${sigAgenda}`;
-      } else if (sigPerihal) {
-        key = `masuk_perihal:${sigPerihal}`;
+      if (sigUrut && (sigPerihal || sigAgenda)) {
+        key = `masuk:${sigUrut}|${sigAgenda}|${sigPerihal}`;
       } else {
-        key = `id:${item.id}`;
+        key = `id:${item.id || Math.random()}`;
       }
     }
 
     if (seen.has(key)) {
       const existing = result.find(r => {
         if (type === "keluar") return r.noAgenda === item.noAgenda;
-        return (r.noAgenda && r.noAgenda === item.noAgenda && r.noAgenda !== "-") || (r.perihal === item.perihal);
+        return (r.noUrut && item.noUrut && r.noUrut === item.noUrut) && ((r.noAgenda && r.noAgenda === item.noAgenda && r.noAgenda !== "-") || (r.perihal === item.perihal));
       });
       if (existing) {
         if (!existing.driveUrl && item.driveUrl) {
@@ -1128,7 +1127,14 @@ function hydrateFromCacheOrBuiltin() {
         loadBuiltinSampleData();
       }
       if (Array.isArray(parsedMasuk) && parsedMasuk.length > 0) {
-        state.suratMasuk = deduplicateItems(parsedMasuk, "masuk");
+        // Cek integritas cache surat masuk: jika terdeteksi nomor urut melompat tidak wajar (> 300), bersihkan cache
+        const hasCorruptedNumbers = parsedMasuk.some(m => parseInt(m.noUrut, 10) > 300);
+        if (hasCorruptedNumbers) {
+          localStorage.removeItem("cache_surat_masuk_2026");
+          loadBuiltinSampleData();
+        } else {
+          state.suratMasuk = deduplicateItems(parsedMasuk, "masuk");
+        }
       }
     } catch (e) {
       loadBuiltinSampleData();
@@ -1156,7 +1162,8 @@ function hydrateFromCacheOrBuiltin() {
   if (unsyncedMasuk.length > 0) {
     const remainingMasuk = [];
     unsyncedMasuk.forEach(uItem => {
-      const found = state.suratMasuk.some(m => (m.noAgenda && uItem.noAgenda && m.noAgenda !== "-" && m.noAgenda === uItem.noAgenda) || (m.perihal && uItem.perihal && m.perihal === uItem.perihal));
+      if (parseInt(uItem.noUrut, 10) > 300) return; // Singkirkan data korup lama jika ada
+      const found = state.suratMasuk.some(m => (m.noUrut && uItem.noUrut && m.noUrut === uItem.noUrut) || (m.perihal && uItem.perihal && m.perihal === uItem.perihal));
       if (!found) {
         state.suratMasuk.push(uItem);
         remainingMasuk.push(uItem);
@@ -2260,33 +2267,28 @@ function doPost(e) {
       const totalScan = Math.max(endRowScan - 1, 1);
       const rangeData = sheet.getRange(2, 1, totalScan, 5).getValues(); // Baris 2 adalah index 0
 
-      // 1.A. Cegah duplikasi: Cek apakah no_agenda yang sama sudah ada di spreadsheet
-      if (reqNoAgenda && reqNoAgenda !== "-") {
+      // 1.A. Cari baris template berdasarkan Nomor Urut yang diminta (misal No. Urut 270 -> cari baris dengan Col A = 270)
+      if (reqNoUrut) {
         for (let i = 0; i < rangeData.length; i++) {
           const rowUrut = String(rangeData[i][0]).trim();
-          const rowAgenda = String(rangeData[i][1]).trim();
-          if (rowAgenda && rowAgenda.toLowerCase() === reqNoAgenda.toLowerCase()) {
+          if (rowUrut === reqNoUrut) {
             targetRowIndex = i + 2;
-            finalNoUrut = rowUrut || finalNoUrut;
+            finalNoUrut = rowUrut;
             break;
           }
         }
       }
 
-      // 1.B. Cari baris template berdasarkan Nomor Urut yang diminta (misal No. Urut 215 -> cari baris dengan Col A = 215)
-      if (targetRowIndex < 0 && reqNoUrut) {
+      // 1.B. Cegah duplikasi tidak sengaja: jika perihal & nomor agenda persis sama
+      if (targetRowIndex < 0 && reqNoAgenda && reqNoAgenda !== "-" && reqPerihal) {
         for (let i = 0; i < rangeData.length; i++) {
           const rowUrut = String(rangeData[i][0]).trim();
           const rowAgenda = String(rangeData[i][1]).trim();
           const rowPerihal = String(rangeData[i][4]).trim();
-
-          if (rowUrut === reqNoUrut) {
-            // Cocok dengan No. Urut template! Jika baris ini belum terisi agenda dan perihal, gunakan langsung baris ini
-            if (!rowAgenda && !rowPerihal) {
-              targetRowIndex = i + 2;
-              finalNoUrut = rowUrut;
-              break;
-            }
+          if (rowAgenda && rowAgenda.toLowerCase() === reqNoAgenda.toLowerCase() && rowPerihal && rowPerihal.toLowerCase() === reqPerihal.toLowerCase()) {
+            targetRowIndex = i + 2;
+            finalNoUrut = rowUrut || finalNoUrut;
+            break;
           }
         }
       }
@@ -4000,6 +4002,7 @@ async function loadDataFromSpreadsheet() {
         }
       });
       state.suratMasuk = liveMasuk;
+      state.suratMasuk.sort((a, b) => (parseInt(a.noUrut, 10) || 0) - (parseInt(b.noUrut, 10) || 0));
     }
 
     // 3. Pertahankan surat lokal yang belum tersimpan ke Google Sheets agar TIDAK HILANG saat sinkron dan bersihkan yang sudah tersinkron
@@ -4013,6 +4016,7 @@ async function loadDataFromSpreadsheet() {
           remainingKeluar.push(uItem);
         }
       });
+      state.suratKeluar.sort((a, b) => (parseInt(a.noAgenda || a.noUrut, 10) || 0) - (parseInt(b.noAgenda || b.noUrut, 10) || 0));
       localStorage.setItem("unsynced_surat_keluar", JSON.stringify(remainingKeluar));
     }
 
@@ -4020,12 +4024,14 @@ async function loadDataFromSpreadsheet() {
     if (unsyncedMasuk.length > 0) {
       const remainingMasuk = [];
       unsyncedMasuk.forEach(uItem => {
-        const found = state.suratMasuk.some(m => (m.noAgenda && uItem.noAgenda && m.noAgenda !== "-" && m.noAgenda === uItem.noAgenda) || (m.perihal && uItem.perihal && m.perihal === uItem.perihal));
+        if (parseInt(uItem.noUrut, 10) > 300) return; // Singkirkan data korup lama jika ada
+        const found = state.suratMasuk.some(m => (m.noUrut && uItem.noUrut && m.noUrut === uItem.noUrut) || (m.perihal && uItem.perihal && m.perihal === uItem.perihal));
         if (!found) {
-          state.suratMasuk.unshift(uItem);
+          state.suratMasuk.push(uItem);
           remainingMasuk.push(uItem);
         }
       });
+      state.suratMasuk.sort((a, b) => (parseInt(a.noUrut, 10) || 0) - (parseInt(b.noUrut, 10) || 0));
       localStorage.setItem("unsynced_surat_masuk", JSON.stringify(remainingMasuk));
     }
 
@@ -4260,21 +4266,20 @@ function parseCsvMasuk(csvText) {
     });
   }
 
-  // Deduplikasi Cerdas Surat Masuk:
-  // Satukan baris ganda yang memiliki No. Agenda yang sama atau perihal & pengirim yang persis sama
+  // Deduplikasi Presisi Surat Masuk:
+  // Hanya satukan baris ganda jika memiliki Nomor Urut yang sama DAN perihal/agenda yang persis sama (misal duplikasi jaringan)
   const items = [];
   const seenMap = new Map();
 
   for (const item of rawItems) {
-    const sigAgenda = (item.noAgenda && item.noAgenda !== "-") ? item.noAgenda.trim().toLowerCase() : "";
+    const sigUrut = (item.noUrut || "").trim();
     const sigPerihal = item.perihal ? item.perihal.trim().toLowerCase() : "";
-    const sigDari = item.dari ? item.dari.trim().toLowerCase() : "";
+    const sigAgenda = (item.noAgenda && item.noAgenda !== "-") ? item.noAgenda.trim().toLowerCase() : "";
 
+    // Kunci unik wajib menyertakan No. Urut agar TIDAK menyatukan surat berbeda yang kebetulan memiliki nomor surat asal mirip
     let dedupKey = "";
-    if (sigAgenda) {
-      dedupKey = `agenda:${sigAgenda}`;
-    } else if (sigPerihal && sigDari) {
-      dedupKey = `perihal:${sigPerihal}|dari:${sigDari}`;
+    if (sigUrut && (sigPerihal || sigAgenda)) {
+      dedupKey = `${sigUrut}|${sigAgenda}|${sigPerihal}`;
     }
 
     if (dedupKey) {
@@ -4295,13 +4300,6 @@ function parseCsvMasuk(csvText) {
         if (!existing.status && item.status) {
           existing.status = true;
         }
-
-        // Jika nomor urut yang lama bentrok (misal 209 bentrok dengan Polban) sedangkan yang baru 210, ambil 210
-        const exNum = parseInt(existing.noUrut, 10);
-        const itNum = parseInt(item.noUrut, 10);
-        if (isNaN(exNum) || (itNum > exNum)) {
-          existing.noUrut = item.noUrut;
-        }
         continue;
       }
       seenMap.set(dedupKey, items.length);
@@ -4309,16 +4307,12 @@ function parseCsvMasuk(csvText) {
     items.push(item);
   }
 
-  // Normalisasi nomor urut surat masuk secara mulus agar nomor urut rapi & tidak ada yang ganda/bentrok
-  let currentMaxUrut = 0;
+  // Pertahankan nomor urut asli dari Google Spreadsheet (r[0])
+  // Hanya jika r[0] kosong atau tidak valid, fallback ke penomoran baris
   for (let idx = 0; idx < items.length; idx++) {
     const it = items[idx];
-    const n = parseInt(it.noUrut, 10);
-    if (!isNaN(n) && n > currentMaxUrut) {
-      currentMaxUrut = n;
-    } else {
-      currentMaxUrut++;
-      it.noUrut = String(currentMaxUrut);
+    if (!it.noUrut || it.noUrut === "-" || isNaN(parseInt(it.noUrut, 10))) {
+      it.noUrut = String(idx + 1);
     }
   }
 
@@ -5358,7 +5352,8 @@ async function executeSaveSuratMasuk(payload, newItem, origBtnContent) {
     localStorage.setItem("unsynced_surat_masuk", JSON.stringify(unsyncedList));
   }
 
-  state.suratMasuk.unshift(newItem);
+  state.suratMasuk.push(newItem);
+  state.suratMasuk.sort((a, b) => (parseInt(a.noUrut, 10) || 0) - (parseInt(b.noUrut, 10) || 0));
   localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
 
   const modalMasuk = document.getElementById("modalSuratMasuk");
@@ -7380,7 +7375,8 @@ async function executeBatchUploadMasuk() {
               lampiran: newDriveUrl || payload.lampiran,
               driveUrl: newDriveUrl
             };
-            state.suratMasuk.unshift(newItem);
+            state.suratMasuk.push(newItem);
+            state.suratMasuk.sort((a, b) => (parseInt(a.noUrut, 10) || 0) - (parseInt(b.noUrut, 10) || 0));
             successCount++;
           } else {
             entry.status = 'error';
@@ -7405,9 +7401,10 @@ async function executeBatchUploadMasuk() {
             lampiran: payload.lampiran,
             driveUrl: ""
           };
-          state.suratMasuk.unshift(newItem);
+          state.suratMasuk.push(newItem);
+          state.suratMasuk.sort((a, b) => (parseInt(a.noUrut, 10) || 0) - (parseInt(b.noUrut, 10) || 0));
           const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
-          unsyncedList.unshift(newItem);
+          unsyncedList.push(newItem);
           localStorage.setItem("unsynced_surat_masuk", JSON.stringify(unsyncedList));
           successCount++;
         }
