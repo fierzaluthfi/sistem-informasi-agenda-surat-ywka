@@ -5,6 +5,19 @@
  * ===================================================================
  */
 
+// Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
+(function() {
+  try {
+    const CURRENT_VERSION = "3.13";
+    const savedVersion = localStorage.getItem("sias_app_version");
+    if (savedVersion !== CURRENT_VERSION) {
+      localStorage.removeItem("cache_surat_masuk_2026");
+      localStorage.removeItem("unsynced_surat_masuk");
+      localStorage.setItem("sias_app_version", CURRENT_VERSION);
+    }
+  } catch (e) {}
+})();
+
 // Konfigurasi Spreadsheet SMA YWKA
 const SPREADSHEET_ID = "1RzsLrm9_FOUUzDjyq60zyGBkrADROCtdrnRGvecST3k";
 const GID_SURAT_KELUAR = "381566345";
