@@ -58,8 +58,11 @@ let state = {
   batchPrintType: "keluar",
   batchPrintMode: "disposisi",
   batchKeluarItems: [],
-  batchEditKeluarItems: []
+  batchEditKeluarItems: [],
+  batchMasukItems: [],
+  batchMasukMode: "new"
 };
+window.state = state;
 
 // Bulan Romawi Converter
 const ROMAN_MONTHS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
@@ -3599,6 +3602,97 @@ function initEventListeners() {
     btnStartBatch.addEventListener("click", executeBatchUploadKeluar);
   }
 
+  // =========================================================================
+  // LISTENERS: BATCH UPLOAD SURAT MASUK
+  // =========================================================================
+  const btnHeaderBatchUploadMasuk = document.getElementById("btnHeaderBatchUploadMasuk");
+  if (btnHeaderBatchUploadMasuk) {
+    btnHeaderBatchUploadMasuk.addEventListener("click", () => openBatchUploadModalMasuk());
+  }
+
+  const btnOpenBatchUploadMasukModal = document.getElementById("btnOpenBatchUploadMasukModal");
+  if (btnOpenBatchUploadMasukModal) {
+    btnOpenBatchUploadMasukModal.addEventListener("click", () => openBatchUploadModalMasuk(Array.from(state.selectedMasukIds)));
+  }
+
+  const modalBatchMasuk = document.getElementById("modalBatchUploadMasuk");
+  const btnCloseBatchUploadMasuk = document.getElementById("btnCloseBatchUploadMasuk");
+  const btnCancelBatchUploadMasuk = document.getElementById("btnCancelBatchUploadMasuk");
+
+  if (btnCloseBatchUploadMasuk && modalBatchMasuk) {
+    btnCloseBatchUploadMasuk.addEventListener("click", () => modalBatchMasuk.classList.remove("show"));
+  }
+  if (btnCancelBatchUploadMasuk && modalBatchMasuk) {
+    btnCancelBatchUploadMasuk.addEventListener("click", () => modalBatchMasuk.classList.remove("show"));
+  }
+
+  const dropzoneMasuk = document.getElementById("batchMasukDropzone");
+  const multiInputMasuk = document.getElementById("batchMasukMultiInput");
+  const btnBrowseMasuk = document.getElementById("btnBrowseBatchMasukFiles");
+
+  if (btnBrowseMasuk && multiInputMasuk) {
+    btnBrowseMasuk.addEventListener("click", (e) => {
+      e.stopPropagation();
+      multiInputMasuk.click();
+    });
+  }
+  if (dropzoneMasuk && multiInputMasuk) {
+    dropzoneMasuk.addEventListener("click", (e) => {
+      if (e.target !== btnBrowseMasuk) multiInputMasuk.click();
+    });
+    dropzoneMasuk.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzoneMasuk.classList.add("dragover");
+    });
+    dropzoneMasuk.addEventListener("dragleave", () => {
+      dropzoneMasuk.classList.remove("dragover");
+    });
+    dropzoneMasuk.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzoneMasuk.classList.remove("dragover");
+      if (e.dataTransfer && e.dataTransfer.files) {
+        handleBatchMasukFiles(e.dataTransfer.files);
+      }
+    });
+  }
+  if (multiInputMasuk) {
+    multiInputMasuk.addEventListener("change", () => {
+      if (multiInputMasuk.files && multiInputMasuk.files.length > 0) {
+        handleBatchMasukFiles(multiInputMasuk.files);
+        multiInputMasuk.value = "";
+      }
+    });
+  }
+
+  const btnBatchMasukClearFiles = document.getElementById("btnBatchMasukClearFiles");
+  if (btnBatchMasukClearFiles) {
+    btnBatchMasukClearFiles.addEventListener("click", () => {
+      state.batchMasukItems = [];
+      renderBatchMasukModalList();
+      showToast("Seluruh daftar berkas surat masuk telah dikosongkan.", "info");
+    });
+  }
+
+  const btnApplyGlobalPengirimMasuk = document.getElementById("btnApplyGlobalPengirimMasuk");
+  if (btnApplyGlobalPengirimMasuk) {
+    btnApplyGlobalPengirimMasuk.addEventListener("click", applyGlobalPengirimToBatchMasuk);
+  }
+
+  const btnApplyGlobalTglMasuk = document.getElementById("btnApplyGlobalTglMasuk");
+  if (btnApplyGlobalTglMasuk) {
+    btnApplyGlobalTglMasuk.addEventListener("click", applyGlobalTglToBatchMasuk);
+  }
+
+  const btnApplyGlobalDisposisiMasuk = document.getElementById("btnApplyGlobalDisposisiMasuk");
+  if (btnApplyGlobalDisposisiMasuk) {
+    btnApplyGlobalDisposisiMasuk.addEventListener("click", applyGlobalDisposisiToBatchMasuk);
+  }
+
+  const btnStartBatchUploadMasuk = document.getElementById("btnStartBatchUploadMasuk");
+  if (btnStartBatchUploadMasuk) {
+    btnStartBatchUploadMasuk.addEventListener("click", executeBatchUploadMasuk);
+  }
+
   // Modal Delete Surat (Keluar & Masuk) Listeners
   const modalDelete = document.getElementById("modalConfirmDelete");
   const btnCloseDelete = document.getElementById("btnCloseConfirmDelete");
@@ -6451,6 +6545,608 @@ async function executeBatchUploadKeluar() {
 
 /**
  * =========================================================================
+ * BATCH UPLOAD SURAT MASUK (DENGAN EKSTRAKSI NAMA BERKAS & TIPE SURAT OTOMATIS)
+ * =========================================================================
+ */
+
+const PENGIRIM_MASUK_OPTIONS = [
+  "CABANG DINAS WIL.VII",
+  "DINAS PENDIDIKAN PROVINSI JAWA BARAT",
+  "YAYASAN WANITA KERETA API",
+  "UNIVERSITAS / INSTITUT",
+  "LAIN-LAIN",
+  "SMPN / SMPS",
+  "INSTANSI PEMERINTAHAN WILAYAH",
+  "KEMENTRIAN PENDIDIKAN",
+  "LEMBAGA EKSTERNAL",
+  "PEMERINTAH KOTA BANDUNG",
+  "PEMERINTAH PROVINSI JAWA BARAT",
+  "BBPMP Provinsi Jawa Barat"
+];
+
+/**
+ * Parser Cerdas Nama Berkas Surat Masuk
+ * Menghapus ekstensi, membersihkan pemisah, mengekstrak nomor agenda (jika ada),
+ * dan mendeteksi Tipe Surat / Instansi Pengirim secara otomatis.
+ */
+function parseFileNameForSuratMasuk(fileName) {
+  if (!fileName) return { perihal: "", noAgenda: "", pengirim: "LAIN-LAIN" };
+
+  // 1. Hapus ekstensi berkas (.pdf, .docx, .png, dll)
+  let base = fileName.replace(/\.[^/.]+$/, "").trim();
+
+  // 2. Normalisasi underscore dan spasi berlebih
+  base = base.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+
+  let noAgenda = "";
+  let perihal = base;
+
+  // Cek awalan nomor/kode agenda surat jika ada:
+  // Pola A: Angka di awal yang diikuti pemisah (contoh: "045 - Undangan MKKS" atau "218_Surat Tugas")
+  const leadMatch = base.match(/^(\d+[a-zA-Z0-9/.-]*)\s*[-–—:]\s*(.+)$/);
+  if (leadMatch) {
+    noAgenda = leadMatch[1].trim();
+    perihal = leadMatch[2].trim();
+  } else {
+    // Pola B: "No. 045 - Undangan" atau "Agenda 218: Edaran"
+    const agendaMatch = base.match(/^(?:no\.?|agenda)\s*([0-9a-zA-Z/.-]+)\s*[-–—:]?\s*(.+)$/i);
+    if (agendaMatch) {
+      noAgenda = agendaMatch[1].trim();
+      perihal = agendaMatch[2].trim();
+    }
+  }
+
+  // Jika perihal seluruhnya huruf besar (ALL CAPS) atau huruf kecil, ubah ke format Title Case yang rapi
+  if (perihal === perihal.toUpperCase() || perihal === perihal.toLowerCase()) {
+    perihal = perihal.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // 3. Deteksi Instansi Pengirim / Tipe Surat secara otomatis dari nama file
+  const lowerBase = (base + " " + fileName).toLowerCase();
+  let pengirim = "LAIN-LAIN";
+
+  if (lowerBase.includes("cadisdik") || lowerBase.includes("wil.vii") || lowerBase.includes("wil vii") || lowerBase.includes("kcd") || lowerBase.includes("wilayah vii")) {
+    pengirim = "CABANG DINAS WIL.VII";
+  } else if (lowerBase.includes("disdik") || lowerBase.includes("dinas pendidikan")) {
+    pengirim = "DINAS PENDIDIKAN PROVINSI JAWA BARAT";
+  } else if (lowerBase.includes("ywka") || lowerBase.includes("yayasan") || lowerBase.includes("wanita kereta api")) {
+    pengirim = "YAYASAN WANITA KERETA API";
+  } else if (lowerBase.includes("bbpmp") || lowerBase.includes("bpmp") || lowerBase.includes("lpmp")) {
+    pengirim = "BBPMP Provinsi Jawa Barat";
+  } else if (lowerBase.includes("smpn") || lowerBase.includes("smps") || lowerBase.includes("smp ") || lowerBase.includes("mts")) {
+    pengirim = "SMPN / SMPS";
+  } else if (lowerBase.includes("univ") || lowerBase.includes("institut") || lowerBase.includes("itb") || lowerBase.includes("upi") || lowerBase.includes("unpad") || lowerBase.includes("unpas") || lowerBase.includes("polban") || lowerBase.includes("telkom")) {
+    pengirim = "UNIVERSITAS / INSTITUT";
+  } else if (lowerBase.includes("pemkot") || lowerBase.includes("kota bandung")) {
+    pengirim = "PEMERINTAH KOTA BANDUNG";
+  } else if (lowerBase.includes("pemprov") || lowerBase.includes("jabar") || lowerBase.includes("gubernur") || lowerBase.includes("setda")) {
+    pengirim = "PEMERINTAH PROVINSI JAWA BARAT";
+  } else if (lowerBase.includes("kemendikbud") || lowerBase.includes("kemdikbud") || lowerBase.includes("kementerian") || lowerBase.includes("kementrian")) {
+    pengirim = "KEMENTRIAN PENDIDIKAN";
+  } else if (lowerBase.includes("polsek") || lowerBase.includes("koramil") || lowerBase.includes("polrestabes") || lowerBase.includes("kelurahan") || lowerBase.includes("kecamatan") || lowerBase.includes("puskesmas")) {
+    pengirim = "INSTANSI PEMERINTAHAN WILAYAH";
+  }
+
+  return {
+    perihal: perihal,
+    noAgenda: noAgenda,
+    pengirim: pengirim
+  };
+}
+window.parseFileNameForSuratMasuk = parseFileNameForSuratMasuk;
+
+/**
+ * Buka modal Upload Batch Surat Masuk
+ * @param {Array<string>|null} targetIds Daftar ID surat spesifik jika dicentang dari tabel
+ */
+function openBatchUploadModalMasuk(targetIds = null) {
+  const modal = document.getElementById("modalBatchUploadMasuk");
+  if (!modal) return;
+
+  const progressBox = document.getElementById("batchMasukProgressBox");
+  if (progressBox) progressBox.style.display = "none";
+
+  // Pre-fill input global tanggal ke hari ini
+  const globalTgl = document.getElementById("batchMasukGlobalTanggal");
+  if (globalTgl && !globalTgl.value) {
+    globalTgl.value = new Date().toISOString().split("T")[0];
+  }
+
+  if (targetIds && targetIds.length > 0) {
+    // Mode Pasangkan Berkas ke Surat Terpilih
+    state.batchMasukMode = "match";
+    const selectedItems = targetIds.map(id => state.suratMasuk.find(m => m.id === id)).filter(Boolean);
+    state.batchMasukItems = selectedItems.map(item => ({
+      id: "BM-EXISTING-" + item.id,
+      isExisting: true,
+      existingItem: item,
+      noUrut: item.noUrut || "",
+      noAgenda: item.noAgenda || "",
+      perihal: item.perihal || "",
+      dari: item.dari || "LAIN-LAIN",
+      tglSurat: item.tglSurat || new Date().toISOString().split("T")[0],
+      tglTerima: item.tglMasuk || new Date().toISOString().split("T")[0],
+      disposisi: item.keterangan || "",
+      kodeKlasifikasi: item.kodeKlasifikasi || "",
+      file: null,
+      status: 'idle',
+      errorMsg: ''
+    }));
+  } else if (state.selectedMasukIds && state.selectedMasukIds.size > 0) {
+    state.batchMasukMode = "match";
+    const selectedItems = Array.from(state.selectedMasukIds).map(id => state.suratMasuk.find(m => m.id === id)).filter(Boolean);
+    state.batchMasukItems = selectedItems.map(item => ({
+      id: "BM-EXISTING-" + item.id,
+      isExisting: true,
+      existingItem: item,
+      noUrut: item.noUrut || "",
+      noAgenda: item.noAgenda || "",
+      perihal: item.perihal || "",
+      dari: item.dari || "LAIN-LAIN",
+      tglSurat: item.tglSurat || new Date().toISOString().split("T")[0],
+      tglTerima: item.tglMasuk || new Date().toISOString().split("T")[0],
+      disposisi: item.keterangan || "",
+      kodeKlasifikasi: item.kodeKlasifikasi || "",
+      file: null,
+      status: 'idle',
+      errorMsg: ''
+    }));
+  } else {
+    // Mode Entri Baru
+    state.batchMasukMode = "new";
+    if (!state.batchMasukItems) state.batchMasukItems = [];
+  }
+
+  renderBatchMasukModalList();
+  modal.classList.add("show");
+}
+window.openBatchUploadModalMasuk = openBatchUploadModalMasuk;
+
+function closeBatchUploadModalMasuk() {
+  const modal = document.getElementById("modalBatchUploadMasuk");
+  if (modal) modal.classList.remove("show");
+}
+window.closeBatchUploadModalMasuk = closeBatchUploadModalMasuk;
+
+/**
+ * Handle berkas-berkas yang di-drop atau dipilih di modal Batch Upload Surat Masuk
+ */
+function handleBatchMasukFiles(fileList) {
+  if (!fileList || fileList.length === 0) return;
+
+  const files = Array.from(fileList);
+  const todayIso = new Date().toISOString().split("T")[0];
+  let baseNoUrut = getNextNoUrutMasuk();
+
+  // Jika sudah ada item di antrean, cari nomor urut tertinggi yang sudah ada
+  if (state.batchMasukItems && state.batchMasukItems.length > 0) {
+    const existingMax = Math.max(...state.batchMasukItems.map(b => parseInt(b.noUrut, 10) || 0));
+    if (existingMax >= baseNoUrut) {
+      baseNoUrut = existingMax + 1;
+    }
+  }
+
+  let matchedExistingCount = 0;
+  let addedNewCount = 0;
+
+  files.forEach((file, idx) => {
+    // Abaikan jika file yang sama persis sudah masuk
+    if (state.batchMasukItems.some(b => b.file && b.file.name === file.name && b.file.size === file.size)) {
+      return;
+    }
+
+    // 1. Coba pasangkan ke item existing yang belum punya file (jika ada)
+    const emptyExisting = state.batchMasukItems.find(b => b.isExisting && !b.file);
+    if (emptyExisting) {
+      emptyExisting.file = file;
+      emptyExisting.status = 'ready';
+      matchedExistingCount++;
+      return;
+    }
+
+    // 2. Jika tidak, tambahkan sebagai entri Surat Masuk baru dengan auto-ekstraksi nama berkas
+    const parsed = parseFileNameForSuratMasuk(file.name);
+    const assignedUrut = baseNoUrut + addedNewCount;
+
+    state.batchMasukItems.push({
+      id: "BMI-" + Date.now() + "-" + idx + "-" + Math.random().toString(36).substring(2, 6),
+      isExisting: false,
+      noUrut: assignedUrut,
+      noAgenda: parsed.noAgenda || `Agenda-${assignedUrut}`,
+      perihal: parsed.perihal || file.name.replace(/\.[^/.]+$/, ""),
+      dari: parsed.pengirim || "LAIN-LAIN",
+      tglSurat: todayIso,
+      tglTerima: todayIso,
+      disposisi: "",
+      kodeKlasifikasi: "",
+      file: file,
+      status: 'ready',
+      errorMsg: ''
+    });
+    addedNewCount++;
+  });
+
+  renderBatchMasukModalList();
+
+  if (addedNewCount > 0 || matchedExistingCount > 0) {
+    showToast(`✅ Berhasil menambahkan ${addedNewCount + matchedExistingCount} berkas! Keterangan otomatis diekstrak dari nama file.`, "success");
+  }
+}
+window.handleBatchMasukFiles = handleBatchMasukFiles;
+
+/**
+ * Render tabel daftar berkas di modal upload batch Surat Masuk
+ */
+function renderBatchMasukModalList() {
+  const tbody = document.getElementById("tbodyBatchMasukItems");
+  const summaryStats = document.getElementById("batchMasukSummaryStats");
+  const readyCountSpan = document.getElementById("batchMasukReadyCount");
+  const btnStart = document.getElementById("btnStartBatchUploadMasuk");
+
+  if (!tbody) return;
+
+  const total = state.batchMasukItems ? state.batchMasukItems.length : 0;
+  const ready = state.batchMasukItems ? state.batchMasukItems.filter(b => b.file && b.status !== 'success').length : 0;
+
+  if (summaryStats) {
+    summaryStats.textContent = `${total} berkas terdaftar • ${ready} siap upload`;
+  }
+  if (readyCountSpan) {
+    readyCountSpan.textContent = ready;
+  }
+  if (btnStart) {
+    btnStart.disabled = (ready === 0);
+  }
+
+  if (total === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="text-align: center; color: #94a3b8; padding: 36px 16px;">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size: 32px; display: block; margin-bottom: 8px; color: #cbd5e1;"></i>
+          Belum ada berkas yang dipilih. Silakan tarik &amp; jatuhkan berkas di area atas atau klik tombol <strong>"Pilih Berkas"</strong>.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  let html = "";
+  state.batchMasukItems.forEach((entry, idx) => {
+    const pengirimSelectOptions = PENGIRIM_MASUK_OPTIONS.map(opt => {
+      const isSel = (entry.dari === opt) ? 'selected' : '';
+      return `<option value="${escapeHtml(opt)}" ${isSel}>${escapeHtml(opt)}</option>`;
+    }).join("");
+
+    let fileCol = "";
+    if (entry.file) {
+      fileCol = `
+        <div class="batch-file-matched" style="max-width: 220px;" title="${escapeHtml(entry.file.name)}">
+          <i class="fa-solid fa-file-pdf text-danger"></i>
+          <span class="batch-file-name">${escapeHtml(entry.file.name)}</span>
+          <span class="batch-file-size">(${formatFileSize(entry.file.size)})</span>
+          <button type="button" class="btn-remove-matched-file" onclick="removeBatchMasukFile('${entry.id}')" title="Lepas berkas">&times;</button>
+        </div>
+      `;
+    } else {
+      fileCol = `<span class="batch-no-file-text">Belum ada file</span>`;
+    }
+
+    let statusCol = "";
+    if (entry.status === 'ready') {
+      statusCol = `<span class="badge" style="background:#ecfdf5; color:#059669; font-size:11px;"><i class="fa-solid fa-check"></i> Siap</span>`;
+    } else if (entry.status === 'uploading') {
+      statusCol = `<span class="badge" style="background:#eff6ff; color:#2563eb; font-size:11px;"><i class="fa-solid fa-spinner fa-spin"></i> Upload...</span>`;
+    } else if (entry.status === 'success') {
+      statusCol = `<span class="badge" style="background:#dcfce7; color:#166534; font-size:11px;"><i class="fa-solid fa-circle-check"></i> Selesai</span>`;
+    } else if (entry.status === 'error') {
+      statusCol = `<span class="badge" style="background:#fee2e2; color:#dc2626; font-size:11px;" title="${escapeHtml(entry.errorMsg || 'Gagal')}"><i class="fa-solid fa-circle-exclamation"></i> Gagal</span>`;
+    } else {
+      statusCol = `<span class="badge" style="background:#f1f5f9; color:#64748b; font-size:11px;">Menunggu</span>`;
+    }
+
+    html += `
+      <tr data-item-id="${entry.id}">
+        <td style="text-align: center;">
+          <input type="number" class="batch-table-input stat-mono font-bold" style="width: 55px; text-align: center;" value="${entry.noUrut || (idx + 1)}" onchange="updateBatchMasukField('${entry.id}', 'noUrut', this.value)" title="No. Urut Surat Masuk">
+        </td>
+        <td>
+          <input type="text" class="batch-table-input font-bold" value="${escapeHtml(entry.noAgenda || '')}" placeholder="No. Agenda / Asal" onchange="updateBatchMasukField('${entry.id}', 'noAgenda', this.value)">
+        </td>
+        <td>
+          <textarea class="batch-table-input" rows="2" placeholder="Prihal / Keterangan Surat" onchange="updateBatchMasukField('${entry.id}', 'perihal', this.value)" style="min-height: 48px; resize: vertical;">${escapeHtml(entry.perihal || '')}</textarea>
+        </td>
+        <td>
+          <select class="batch-table-input font-bold" onchange="updateBatchMasukField('${entry.id}', 'dari', this.value)">
+            ${pengirimSelectOptions}
+          </select>
+        </td>
+        <td>
+          <input type="date" class="batch-table-input" value="${entry.tglSurat || ''}" onchange="updateBatchMasukField('${entry.id}', 'tglSurat', this.value)" title="Tanggal Surat">
+        </td>
+        <td>
+          <input type="date" class="batch-table-input" value="${entry.tglTerima || ''}" onchange="updateBatchMasukField('${entry.id}', 'tglTerima', this.value)" title="Tanggal Diterima">
+        </td>
+        <td>
+          <input type="text" class="batch-table-input" value="${escapeHtml(entry.disposisi || '')}" placeholder="Disposisi" onchange="updateBatchMasukField('${entry.id}', 'disposisi', this.value)">
+        </td>
+        <td>${fileCol}</td>
+        <td style="text-align: center;">${statusCol}</td>
+        <td style="text-align: center;">
+          <button type="button" class="btn-action-icon btn-del" onclick="removeBatchMasukItem('${entry.id}')" title="Hapus baris ini">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+window.renderBatchMasukModalList = renderBatchMasukModalList;
+
+/**
+ * Update field item di batch upload Surat Masuk
+ */
+function updateBatchMasukField(itemId, field, value) {
+  const item = state.batchMasukItems.find(b => b.id === itemId);
+  if (!item) return;
+  item[field] = value;
+}
+window.updateBatchMasukField = updateBatchMasukField;
+
+/**
+ * Lepas file dari baris tertentu di modal batch upload Surat Masuk
+ */
+function removeBatchMasukFile(itemId) {
+  const item = state.batchMasukItems.find(b => b.id === itemId);
+  if (!item) return;
+  item.file = null;
+  if (item.status !== 'success') item.status = 'idle';
+  renderBatchMasukModalList();
+}
+window.removeBatchMasukFile = removeBatchMasukFile;
+
+/**
+ * Hapus seluruh baris entri di modal batch upload Surat Masuk
+ */
+function removeBatchMasukItem(itemId) {
+  state.batchMasukItems = state.batchMasukItems.filter(b => b.id !== itemId);
+  renderBatchMasukModalList();
+}
+window.removeBatchMasukItem = removeBatchMasukItem;
+
+/**
+ * Terapkan instansi pengirim global ke seluruh baris surat masuk
+ */
+function applyGlobalPengirimToBatchMasuk() {
+  const select = document.getElementById("batchMasukGlobalPengirim");
+  if (!select || !select.value) {
+    showToast("Silakan pilih instansi pengirim terlebih dahulu!", "warning");
+    return;
+  }
+  const val = select.value;
+  state.batchMasukItems.forEach(b => {
+    b.dari = val;
+  });
+  renderBatchMasukModalList();
+  showToast(`Pengirim "${val}" diterapkan ke seluruh surat dalam daftar!`, "success");
+}
+window.applyGlobalPengirimToBatchMasuk = applyGlobalPengirimToBatchMasuk;
+
+/**
+ * Terapkan tanggal global ke seluruh baris surat masuk
+ */
+function applyGlobalTglToBatchMasuk() {
+  const input = document.getElementById("batchMasukGlobalTanggal");
+  if (!input || !input.value) {
+    showToast("Silakan tentukan tanggal terlebih dahulu!", "warning");
+    return;
+  }
+  const val = input.value;
+  state.batchMasukItems.forEach(b => {
+    b.tglSurat = val;
+    b.tglTerima = val;
+  });
+  renderBatchMasukModalList();
+  showToast(`Tanggal "${val}" diterapkan ke seluruh surat dalam daftar!`, "success");
+}
+window.applyGlobalTglToBatchMasuk = applyGlobalTglToBatchMasuk;
+
+/**
+ * Terapkan disposisi global ke seluruh baris surat masuk
+ */
+function applyGlobalDisposisiToBatchMasuk() {
+  const input = document.getElementById("batchMasukGlobalDisposisi");
+  const val = input ? input.value.trim() : "";
+  state.batchMasukItems.forEach(b => {
+    b.disposisi = val;
+  });
+  renderBatchMasukModalList();
+  showToast(`Disposisi "${val || '(kosong)'}" diterapkan ke seluruh surat dalam daftar!`, "success");
+}
+window.applyGlobalDisposisiToBatchMasuk = applyGlobalDisposisiToBatchMasuk;
+
+/**
+ * Eksekusi Batch Upload Surat Masuk ke Google Drive & Simpan ke Spreadsheet
+ */
+async function executeBatchUploadMasuk() {
+  const itemsToUpload = state.batchMasukItems.filter(b => b.file && b.status !== 'success');
+  if (itemsToUpload.length === 0) {
+    showToast("Tidak ada berkas yang siap diunggah!", "warning");
+    return;
+  }
+
+  const btnStart = document.getElementById("btnStartBatchUploadMasuk");
+  const btnClose = document.getElementById("btnCancelBatchUploadMasuk");
+  const progressBox = document.getElementById("batchMasukProgressBox");
+  const progressBar = document.getElementById("batchMasukProgressBar");
+  const progressPercent = document.getElementById("batchMasukProgressPercentage");
+  const progressStatus = document.getElementById("batchMasukProgressStatusText");
+  const progressDetail = document.getElementById("batchMasukProgressCurrentDetail");
+
+  if (btnStart) btnStart.disabled = true;
+  if (btnClose) btnClose.disabled = true;
+  if (progressBox) progressBox.style.display = "block";
+
+  const total = itemsToUpload.length;
+  let successCount = 0;
+  let failCount = 0;
+
+  for (let i = 0; i < total; i++) {
+    const entry = itemsToUpload[i];
+    entry.status = 'uploading';
+    renderBatchMasukModalList();
+
+    const percent = Math.round((i / total) * 100);
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (progressPercent) progressPercent.textContent = `${percent}%`;
+    if (progressStatus) progressStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengunggah berkas ${i + 1} dari ${total}...`;
+    if (progressDetail) progressDetail.textContent = `No. ${entry.noUrut || '-'}: ${entry.perihal || entry.file.name}`;
+
+    try {
+      const fileBase64 = await readFileAsBase64(entry.file);
+
+      if (entry.isExisting) {
+        // Upload lampiran ke surat masuk existing
+        const payload = {
+          action: "upload_lampiran_masuk",
+          no_agenda: entry.noAgenda,
+          no_urut: entry.noUrut,
+          fileName: entry.file.name,
+          fileBase64: fileBase64,
+          fileMime: entry.file.type || "application/pdf"
+        };
+        const res = await postToAppsScript(payload);
+        if (res && res.success && res.data && res.data.drive_file_url) {
+          entry.status = 'success';
+          const dUrl = res.data.drive_file_url;
+          const target = state.suratMasuk.find(m => m.id === entry.existingItem?.id || (m.noAgenda && m.noAgenda === entry.noAgenda));
+          if (target) {
+            target.driveUrl = dUrl;
+            target.lampiran = dUrl;
+          }
+          successCount++;
+        } else {
+          entry.status = 'error';
+          entry.errorMsg = res?.message || "Gagal mengunggah ke Drive";
+          failCount++;
+        }
+      } else {
+        // Catat surat masuk baru secara massal
+        const formattedTglSurat = formatDateIndo(entry.tglSurat);
+        const formattedTglTerima = formatDateIndo(entry.tglTerima);
+
+        const payload = {
+          action: "create_surat_masuk",
+          no_urut: entry.noUrut,
+          no_agenda: entry.noAgenda || `Agenda-${entry.noUrut}`,
+          tanggal_surat: formattedTglSurat,
+          tanggal_diterima: formattedTglTerima,
+          perihal: entry.perihal,
+          dari: entry.dari || "LAIN-LAIN",
+          kepada: "SMA YWKA",
+          kode_klasifikasi: entry.kodeKlasifikasi || "",
+          keterangan: entry.disposisi || "",
+          lampiran: `Tersimpan di Drive (${entry.file.name})`,
+          fileBase64: fileBase64,
+          fileName: entry.file.name,
+          fileMime: entry.file.type || "application/pdf"
+        };
+
+        let newDriveUrl = "";
+        let newUrut = String(entry.noUrut);
+
+        if (state.appsScriptUrl) {
+          const res = await postToAppsScript(payload);
+          if (res && res.success) {
+            entry.status = 'success';
+            if (res.data?.drive_file_url) newDriveUrl = res.data.drive_file_url;
+            if (res.data?.no_urut) newUrut = String(res.data.no_urut);
+
+            const newItem = {
+              id: "M-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+              noUrut: newUrut,
+              isUnsynced: false,
+              noAgenda: payload.no_agenda,
+              tglSurat: payload.tanggal_surat,
+              tglMasuk: payload.tanggal_diterima,
+              perihal: payload.perihal,
+              dari: payload.dari,
+              kepada: payload.kepada,
+              kodeKlasifikasi: payload.kode_klasifikasi,
+              keterangan: payload.keterangan,
+              lampiran: newDriveUrl || payload.lampiran,
+              driveUrl: newDriveUrl
+            };
+            state.suratMasuk.unshift(newItem);
+            successCount++;
+          } else {
+            entry.status = 'error';
+            entry.errorMsg = res?.message || "Gagal menyimpan ke Spreadsheet";
+            failCount++;
+          }
+        } else {
+          // Mode offline
+          entry.status = 'success';
+          const newItem = {
+            id: "M-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+            noUrut: newUrut,
+            isUnsynced: true,
+            noAgenda: payload.no_agenda,
+            tglSurat: payload.tanggal_surat,
+            tglMasuk: payload.tanggal_diterima,
+            perihal: payload.perihal,
+            dari: payload.dari,
+            kepada: payload.kepada,
+            kodeKlasifikasi: payload.kode_klasifikasi,
+            keterangan: payload.keterangan,
+            lampiran: payload.lampiran,
+            driveUrl: ""
+          };
+          state.suratMasuk.unshift(newItem);
+          const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+          unsyncedList.unshift(newItem);
+          localStorage.setItem("unsynced_surat_masuk", JSON.stringify(unsyncedList));
+          successCount++;
+        }
+      }
+    } catch (err) {
+      entry.status = 'error';
+      entry.errorMsg = err.message || "Koneksi terputus";
+      failCount++;
+    }
+
+    renderBatchMasukModalList();
+  }
+
+  // Selesaikan progress bar
+  if (progressBar) progressBar.style.width = "100%";
+  if (progressPercent) progressPercent.textContent = "100%";
+  if (progressStatus) progressStatus.innerHTML = `<i class="fa-solid fa-circle-check text-emerald"></i> Proses upload batch surat masuk selesai!`;
+  if (progressDetail) progressDetail.textContent = `${successCount} berkas berhasil diunggah & dicatat${failCount > 0 ? `, ${failCount} gagal` : ''}.`;
+
+  // Simpan cache lokal
+  localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
+
+  // Perbarui UI tabel & dashboard
+  filterSuratMasukData();
+  updateDashboardUI();
+  updateBatchMasukBar();
+
+  if (btnStart) btnStart.disabled = false;
+  if (btnClose) btnClose.disabled = false;
+
+  if (successCount > 0) {
+    showToast(`✅ Berhasil mengunggah & mencatat ${successCount} berkas surat masuk ke Spreadsheet & Google Drive!`, "success");
+  }
+  if (failCount > 0) {
+    showToast(`⚠️ Ada ${failCount} berkas yang gagal diunggah. Silakan periksa kembali berkas tersebut.`, "warning");
+  }
+}
+window.executeBatchUploadMasuk = executeBatchUploadMasuk;
+
+/**
+ * =========================================================================
  * BATCH EDIT SURAT KELUAR (UPDATE MASSAL KODE KLASIFIKASI, TANGGAL, DLL)
  * =========================================================================
  */
@@ -8240,11 +8936,13 @@ function updateBatchMasukBar() {
   const bar = document.getElementById("batchMasukBar");
   const countBadge = document.getElementById("batchMasukCountBadge");
   const printBtnCount = document.getElementById("batchPrintMasukBtnCount");
+  const btnCount = document.getElementById("batchMasukBtnCount");
   if (!bar) return;
 
   const count = state.selectedMasukIds ? state.selectedMasukIds.size : 0;
   if (countBadge) countBadge.textContent = count;
   if (printBtnCount) printBtnCount.textContent = count;
+  if (btnCount) btnCount.textContent = count;
 
   if (count > 0) {
     bar.style.display = "flex";

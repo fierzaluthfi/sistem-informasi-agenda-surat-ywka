@@ -487,6 +487,9 @@
                 <p class="panel-desc">Sinkron langsung dengan sheet <code>SURAT MASUK 2026</code> (gid: 1925080880) & Google Drive</p>
               </div>
               <div class="panel-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="btnHeaderBatchUploadMasuk" title="Upload banyak berkas surat masuk sekaligus dengan auto-baca nama file">
+                  <i class="fa-solid fa-layer-group"></i> Upload Batch Surat Masuk
+                </button>
                 <button type="button" class="btn btn-outline btn-sm" id="btnSyncDriveMasuk" title="Pindai Google Drive Surat Masuk dan pasangkan ke Spreadsheet">
                   <i class="fa-solid fa-arrows-rotate text-emerald"></i> Sinkron Berkas Drive
                 </button>
@@ -562,6 +565,9 @@
                 </button>
               </div>
               <div class="batch-bar-right">
+                <button type="button" class="btn btn-primary btn-sm" id="btnOpenBatchUploadMasukModal" title="Upload berkas Drive untuk surat masuk yang dipilih">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> Upload Batch Berkas (<span id="batchMasukBtnCount">0</span>)
+                </button>
                 <button type="button" class="btn btn-emerald btn-sm" id="btnOpenBatchPrintMasukModal" title="Cetak batch lembar disposisi / berkas surat masuk yang dipilih">
                   <i class="fa-solid fa-print"></i> Cetak Batch (<span id="batchPrintMasukBtnCount">0</span>)
                 </button>
@@ -1778,6 +1784,141 @@
         <button type="button" class="btn btn-secondary" id="btnCancelBatchUploadKeluar">Tutup</button>
         <button type="button" class="btn btn-primary" id="btnStartBatchUploadKeluar" disabled>
           <i class="fa-solid fa-cloud-arrow-up"></i> Mulai Upload Batch (<span id="batchReadyCount">0</span> Berkas Siap)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: UPLOAD BATCH SURAT MASUK ================= -->
+  <div class="modal-backdrop" id="modalBatchUploadMasuk">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-header" style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
+        <h3 class="modal-title" style="color: #166534;">
+          <i class="fa-solid fa-layer-group text-emerald"></i> Upload Batch Surat Masuk &amp; Ekstrak Keterangan Otomatis
+        </h3>
+        <button class="modal-close-btn" id="btnCloseBatchUploadMasuk" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Info Banner -->
+        <div class="batch-info-banner" style="background: #ecfdf5; border-color: #a7f3d0;">
+          <div class="batch-info-icon"><i class="fa-solid fa-wand-magic-sparkles text-emerald" style="font-size: 24px;"></i></div>
+          <div class="batch-info-content">
+            <h4 style="color: #065f46;">Upload Massal &amp; Keterangan Otomatis Terisi dari Nama File</h4>
+            <p style="color: #047857;">
+              Tarik atau pilih banyak berkas surat masuk sekaligus (PDF, Word, Scan JPG/PNG). Sistem akan <strong>otomatis mengambil nama berkas sebagai Prihal/Keterangan surat</strong> tanpa perlu mengetik ulang, mendeteksi <strong>Tipe/Instansi Pengirim</strong> (Cadisdik Wil. VII, Disdik Jabar, Yayasan YWKA, Univ, SMPN, dll.), dan mengurutkan <strong>No. Urut agenda</strong> secara berurutan!
+            </p>
+          </div>
+        </div>
+
+        <!-- Multi-File Dropzone -->
+        <div class="batch-dropzone" id="batchMasukDropzone">
+          <input type="file" id="batchMasukMultiInput" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display: none;">
+          <div class="batch-dropzone-inner">
+            <div class="batch-dropzone-icon" style="color: #10b981;">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h4>Tarik &amp; Jatuhkan Berkas Surat Masuk ke Sini</h4>
+            <p>atau klik tombol di bawah untuk memilih banyak file dari komputer Anda</p>
+            <button type="button" class="btn btn-emerald" id="btnBrowseBatchMasukFiles">
+              <i class="fa-solid fa-folder-open"></i> Pilih Berkas (Bisa Pilih Banyak Sekaligus)
+            </button>
+            <div class="batch-dropzone-subtext">Mendukung format PDF, Word (.doc, .docx), JPG, PNG. Maksimal 25 MB per file. Keterangan surat otomatis diambil dari nama berkas.</div>
+          </div>
+        </div>
+
+        <!-- Global Toolbar for Rapid Editing -->
+        <div class="batch-toolbar-row" id="batchMasukQuickToolbar">
+          <div class="batch-toolbar-group">
+            <label style="font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap;"><i class="fa-solid fa-building text-emerald"></i> Terapkan Pengirim ke Semua:</label>
+            <select id="batchMasukGlobalPengirim" class="form-control" style="font-size: 12px; padding: 4px 8px; height: 32px; max-width: 200px;">
+              <option value="">-- Pilih Pengirim --</option>
+              <option value="CABANG DINAS WIL.VII">CABANG DINAS WIL.VII</option>
+              <option value="DINAS PENDIDIKAN PROVINSI JAWA BARAT">DINAS PENDIDIKAN PROVINSI JAWA BARAT</option>
+              <option value="YAYASAN WANITA KERETA API">YAYASAN WANITA KERETA API</option>
+              <option value="UNIVERSITAS / INSTITUT">UNIVERSITAS / INSTITUT</option>
+              <option value="LAIN-LAIN">LAIN-LAIN</option>
+              <option value="SMPN / SMPS">SMPN / SMPS</option>
+              <option value="INSTANSI PEMERINTAHAN WILAYAH">INSTANSI PEMERINTAHAN WILAYAH</option>
+              <option value="KEMENTRIAN PENDIDIKAN">KEMENTRIAN PENDIDIKAN</option>
+              <option value="LEMBAGA EKSTERNAL">LEMBAGA EKSTERNAL</option>
+              <option value="PEMERINTAH KOTA BANDUNG">PEMERINTAH KOTA BANDUNG</option>
+              <option value="PEMERINTAH PROVINSI JAWA BARAT">PEMERINTAH PROVINSI JAWA BARAT</option>
+              <option value="BBPMP Provinsi Jawa Barat">BBPMP Provinsi Jawa Barat</option>
+            </select>
+            <button type="button" class="btn btn-xs btn-outline" id="btnApplyGlobalPengirimMasuk" title="Terapkan kategori pengirim ini ke seluruh daftar di bawah">Terapkan</button>
+          </div>
+
+          <div class="batch-toolbar-group">
+            <label style="font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap;"><i class="fa-regular fa-calendar text-emerald"></i> Tanggal:</label>
+            <input type="date" id="batchMasukGlobalTanggal" class="form-control" style="font-size: 12px; padding: 4px 8px; height: 32px; width: 130px;">
+            <button type="button" class="btn btn-xs btn-outline" id="btnApplyGlobalTglMasuk" title="Terapkan tanggal ini ke seluruh surat di bawah">Terapkan</button>
+          </div>
+
+          <div class="batch-toolbar-group">
+            <label style="font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap;"><i class="fa-solid fa-clipboard-check text-emerald"></i> Disposisi:</label>
+            <input type="text" id="batchMasukGlobalDisposisi" class="form-control" placeholder="Contoh: Kurikulum" style="font-size: 12px; padding: 4px 8px; height: 32px; width: 130px;">
+            <button type="button" class="btn btn-xs btn-outline" id="btnApplyGlobalDisposisiMasuk" title="Terapkan disposisi ini ke semua surat">Terapkan</button>
+          </div>
+        </div>
+
+        <!-- Batch Items Table / List -->
+        <div class="batch-list-wrapper">
+          <div class="batch-list-header">
+            <div>
+              <strong style="color: #1e293b; font-size: 13.5px;">Daftar Surat Masuk yang Akan Dicatat &amp; Diunggah:</strong>
+              <span class="batch-count-summary" id="batchMasukSummaryStats">0 berkas siap diproses</span>
+            </div>
+            <div class="batch-list-actions">
+              <button type="button" class="btn btn-xs btn-secondary" id="btnBatchMasukClearFiles" title="Kosongkan seluruh daftar berkas">
+                <i class="fa-solid fa-rotate-left"></i> Kosongkan Daftar
+              </button>
+            </div>
+          </div>
+
+          <div class="batch-table-scroll" style="max-height: 330px;">
+            <table class="batch-items-table">
+              <thead>
+                <tr>
+                  <th style="width: 60px; text-align: center;">No. Urut</th>
+                  <th style="width: 140px;">No. Agenda / Asal</th>
+                  <th style="min-width: 220px;">Prihal / Keterangan (Dari Nama File)</th>
+                  <th style="width: 170px;">Tipe / Pengirim</th>
+                  <th style="width: 105px;">Tgl Surat</th>
+                  <th style="width: 105px;">Diterima</th>
+                  <th style="width: 110px;">Disposisi</th>
+                  <th style="width: 180px;">Berkas File</th>
+                  <th style="width: 100px; text-align: center;">Status</th>
+                  <th style="width: 44px; text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyBatchMasukItems">
+                <tr>
+                  <td colspan="10" style="text-align: center; color: #94a3b8; padding: 32px 16px;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 32px; display: block; margin-bottom: 8px; color: #cbd5e1;"></i>
+                    Belum ada berkas yang dipilih. Silakan tarik &amp; jatuhkan file atau klik tombol "Pilih Berkas" di atas.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Upload Progress Section -->
+        <div class="batch-progress-box" id="batchMasukProgressBox" style="display: none;">
+          <div class="batch-progress-header">
+            <span id="batchMasukProgressStatusText"><i class="fa-solid fa-spinner fa-spin"></i> Mengunggah berkas ke Google Drive Surat Masuk 2026...</span>
+            <span id="batchMasukProgressPercentage" class="stat-mono font-bold" style="color: #059669;">0%</span>
+          </div>
+          <div class="batch-progress-track">
+            <div class="batch-progress-bar" id="batchMasukProgressBar" style="width: 0%; background: #10b981;"></div>
+          </div>
+          <div class="batch-progress-details" id="batchMasukProgressCurrentDetail">-</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCancelBatchUploadMasuk">Tutup</button>
+        <button type="button" class="btn btn-emerald" id="btnStartBatchUploadMasuk" disabled>
+          <i class="fa-solid fa-cloud-arrow-up"></i> Mulai Simpan &amp; Upload Batch (<span id="batchMasukReadyCount">0</span> Berkas Siap)
         </button>
       </div>
     </div>

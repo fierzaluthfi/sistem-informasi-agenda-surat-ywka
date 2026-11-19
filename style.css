@@ -3720,6 +3720,47 @@ body * {
 }
 
 /* ==========================================================================
+   Batch Upload Surat Masuk Toolbar & Table Controls
+   ========================================================================== */
+.batch-toolbar-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.batch-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.batch-table-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e293b;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.batch-table-input:focus {
+  border-color: #10b981;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+}
+
+/* ==========================================================================
    Batch Edit Surat Keluar Styling
    ========================================================================== */
 .batch-edit-controls-card {
