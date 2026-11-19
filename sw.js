@@ -1,10 +1,12 @@
 // Service Worker untuk Sistem Informasi Agenda Surat (SIAS) SMAS YWKA Bandung
-const CACHE_NAME = "sias-ywka-v3.11";
+const CACHE_NAME = "sias-ywka-v3.12";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./pdf.min.js",
+  "./pdf.worker.min.js",
   "./manifest.json",
   "./logo-ywka.png",
   "./favicon.png",

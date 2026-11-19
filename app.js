@@ -3693,6 +3693,35 @@ function initEventListeners() {
     btnStartBatchUploadMasuk.addEventListener("click", executeBatchUploadMasuk);
   }
 
+  const btnBatchMasukRescanPdf = document.getElementById("btnBatchMasukRescanPdf");
+  if (btnBatchMasukRescanPdf) {
+    btnBatchMasukRescanPdf.addEventListener("click", rescanAllBatchMasukPdf);
+  }
+
+  // Modal Intip/Cek PDF Batch Surat Masuk Listeners
+  const btnClosePreviewBatchPdf = document.getElementById("btnClosePreviewBatchPdf");
+  const btnCancelPreviewBatchPdf = document.getElementById("btnCancelPreviewBatchPdf");
+  const btnApplyPreviewBatchPdfNoAgenda = document.getElementById("btnApplyPreviewBatchPdfNoAgenda");
+  const previewBatchPdfNoAgendaInput = document.getElementById("previewBatchPdfNoAgendaInput");
+
+  if (btnClosePreviewBatchPdf) {
+    btnClosePreviewBatchPdf.addEventListener("click", closePreviewBatchPdfModal);
+  }
+  if (btnCancelPreviewBatchPdf) {
+    btnCancelPreviewBatchPdf.addEventListener("click", closePreviewBatchPdfModal);
+  }
+  if (btnApplyPreviewBatchPdfNoAgenda) {
+    btnApplyPreviewBatchPdfNoAgenda.addEventListener("click", applyPreviewBatchPdfNoAgenda);
+  }
+  if (previewBatchPdfNoAgendaInput) {
+    previewBatchPdfNoAgendaInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyPreviewBatchPdfNoAgenda();
+      }
+    });
+  }
+
   // Modal Delete Surat (Keluar & Masuk) Listeners
   const modalDelete = document.getElementById("modalConfirmDelete");
   const btnCloseDelete = document.getElementById("btnCloseConfirmDelete");
@@ -6565,8 +6594,115 @@ const PENGIRIM_MASUK_OPTIONS = [
 ];
 
 /**
+ * Ekstrak Nomor Surat, Perihal, Tanggal, dan Instansi Pengirim dari teks dokumen PDF
+ */
+function extractLetterInfoFromPdfText(text) {
+  let noSurat = "";
+  let perihal = "";
+  let tglSurat = "";
+  let pengirim = "";
+
+  if (!text) return { noSurat, perihal, tglSurat, pengirim };
+
+  // 1. Ekstrak Nomor Surat Asal (dari Kop/Header surat):
+  // Mencari kata "Nomor" / "No" diikuti pemisah titik dua ":"
+  // Contoh: Nomor : 421.3/085-Cadisdik.Wil.VII atau No. : 129/PK.03.03.01
+  const noMatch = text.match(/(?:nomor(?:\s*surat)?|no\.?)\s*[:=]\s*([^\r\n,;]+)/i);
+  if (noMatch) {
+    let rawNo = noMatch[1].trim();
+    // Hilangkan kata sifat / lampiran / perihal jika terbawa di baris yang sama
+    rawNo = rawNo.split(/\s+(?:lampiran|sifat|hal|perihal|tanggal|klasifikasi)\b/i)[0].trim();
+    rawNo = rawNo.replace(/^[-–—:\s]+|[-–—:\s]+$/g, "");
+    if (rawNo.length >= 3 && !/^(surat|lampiran|penting|segera|rahasia)$/i.test(rawNo)) {
+      noSurat = rawNo;
+    }
+  }
+
+  // Jika belum dapat via "Nomor :", cari pola format surat dinas bergaris miring
+  // Contoh: 421.3/085/Cadisdik/2026 atau 129/PK.03.03.01-Cadisdikwil.VII atau 015/YWKA/II/2026
+  if (!noSurat) {
+    const slashPattern = text.match(/\b([0-9a-zA-Z.-]+\/[0-9a-zA-Z./-]+(?:\/[0-9a-zA-Z./-]+)*)\b/);
+    if (slashPattern && slashPattern[1].length >= 5 && !slashPattern[1].includes("http")) {
+      noSurat = slashPattern[1].trim();
+    }
+  }
+
+  // 2. Ekstrak Perihal / Hal dari badan teks
+  const halMatch = text.match(/(?:perihal|hal)\s*[:=]\s*([^\r\n]+)/i);
+  if (halMatch) {
+    let rawHal = halMatch[1].trim();
+    rawHal = rawHal.split(/\s+(?:kepada|lampiran|di\s+tempat|yth)\b/i)[0].trim();
+    rawHal = rawHal.replace(/^[-–—:\s]+|[-–—:\s]+$/g, "");
+    if (rawHal.length >= 5) {
+      perihal = rawHal;
+    }
+  }
+
+  // 3. Ekstrak Tanggal Surat (format Indonesia)
+  const tglMatch = text.match(/(?:bandung,?\s*)?(\d{1,2})\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s+(\d{4})/i);
+  if (tglMatch) {
+    const day = String(tglMatch[1]).padStart(2, '0');
+    const monthNames = ["januari", "februari", "maret", "april", "mei", "juni", "juli", "agustus", "september", "oktober", "november", "desember"];
+    const monthIdx = monthNames.indexOf(tglMatch[2].toLowerCase()) + 1;
+    if (monthIdx > 0) {
+      const month = String(monthIdx).padStart(2, '0');
+      const year = tglMatch[3];
+      tglSurat = `${year}-${month}-${day}`;
+    }
+  }
+
+  // 4. Deteksi Pengirim dari Kop Surat
+  const lower = text.toLowerCase();
+  if (lower.includes("cabang dinas pendidikan wilayah vii") || lower.includes("cadisdik wil. vii") || lower.includes("cadisdik") || lower.includes("kcd")) {
+    pengirim = "CABANG DINAS WIL.VII";
+  } else if (lower.includes("dinas pendidikan provinsi jawa barat") || lower.includes("disdik jabar")) {
+    pengirim = "DINAS PENDIDIKAN PROVINSI JAWA BARAT";
+  } else if (lower.includes("yayasan wanita kereta api") || lower.includes("ywka")) {
+    pengirim = "YAYASAN WANITA KERETA API";
+  } else if (lower.includes("balai besar penjaminan mutu pendidikan") || lower.includes("bbpmp")) {
+    pengirim = "BBPMP Provinsi Jawa Barat";
+  } else if (lower.includes("universitas") || lower.includes("institut") || lower.includes("polban") || lower.includes("itb") || lower.includes("upi")) {
+    pengirim = "UNIVERSITAS / INSTITUT";
+  } else if (lower.includes("smp ") || lower.includes("smpn") || lower.includes("mts")) {
+    pengirim = "SMPN / SMPS";
+  } else if (lower.includes("pemerintah kota bandung")) {
+    pengirim = "PEMERINTAH KOTA BANDUNG";
+  } else if (lower.includes("pemerintah daerah provinsi jawa barat") || lower.includes("pemerintah provinsi jawa barat")) {
+    pengirim = "PEMERINTAH PROVINSI JAWA BARAT";
+  }
+
+  return { noSurat, perihal, tglSurat, pengirim };
+}
+window.extractLetterInfoFromPdfText = extractLetterInfoFromPdfText;
+
+/**
+ * Pindai isi berkas PDF menggunakan PDF.js untuk mengekstrak teks halaman 1
+ */
+async function scanPdfForLetterData(file) {
+  if (!window.pdfjsLib) return null;
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    if (!pdf || pdf.numPages === 0) return null;
+
+    // Baca halaman 1 (Kop & Nomor Surat selalu di halaman 1)
+    const page = await pdf.getPage(1);
+    const textContent = await page.getTextContent();
+    const textItems = textContent.items.map(item => item.str);
+    const fullText = textItems.join(" ");
+
+    return extractLetterInfoFromPdfText(fullText);
+  } catch (err) {
+    console.warn("Gagal mengekstrak teks PDF:", file.name, err);
+    return null;
+  }
+}
+window.scanPdfForLetterData = scanPdfForLetterData;
+
+/**
  * Parser Cerdas Nama Berkas Surat Masuk
- * Menghapus ekstensi, membersihkan pemisah, mengekstrak nomor agenda (jika ada),
+ * Menghapus ekstensi, membersihkan pemisah, mengekstrak nomor agenda (jika ada di nama berkas),
  * dan mendeteksi Tipe Surat / Instansi Pengirim secara otomatis.
  */
 function parseFileNameForSuratMasuk(fileName) {
@@ -6629,7 +6765,7 @@ function parseFileNameForSuratMasuk(fileName) {
 
   return {
     perihal: perihal,
-    noAgenda: noAgenda,
+    noAgenda: noAgenda || "",
     pengirim: pengirim
   };
 }
@@ -6670,6 +6806,7 @@ function openBatchUploadModalMasuk(targetIds = null) {
       kodeKlasifikasi: item.kodeKlasifikasi || "",
       file: null,
       status: 'idle',
+      isScanningPdf: false,
       errorMsg: ''
     }));
   } else if (state.selectedMasukIds && state.selectedMasukIds.size > 0) {
@@ -6689,6 +6826,7 @@ function openBatchUploadModalMasuk(targetIds = null) {
       kodeKlasifikasi: item.kodeKlasifikasi || "",
       file: null,
       status: 'idle',
+      isScanningPdf: false,
       errorMsg: ''
     }));
   } else {
@@ -6740,19 +6878,45 @@ function handleBatchMasukFiles(fileList) {
     if (emptyExisting) {
       emptyExisting.file = file;
       emptyExisting.status = 'ready';
+      emptyExisting.isScanningPdf = (file.type === "application/pdf" || (file.name && file.name.toLowerCase().endsWith(".pdf")));
       matchedExistingCount++;
+
+      if (emptyExisting.isScanningPdf) {
+        scanPdfForLetterData(file).then(info => {
+          emptyExisting.isScanningPdf = false;
+          if (info) {
+            if (info.noSurat && (!emptyExisting.noAgenda || emptyExisting.noAgenda === "-" || emptyExisting.noAgenda.startsWith("Agenda-"))) {
+              emptyExisting.noAgenda = info.noSurat;
+            }
+            if (info.perihal && (!emptyExisting.perihal || emptyExisting.perihal === "-")) {
+              emptyExisting.perihal = info.perihal;
+            }
+            if (info.tglSurat && (!emptyExisting.tglSurat || emptyExisting.tglSurat === "-")) {
+              emptyExisting.tglSurat = info.tglSurat;
+            }
+            if (info.pengirim && (emptyExisting.dari === "LAIN-LAIN" || !emptyExisting.dari)) {
+              emptyExisting.dari = info.pengirim;
+            }
+          }
+          renderBatchMasukModalList();
+        }).catch(() => {
+          emptyExisting.isScanningPdf = false;
+          renderBatchMasukModalList();
+        });
+      }
       return;
     }
 
-    // 2. Jika tidak, tambahkan sebagai entri Surat Masuk baru dengan auto-ekstraksi nama berkas
+    // 2. Jika tidak, tambahkan sebagai entri Surat Masuk baru
     const parsed = parseFileNameForSuratMasuk(file.name);
     const assignedUrut = baseNoUrut + addedNewCount;
+    const isPdf = (file.type === "application/pdf" || (file.name && file.name.toLowerCase().endsWith(".pdf")));
 
-    state.batchMasukItems.push({
+    const newEntry = {
       id: "BMI-" + Date.now() + "-" + idx + "-" + Math.random().toString(36).substring(2, 6),
       isExisting: false,
       noUrut: assignedUrut,
-      noAgenda: parsed.noAgenda || `Agenda-${assignedUrut}`,
+      noAgenda: parsed.noAgenda || "", // Jangan isi dengan no urut!
       perihal: parsed.perihal || file.name.replace(/\.[^/.]+$/, ""),
       dari: parsed.pengirim || "LAIN-LAIN",
       tglSurat: todayIso,
@@ -6761,18 +6925,152 @@ function handleBatchMasukFiles(fileList) {
       kodeKlasifikasi: "",
       file: file,
       status: 'ready',
+      isScanningPdf: isPdf,
       errorMsg: ''
-    });
+    };
+
+    state.batchMasukItems.push(newEntry);
     addedNewCount++;
+
+    // Jika berkas adalah PDF, jalankan pemindaian isi teks di latar belakang
+    if (newEntry.isScanningPdf) {
+      scanPdfForLetterData(file).then(info => {
+        newEntry.isScanningPdf = false;
+        if (info) {
+          if (info.noSurat && !newEntry.noAgenda) {
+            newEntry.noAgenda = info.noSurat;
+          }
+          if (info.perihal && (!newEntry.perihal || newEntry.perihal.toLowerCase().includes("scan") || newEntry.perihal === file.name.replace(/\.[^/.]+$/, ""))) {
+            newEntry.perihal = info.perihal;
+          }
+          if (info.tglSurat) {
+            newEntry.tglSurat = info.tglSurat;
+          }
+          if (info.pengirim && newEntry.dari === "LAIN-LAIN") {
+            newEntry.dari = info.pengirim;
+          }
+        }
+        renderBatchMasukModalList();
+      }).catch(() => {
+        newEntry.isScanningPdf = false;
+        renderBatchMasukModalList();
+      });
+    }
   });
 
   renderBatchMasukModalList();
 
   if (addedNewCount > 0 || matchedExistingCount > 0) {
-    showToast(`✅ Berhasil menambahkan ${addedNewCount + matchedExistingCount} berkas! Keterangan otomatis diekstrak dari nama file.`, "success");
+    showToast(`✅ Berhasil menambahkan ${addedNewCount + matchedExistingCount} berkas surat masuk! Sistem sedang membaca isi PDF untuk mengekstrak Nomor Surat asli.`, "success");
   }
 }
 window.handleBatchMasukFiles = handleBatchMasukFiles;
+
+/**
+ * Pindai ulang seluruh berkas PDF dalam antrean modal batch upload Surat Masuk
+ */
+async function rescanAllBatchMasukPdf() {
+  const pdfItems = state.batchMasukItems ? state.batchMasukItems.filter(b => b.file && (b.file.type === "application/pdf" || b.file.name.toLowerCase().endsWith(".pdf"))) : [];
+  if (pdfItems.length === 0) {
+    showToast("Tidak ada berkas PDF dalam antrean!", "info");
+    return;
+  }
+
+  showToast(`🔍 Memindai ${pdfItems.length} berkas PDF...`, "info");
+  let foundCount = 0;
+
+  for (const item of pdfItems) {
+    item.isScanningPdf = true;
+    renderBatchMasukModalList();
+    const info = await scanPdfForLetterData(item.file);
+    item.isScanningPdf = false;
+    if (info) {
+      if (info.noSurat) {
+        item.noAgenda = info.noSurat;
+        foundCount++;
+      }
+      if (info.perihal && (!item.perihal || item.perihal.toLowerCase().includes("scan"))) {
+        item.perihal = info.perihal;
+      }
+      if (info.tglSurat) {
+        item.tglSurat = info.tglSurat;
+      }
+      if (info.pengirim && item.dari === "LAIN-LAIN") {
+        item.dari = info.pengirim;
+      }
+    }
+  }
+
+  renderBatchMasukModalList();
+  showToast(`✅ Pemindaian selesai! Berhasil menemukan ${foundCount} nomor surat asli dari isi PDF.`, "success");
+}
+window.rescanAllBatchMasukPdf = rescanAllBatchMasukPdf;
+
+// Pratinjau Cek PDF Dokumen Tunggal
+let currentPreviewBatchItemId = null;
+let currentPreviewBlobUrl = null;
+
+function previewBatchMasukPdf(itemId) {
+  const entry = state.batchMasukItems ? state.batchMasukItems.find(b => b.id === itemId) : null;
+  if (!entry || !entry.file) {
+    showToast("Berkas dokumen belum dipilih!", "warning");
+    return;
+  }
+
+  currentPreviewBatchItemId = itemId;
+  if (typeof window !== "undefined") window.currentPreviewBatchItemId = itemId;
+  const modal = document.getElementById("modalPreviewBatchPdf");
+  const fileNameEl = document.getElementById("previewBatchPdfFileName");
+  const noAgendaInput = document.getElementById("previewBatchPdfNoAgendaInput");
+  const iframe = document.getElementById("previewBatchPdfIframe");
+
+  if (fileNameEl) fileNameEl.textContent = entry.file.name;
+  if (noAgendaInput) {
+    noAgendaInput.value = entry.noAgenda || "";
+    setTimeout(() => noAgendaInput.focus(), 150);
+  }
+
+  if (currentPreviewBlobUrl) {
+    URL.revokeObjectURL(currentPreviewBlobUrl);
+    currentPreviewBlobUrl = null;
+  }
+
+  currentPreviewBlobUrl = URL.createObjectURL(entry.file);
+  if (iframe) iframe.src = currentPreviewBlobUrl;
+
+  if (modal) modal.classList.add("show");
+}
+window.previewBatchMasukPdf = previewBatchMasukPdf;
+
+function applyPreviewBatchPdfNoAgenda() {
+  const targetId = currentPreviewBatchItemId || (typeof window !== "undefined" && window.currentPreviewBatchItemId);
+  if (!targetId) return;
+  const entry = state.batchMasukItems ? state.batchMasukItems.find(b => b.id === targetId) : null;
+  const input = document.getElementById("previewBatchPdfNoAgendaInput");
+
+  if (entry && input) {
+    entry.noAgenda = input.value.trim();
+    renderBatchMasukModalList();
+    showToast(`✅ No. Agenda / Asal diperbarui: "${entry.noAgenda}"`, "success");
+  }
+
+  closePreviewBatchPdfModal();
+}
+window.applyPreviewBatchPdfNoAgenda = applyPreviewBatchPdfNoAgenda;
+
+function closePreviewBatchPdfModal() {
+  const modal = document.getElementById("modalPreviewBatchPdf");
+  const iframe = document.getElementById("previewBatchPdfIframe");
+  if (modal) modal.classList.remove("show");
+  if (iframe) iframe.src = "about:blank";
+  if (currentPreviewBlobUrl) {
+    URL.revokeObjectURL(currentPreviewBlobUrl);
+    currentPreviewBlobUrl = null;
+  }
+  currentPreviewBatchItemId = null;
+  if (typeof window !== "undefined") window.currentPreviewBatchItemId = null;
+}
+window.closePreviewBatchPdfModal = closePreviewBatchPdfModal;
 
 /**
  * Render tabel daftar berkas di modal upload batch Surat Masuk
@@ -6824,6 +7122,7 @@ function renderBatchMasukModalList() {
           <i class="fa-solid fa-file-pdf text-danger"></i>
           <span class="batch-file-name">${escapeHtml(entry.file.name)}</span>
           <span class="batch-file-size">(${formatFileSize(entry.file.size)})</span>
+          <button type="button" class="btn-remove-matched-file" onclick="previewBatchMasukPdf('${entry.id}')" title="Cek & Intip Dokumen PDF" style="color: #2563eb; margin-left: 2px;"><i class="fa-solid fa-eye"></i></button>
           <button type="button" class="btn-remove-matched-file" onclick="removeBatchMasukFile('${entry.id}')" title="Lepas berkas">&times;</button>
         </div>
       `;
@@ -6850,7 +7149,9 @@ function renderBatchMasukModalList() {
           <input type="number" class="batch-table-input stat-mono font-bold" style="width: 55px; text-align: center;" value="${entry.noUrut || (idx + 1)}" onchange="updateBatchMasukField('${entry.id}', 'noUrut', this.value)" title="No. Urut Surat Masuk">
         </td>
         <td>
-          <input type="text" class="batch-table-input font-bold" value="${escapeHtml(entry.noAgenda || '')}" placeholder="No. Agenda / Asal" onchange="updateBatchMasukField('${entry.id}', 'noAgenda', this.value)">
+          <input type="text" class="batch-table-input font-bold" value="${escapeHtml(entry.noAgenda || '')}" placeholder="Ketik No. Surat Asal..." onchange="updateBatchMasukField('${entry.id}', 'noAgenda', this.value)" style="${entry.noAgenda ? 'color: #065f46; background: #f0fdf4; border-color: #86efac;' : 'border-color: #f59e0b; background: #fffbeb;'}">
+          ${entry.isScanningPdf ? `<div style="font-size:10px; color:#2563eb; margin-top:2px;"><i class="fa-solid fa-spinner fa-spin"></i> Memindai PDF...</div>` : ''}
+          ${!entry.isScanningPdf && !entry.noAgenda && entry.file ? `<button type="button" class="btn btn-xs btn-outline" style="margin-top:3px; font-size:10px; padding:1px 5px; color:#d97706; border-color:#fde68a;" onclick="previewBatchMasukPdf('${entry.id}')" title="Buka berkas untuk cek nomor surat"><i class="fa-solid fa-eye"></i> Cek PDF</button>` : ''}
         </td>
         <td>
           <textarea class="batch-table-input" rows="2" placeholder="Prihal / Keterangan Surat" onchange="updateBatchMasukField('${entry.id}', 'perihal', this.value)" style="min-height: 48px; resize: vertical;">${escapeHtml(entry.perihal || '')}</textarea>
@@ -7035,11 +7336,12 @@ async function executeBatchUploadMasuk() {
         // Catat surat masuk baru secara massal
         const formattedTglSurat = formatDateIndo(entry.tglSurat);
         const formattedTglTerima = formatDateIndo(entry.tglTerima);
+        const finalNoAgenda = (entry.noAgenda && entry.noAgenda.trim()) ? entry.noAgenda.trim() : "-";
 
         const payload = {
           action: "create_surat_masuk",
           no_urut: entry.noUrut,
-          no_agenda: entry.noAgenda || `Agenda-${entry.noUrut}`,
+          no_agenda: finalNoAgenda,
           tanggal_surat: formattedTglSurat,
           tanggal_diterima: formattedTglTerima,
           perihal: entry.perihal,

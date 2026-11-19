@@ -1803,9 +1803,9 @@
         <div class="batch-info-banner" style="background: #ecfdf5; border-color: #a7f3d0;">
           <div class="batch-info-icon"><i class="fa-solid fa-wand-magic-sparkles text-emerald" style="font-size: 24px;"></i></div>
           <div class="batch-info-content">
-            <h4 style="color: #065f46;">Upload Massal &amp; Keterangan Otomatis Terisi dari Nama File</h4>
+            <h4 style="color: #065f46;">Upload Cepat &amp; Pindai Otomatis Isi Dokumen PDF</h4>
             <p style="color: #047857;">
-              Tarik atau pilih banyak berkas surat masuk sekaligus (PDF, Word, Scan JPG/PNG). Sistem akan <strong>otomatis mengambil nama berkas sebagai Prihal/Keterangan surat</strong> tanpa perlu mengetik ulang, mendeteksi <strong>Tipe/Instansi Pengirim</strong> (Cadisdik Wil. VII, Disdik Jabar, Yayasan YWKA, Univ, SMPN, dll.), dan mengurutkan <strong>No. Urut agenda</strong> secara berurutan!
+              Tarik atau pilih berkas surat masuk sekaligus. Sistem akan <strong>otomatis membaca isi dokumen PDF untuk mengambil Nomor Surat Asal yang sebenarnya</strong> (bukan no urut!), mengekstrak <strong>Prihal</strong> dari nama berkas/kop, mendeteksi <strong>Tipe Pengirim</strong>, serta menyediakan tombol <strong>"Cek PDF"</strong> untuk mengintip dokumen bila nomor surat perlu dipastikan!
             </p>
           </div>
         </div>
@@ -1869,6 +1869,9 @@
               <span class="batch-count-summary" id="batchMasukSummaryStats">0 berkas siap diproses</span>
             </div>
             <div class="batch-list-actions">
+              <button type="button" class="btn btn-xs btn-outline" id="btnBatchMasukRescanPdf" title="Pindai ulang seluruh berkas PDF untuk mengekstrak Nomor Surat">
+                <i class="fa-solid fa-wand-magic-sparkles text-emerald"></i> Pindai Ulang Isi PDF
+              </button>
               <button type="button" class="btn btn-xs btn-secondary" id="btnBatchMasukClearFiles" title="Kosongkan seluruh daftar berkas">
                 <i class="fa-solid fa-rotate-left"></i> Kosongkan Daftar
               </button>
@@ -1920,6 +1923,38 @@
         <button type="button" class="btn btn-emerald" id="btnStartBatchUploadMasuk" disabled>
           <i class="fa-solid fa-cloud-arrow-up"></i> Mulai Simpan &amp; Upload Batch (<span id="batchMasukReadyCount">0</span> Berkas Siap)
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: INTIP / CEK DOKUMEN PDF SURAT MASUK ================= -->
+  <div class="modal-backdrop" id="modalPreviewBatchPdf">
+    <div class="modal-dialog modal-xl" style="max-width: 95vw; height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0; flex: 0 0 auto;">
+        <h3 class="modal-title" style="color: #166534; font-size: 15px;">
+          <i class="fa-solid fa-file-pdf text-danger"></i> Cek Dokumen PDF &amp; Verifikasi Nomor Surat Asal
+        </h3>
+        <button class="modal-close-btn" id="btnClosePreviewBatchPdf" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="flex: 1 1 auto; display: flex; flex-direction: column; padding: 12px; overflow: hidden;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <div style="font-size: 13px; color: #1e293b;">
+            Berkas: <strong id="previewBatchPdfFileName">-</strong>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 280px;">
+            <label style="font-size: 12px; font-weight: 700; color: #065f46; white-space: nowrap;">No. Surat Asal / No. Agenda:</label>
+            <input type="text" id="previewBatchPdfNoAgendaInput" class="form-control font-bold" style="height: 34px; font-size: 13px;" placeholder="Ketik / sesuaikan nomor surat yang tertera di dokumen">
+            <button type="button" class="btn btn-emerald btn-sm" id="btnApplyPreviewBatchPdfNoAgenda" style="white-space: nowrap;">
+              <i class="fa-solid fa-check"></i> Terapkan No. Surat
+            </button>
+          </div>
+        </div>
+        <div style="flex: 1 1 auto; position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; background: #525659;">
+          <iframe id="previewBatchPdfIframe" style="width: 100%; height: 100%; border: none;"></iframe>
+        </div>
+      </div>
+      <div class="modal-footer" style="flex: 0 0 auto; padding: 10px 16px;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnCancelPreviewBatchPdf">Tutup Pratinjau</button>
       </div>
     </div>
   </div>
@@ -2418,6 +2453,12 @@
   <div id="batchPrintArea" style="display: none;"></div>
 
   <!-- Scripts -->
+  <script src="pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+    }
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
