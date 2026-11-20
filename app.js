@@ -6,16 +6,18 @@
  */
 
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
-(function() {
+(function () {
   try {
-    const CURRENT_VERSION = "3.13";
+    const CURRENT_VERSION = "3.14";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
+      localStorage.removeItem("cache_surat_keluar_2026");
       localStorage.removeItem("unsynced_surat_masuk");
+      localStorage.removeItem("unsynced_surat_keluar");
       localStorage.setItem("sias_app_version", CURRENT_VERSION);
     }
-  } catch (e) {}
+  } catch (e) { }
 })();
 
 // Konfigurasi Spreadsheet SMA YWKA
@@ -328,7 +330,7 @@ function formatDateIndo(dateStr) {
 function formatDateToInput(dateStr) {
   if (!dateStr || dateStr === "-") return "";
   dateStr = String(dateStr).trim().replace(/^'+/, "");
-  
+
   const matchIso = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (matchIso) {
     const y = matchIso[1];
@@ -2810,7 +2812,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
           codeArea.value = latestCode;
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }
 
   const btnCopyScript = document.getElementById("btnCopyScriptCode");
@@ -2825,7 +2827,7 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
             codeToCopy = freshCode;
             if (codeArea) codeArea.value = freshCode;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
       if (!codeToCopy.includes("VERSI 3.")) {
         showToast("⚠️ Gagal memuat kode v3.9 terbaru (mode offline/file lokal). Silakan salin langsung dari file google-apps-script.js di folder proyek!", "warning");
@@ -3241,7 +3243,7 @@ function initEventListeners() {
         if (resJson && resJson.status === "success") {
           showToast(`✅ ${resJson.message}`, "success");
           alert(`✅ Pemulihan Urutan Selesai!\n\n${resJson.message}`);
-          loadDataFromSpreadsheet().catch(() => {});
+          loadDataFromSpreadsheet().catch(() => { });
         } else {
           showToast(`Gagal merapikan: ${resJson?.message || "Terjadi kesalahan"}`, "danger");
         }
@@ -3538,83 +3540,81 @@ function initEventListeners() {
     btnCancelBatch.addEventListener("click", () => modalBatch.classList.remove("show"));
   }
 
-  const dropzone = document.getElementById("batchKeluarDropzone");
-  const multiInput = document.getElementById("batchKeluarMultiInput");
-  const btnBrowse = document.getElementById("btnBrowseBatchFiles");
+  const dropzoneKeluar = document.getElementById("batchKeluarDropzone");
+  const multiInputKeluar = document.getElementById("batchKeluarMultiInput");
+  const btnBrowseKeluar = document.getElementById("btnBrowseBatchKeluarFiles") || document.getElementById("btnBrowseBatchFiles");
 
-  if (btnBrowse && multiInput) {
-    btnBrowse.addEventListener("click", (e) => {
+  if (btnBrowseKeluar && multiInputKeluar) {
+    btnBrowseKeluar.addEventListener("click", (e) => {
       e.stopPropagation();
-      multiInput.click();
+      multiInputKeluar.click();
     });
   }
-  if (dropzone && multiInput) {
-    dropzone.addEventListener("click", (e) => {
-      if (e.target !== btnBrowse) multiInput.click();
+  if (dropzoneKeluar && multiInputKeluar) {
+    dropzoneKeluar.addEventListener("click", (e) => {
+      if (e.target !== btnBrowseKeluar) multiInputKeluar.click();
     });
-    dropzone.addEventListener("dragover", (e) => {
+    dropzoneKeluar.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropzone.classList.add("dragover");
+      dropzoneKeluar.classList.add("dragover");
     });
-    dropzone.addEventListener("dragleave", () => {
-      dropzone.classList.remove("dragover");
+    dropzoneKeluar.addEventListener("dragleave", () => {
+      dropzoneKeluar.classList.remove("dragover");
     });
-    dropzone.addEventListener("drop", (e) => {
+    dropzoneKeluar.addEventListener("drop", (e) => {
       e.preventDefault();
-      dropzone.classList.remove("dragover");
+      dropzoneKeluar.classList.remove("dragover");
       if (e.dataTransfer && e.dataTransfer.files) {
-        handleBatchFiles(e.dataTransfer.files);
+        handleBatchKeluarFiles(e.dataTransfer.files);
       }
     });
   }
-  if (multiInput) {
-    multiInput.addEventListener("change", () => {
-      if (multiInput.files && multiInput.files.length > 0) {
-        handleBatchFiles(multiInput.files);
-        multiInput.value = "";
+  if (multiInputKeluar) {
+    multiInputKeluar.addEventListener("change", () => {
+      if (multiInputKeluar.files && multiInputKeluar.files.length > 0) {
+        handleBatchKeluarFiles(multiInputKeluar.files);
+        multiInputKeluar.value = "";
       }
     });
   }
 
-  const btnAddUnuploaded = document.getElementById("btnBatchAddUnuploaded");
-  if (btnAddUnuploaded) {
-    btnAddUnuploaded.addEventListener("click", () => {
-      const unuploaded = state.suratKeluar.filter(k => !k.driveUrl && (!k.lampiran || !k.lampiran.includes("http")));
-      let addedCount = 0;
-      unuploaded.forEach(item => {
-        if (!state.batchKeluarItems.some(b => b.item.id === item.id)) {
-          state.batchKeluarItems.push({
-            item: item,
-            file: null,
-            status: 'idle',
-            errorMsg: ''
-          });
-          state.selectedKeluarIds.add(item.id);
-          addedCount++;
-        }
-      });
+  const btnBatchClearFilesKeluar = document.getElementById("btnBatchClearFiles");
+  if (btnBatchClearFilesKeluar) {
+    btnBatchClearFilesKeluar.addEventListener("click", () => {
+      state.batchKeluarItems = [];
       renderBatchKeluarModalList();
-      renderSuratKeluarTable();
-      updateBatchKeluarBar();
-      showToast(`Ditambahkan ${addedCount} surat keluar yang belum ada berkas ke daftar batch.`, "success");
+      showToast("Seluruh daftar berkas surat keluar telah dikosongkan.", "info");
     });
   }
 
-  const btnBatchClearFiles = document.getElementById("btnBatchClearFiles");
-  if (btnBatchClearFiles) {
-    btnBatchClearFiles.addEventListener("click", () => {
-      state.batchKeluarItems.forEach(b => {
-        b.file = null;
-        if (b.status !== 'success') b.status = 'idle';
-      });
-      renderBatchKeluarModalList();
-      showToast("Seluruh berkas yang dipasangkan telah direset.", "info");
-    });
+  const btnApplyGlobalKlasifikasiKeluar = document.getElementById("btnApplyGlobalKlasifikasiKeluar");
+  if (btnApplyGlobalKlasifikasiKeluar) {
+    btnApplyGlobalKlasifikasiKeluar.addEventListener("click", applyGlobalKlasifikasiToBatchKeluar);
   }
 
-  const btnStartBatch = document.getElementById("btnStartBatchUploadKeluar");
-  if (btnStartBatch) {
-    btnStartBatch.addEventListener("click", executeBatchUploadKeluar);
+  const btnApplyGlobalTglKeluar = document.getElementById("btnApplyGlobalTglKeluar");
+  if (btnApplyGlobalTglKeluar) {
+    btnApplyGlobalTglKeluar.addEventListener("click", applyGlobalTglToBatchKeluar);
+  }
+
+  const btnApplyGlobalKepadaKeluar = document.getElementById("btnApplyGlobalKepadaKeluar");
+  if (btnApplyGlobalKepadaKeluar) {
+    btnApplyGlobalKepadaKeluar.addEventListener("click", applyGlobalKepadaToBatchKeluar);
+  }
+
+  const btnBatchKeluarRescanPdf = document.getElementById("btnBatchKeluarRescanPdf");
+  if (btnBatchKeluarRescanPdf) {
+    btnBatchKeluarRescanPdf.addEventListener("click", rescanAllBatchKeluarPdf);
+  }
+
+  const btnStartBatchKeluar = document.getElementById("btnStartBatchUploadKeluar");
+  if (btnStartBatchKeluar) {
+    btnStartBatchKeluar.addEventListener("click", executeBatchUploadKeluar);
+  }
+
+  const btnApplyPreviewBatchPdfKeluar = document.getElementById("btnApplyPreviewBatchPdfKeluar");
+  if (btnApplyPreviewBatchPdfKeluar) {
+    btnApplyPreviewBatchPdfKeluar.addEventListener("click", applyPreviewBatchPdfKeluar);
   }
 
   // =========================================================================
@@ -3955,11 +3955,11 @@ async function loadDataFromSpreadsheet() {
         if (localItem) {
           if ((!kItem.tanggal || kItem.tanggal === "-") && (localItem.tanggal && localItem.tanggal !== "-")) {
             kItem.tanggal = localItem.tanggal;
-          if (!kItem.driveUrl && localItem.driveUrl) {
-            kItem.driveUrl = localItem.driveUrl;
-            kItem.lampiran = localItem.lampiran || localItem.driveUrl;
-            kItem.status = true;
-          }
+            if (!kItem.driveUrl && localItem.driveUrl) {
+              kItem.driveUrl = localItem.driveUrl;
+              kItem.lampiran = localItem.lampiran || localItem.driveUrl;
+              kItem.status = true;
+            }
           }
         }
       });
@@ -4006,11 +4006,11 @@ async function loadDataFromSpreadsheet() {
           }
           if ((!mItem.tglMasuk || mItem.tglMasuk === "-") && (localItem.tglMasuk && localItem.tglMasuk !== "-")) {
             mItem.tglMasuk = localItem.tglMasuk;
-          if (!mItem.driveUrl && localItem.driveUrl) {
-            mItem.driveUrl = localItem.driveUrl;
-            mItem.lampiran = localItem.lampiran || localItem.driveUrl;
-            mItem.status = true;
-          }
+            if (!mItem.driveUrl && localItem.driveUrl) {
+              mItem.driveUrl = localItem.driveUrl;
+              mItem.lampiran = localItem.lampiran || localItem.driveUrl;
+              mItem.status = true;
+            }
           }
         }
       });
@@ -4053,7 +4053,7 @@ async function loadDataFromSpreadsheet() {
     localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
     localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
 
-    updateConnectionStatus(true, "Terhubung ke Google Sheets (Live)"); syncAllPendingItems().catch(() => {});
+    updateConnectionStatus(true, "Terhubung ke Google Sheets (Live)"); syncAllPendingItems().catch(() => { });
   } catch (err) {
     console.warn("Sinkronisasi live lambat / offline, menggunakan cache:", err);
     // Jika state kosong, pastikan data cache/bawaan tetap tampil
@@ -4500,9 +4500,9 @@ function renderSuratKeluarTable() {
         <td><span class="nomor-agenda-badge"><strong>${escapeHtml(item.noAgenda || item.noUrut || "-")}</strong></span></td>
         <td>
           ${item.isUnsynced
-            ? `<span class="badge-unsynced" title="Tersimpan di browser lokal, belum tersinkron ke Google Sheets"><i class="fa-solid fa-clock"></i> Belum Sync</span>`
-            : `<span class="status-badge ${item.status ? 'status-active' : 'status-pending'}">${item.status ? 'Resmi' : 'Draft'}</span>`
-          }
+        ? `<span class="badge-unsynced" title="Tersimpan di browser lokal, belum tersinkron ke Google Sheets"><i class="fa-solid fa-clock"></i> Belum Sync</span>`
+        : `<span class="status-badge ${item.status ? 'status-active' : 'status-pending'}">${item.status ? 'Resmi' : 'Draft'}</span>`
+      }
         </td>
         <td>
           <span class="nomor-surat-badge">${escapeHtml(item.nomorLengkap || "-")}</span>
@@ -4551,7 +4551,7 @@ function renderSuratKeluarTable() {
   if (btnContainer) {
     let btnsHtml = "";
     btnsHtml += `<button class="pagination-btn" ${page <= 1 ? "disabled" : ""} onclick="changeKeluarPage(${page - 1})"><i class="fa-solid fa-chevron-left"></i></button>`;
-    
+
     for (let p = 1; p <= totalPages; p++) {
       if (p === 1 || p === totalPages || (p >= page - 1 && p <= page + 1)) {
         btnsHtml += `<button class="pagination-btn ${p === page ? "active" : ""}" onclick="changeKeluarPage(${p})">${p}</button>`;
@@ -4696,7 +4696,7 @@ function renderSuratMasukTable() {
   if (btnContainer) {
     let btnsHtml = "";
     btnsHtml += `<button class="pagination-btn" ${page <= 1 ? "disabled" : ""} onclick="changeMasukPage(${page - 1})"><i class="fa-solid fa-chevron-left"></i></button>`;
-    
+
     for (let p = 1; p <= totalPages; p++) {
       if (p === 1 || p === totalPages || (p >= page - 1 && p <= page + 1)) {
         btnsHtml += `<button class="pagination-btn ${p === page ? "active" : ""}" onclick="changeMasukPage(${p})">${p}</button>`;
@@ -4928,7 +4928,7 @@ async function syncAllPendingItems() {
 
   if (syncedCount > 0) {
     showToast(`✅ Berhasil menyinkronkan ${syncedCount} surat tersimpan lokal langsung ke Google Spreadsheet!`, "success");
-    loadDataFromSpreadsheet().catch(() => {});
+    loadDataFromSpreadsheet().catch(() => { });
   }
 }
 
@@ -6195,70 +6195,340 @@ function isFileMatchingAgenda(fileName, agenda) {
 }
 
 /**
+ * =========================================================================
+ * BATCH UPLOAD SURAT KELUAR (DENGAN EKSTRAKSI NAMA BERKAS, KODE KLASIFIKASI & PRATINJAU PDF)
+ * =========================================================================
+ */
+
+const KODE_KLASIFIKASI_KELUAR_OPTIONS = [
+  { code: "421.3", label: "421.3 - Surat Umum" },
+  { code: "421.6", label: "421.6 - Surat Pelepasan / Wisuda" },
+  { code: "421.7", label: "421.7 - Kegiatan Siswa (Dispensasi, Lomba)" },
+  { code: "421.71", label: "421.71 - Kegiatan Reuni / Karya Wisata" },
+  { code: "422.1", label: "422.1 - Kegiatan PPDB dan MPLS" },
+  { code: "422.3", label: "422.3 - Pengumuman Hari Libur" },
+  { code: "422.5", label: "422.5 - Beasiswa / Pelajar Teladan" },
+  { code: "423.5", label: "423.5 - Kegiatan Kurikulum & Walikelas" },
+  { code: "423.7", label: "423.7 - Kegiatan PAT, PAS, UTS, UJIAN" },
+  { code: "425.11", label: "425.11 - Sarpras & Gedung Sekolah" },
+  { code: "425.2", label: "425.2 - Sarpras Buku / Bahan Ajar" },
+  { code: "425.3", label: "425.3 - Sarpras Perlengkapan Sekolah" }
+];
+
+/**
+ * Parser Cerdas Nama Berkas Surat Keluar
+ * Menghapus ekstensi, membersihkan pemisah, mendeteksi No. Agenda,
+ * auto-klasifikasi 12 Kode SMA YWKA, dan mendeteksi Tujuan Surat.
+ */
+function parseFileNameForSuratKeluar(fileName) {
+  if (!fileName) return { perihal: "", noAgenda: "", kodeKlasifikasi: "421.3", kepada: "-" };
+
+  // 1. Hapus ekstensi berkas
+  let base = fileName.replace(/\.[^/.]+$/, "").trim();
+
+  // 2. Normalisasi pemisah
+  base = base.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+
+  let noAgenda = "";
+  let kodeKlasifikasi = "";
+  let perihal = base;
+  let kepada = "-";
+
+  // Cek nomor agenda di nama berkas:
+  // Pola A: "421.7/691/..." atau "421.7-691"
+  const comboMatch = base.match(/\b(42[1-5]\.[0-9a-zA-Z.-]+)[-/\s]+(\d+)\b/);
+  if (comboMatch) {
+    kodeKlasifikasi = comboMatch[1].trim();
+    noAgenda = comboMatch[2].trim();
+    perihal = base.replace(comboMatch[0], "").replace(/^[-–—:\s/]+|[-–—:\s/]+$/g, "").trim();
+  } else {
+    // Pola B: diawali angka nomor agenda murni (contoh: "692 Surat Keputusan" atau "692 - Dispensasi")
+    const numLeadMatch = base.match(/^(\d{1,4})\s*[-–—:\s]\s*(.+)$/);
+    if (numLeadMatch) {
+      noAgenda = numLeadMatch[1].trim();
+      perihal = numLeadMatch[2].trim();
+    } else {
+      // Pola C: "No. 692" atau "Agenda 692"
+      const agendaLeadMatch = base.match(/^(?:no\.?|agenda)\s*(\d{1,4})\s*[-–—:\s]?\s*(.+)$/i);
+      if (agendaLeadMatch) {
+        noAgenda = agendaLeadMatch[1].trim();
+        perihal = agendaLeadMatch[2].trim();
+      }
+    }
+  }
+
+  // Jika kode klasifikasi belum terdeteksi dari pola kode, deteksi dari kata kunci atau kode di teks
+  const lowerAll = (base + " " + fileName).toLowerCase();
+  if (!kodeKlasifikasi) {
+    if (lowerAll.includes("421.71")) kodeKlasifikasi = "421.71";
+    else if (lowerAll.includes("425.11")) kodeKlasifikasi = "425.11";
+    else if (lowerAll.includes("421.7")) kodeKlasifikasi = "421.7";
+    else if (lowerAll.includes("423.5")) kodeKlasifikasi = "423.5";
+    else if (lowerAll.includes("423.7")) kodeKlasifikasi = "423.7";
+    else if (lowerAll.includes("421.6")) kodeKlasifikasi = "421.6";
+    else if (lowerAll.includes("422.1")) kodeKlasifikasi = "422.1";
+    else if (lowerAll.includes("422.3")) kodeKlasifikasi = "422.3";
+    else if (lowerAll.includes("422.5")) kodeKlasifikasi = "422.5";
+    else if (lowerAll.includes("425.2")) kodeKlasifikasi = "425.2";
+    else if (lowerAll.includes("425.3")) kodeKlasifikasi = "425.3";
+    else if (lowerAll.includes("421.3")) kodeKlasifikasi = "421.3";
+    else if (/buku|bahan ajar|modul|perpustakaan/i.test(lowerAll)) {
+      kodeKlasifikasi = "425.2";
+    } else if (/sarpras|gedung|kamar mandi|wc|ruang kelas|pengecatan|renovasi|bangunan|mebel|instalasi/i.test(lowerAll)) {
+      kodeKlasifikasi = "425.11";
+    } else if (/dispensasi|lomba|paskibra|osis|pramuka|ekskul|ekstrakurikuler|lopb|kejuaraan|futsal|basket|atlet|siswa/i.test(lowerAll)) {
+      kodeKlasifikasi = "421.7";
+    } else if (/kurikulum|walikelas|wali kelas|rapat dinas|rapat guru|abm|asesmen bakat|kbm|pembagian tugas/i.test(lowerAll)) {
+      kodeKlasifikasi = "423.5";
+    } else if (/ujian|pat|pas|uts|anbk|sumatif|asesmen akhir/i.test(lowerAll)) {
+      kodeKlasifikasi = "423.7";
+    } else if (/ppdb|mpls|mos|penerimaan siswa/i.test(lowerAll)) {
+      kodeKlasifikasi = "422.1";
+    } else if (/libur|cuti/i.test(lowerAll)) {
+      kodeKlasifikasi = "422.3";
+    } else if (/beasiswa|prestasi|teladan|dks/i.test(lowerAll)) {
+      kodeKlasifikasi = "422.5";
+    } else if (/wisuda|pelepasan|kelulusan|perpisahan/i.test(lowerAll)) {
+      kodeKlasifikasi = "421.6";
+    } else if (/reuni|karya wisata|study tour/i.test(lowerAll)) {
+      kodeKlasifikasi = "421.71";
+    } else if (/perlengkapan|seragam|atk|inventaris/i.test(lowerAll)) {
+      kodeKlasifikasi = "425.3";
+    } else {
+      kodeKlasifikasi = "421.3"; // Default Surat Umum
+    }
+  }
+
+  // Deteksi Kepada / Tujuan
+  if (/walikelas|wali kelas/i.test(lowerAll)) kepada = "Bapak/Ibu Wali Kelas";
+  else if (/orang tua|wali murid/i.test(lowerAll)) kepada = "Orang Tua / Wali Murid";
+  else if (/cadisdik|kcd/i.test(lowerAll)) kepada = "Kepala Cabang Dinas Pendidikan Wil. VII";
+  else if (/disdik|dinas pendidikan/i.test(lowerAll)) kepada = "Kepala Dinas Pendidikan Provinsi Jawa Barat";
+  else if (/yayasan|ywka/i.test(lowerAll)) kepada = "Pengurus Yayasan Wanita Kereta Api";
+  else if (/puskesmas/i.test(lowerAll)) kepada = "Puskesmas";
+
+  // Title case format untuk perihal
+  if (perihal && (perihal === perihal.toUpperCase() || perihal === perihal.toLowerCase())) {
+    perihal = perihal.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  return {
+    perihal: perihal || base,
+    noAgenda: noAgenda || "",
+    kodeKlasifikasi: kodeKlasifikasi || "421.3",
+    kepada: kepada || "-"
+  };
+}
+window.parseFileNameForSuratKeluar = parseFileNameForSuratKeluar;
+
+/**
  * Buka modal upload batch surat keluar
+ * @param {Array<string>|null} targetIds Daftar ID surat jika dicentang dari tabel
  */
 function openBatchUploadModalKeluar(targetIds = null) {
+  const modal = document.getElementById("modalBatchUploadKeluar");
+  if (!modal) return;
+
+  const progressBox = document.getElementById("batchProgressBox");
+  if (progressBox) progressBox.style.display = "none";
+
+  // Pre-fill input global tanggal ke hari ini
+  const globalTgl = document.getElementById("batchKeluarGlobalTanggal");
+  if (globalTgl && !globalTgl.value) {
+    globalTgl.value = new Date().toISOString().split("T")[0];
+  }
+
   let idsToUse = [];
   if (targetIds && targetIds.length > 0) {
     idsToUse = targetIds;
   } else if (state.selectedKeluarIds && state.selectedKeluarIds.size > 0) {
     idsToUse = Array.from(state.selectedKeluarIds);
+  }
+
+  if (idsToUse.length > 0) {
+    // Mode Pasangkan Berkas ke Surat Terpilih
+    state.batchKeluarMode = "match";
+    const selectedItems = idsToUse.map(id => state.suratKeluar.find(k => k.id === id)).filter(Boolean);
+    selectedItems.sort((a, b) => {
+      const nA = parseInt(a.noAgenda || a.noUrut || 0, 10);
+      const nB = parseInt(b.noAgenda || b.noUrut || 0, 10);
+      if (!isNaN(nA) && !isNaN(nB)) return nA - nB;
+      return String(a.noAgenda).localeCompare(String(b.noAgenda));
+    });
+
+    state.batchKeluarItems = selectedItems.map(item => ({
+      id: "BK-EXISTING-" + item.id,
+      isExisting: true,
+      existingItem: item,
+      noAgenda: item.noAgenda || item.noUrut || "",
+      kodeKlasifikasi: item.kodeKlasifikasi || "421.3",
+      perihal: item.perihal || "",
+      kepada: item.kepada || "-",
+      tglSurat: item.tanggal ? formatDateToInput(item.tanggal) : new Date().toISOString().split("T")[0],
+      petugas: item.petugas || (state.currentUser?.name || "Admin TU"),
+      file: null,
+      status: 'idle',
+      isScanningPdf: false,
+      errorMsg: ''
+    }));
   } else {
-    // Jika belum ada yang dicentang di tabel: otomatis ambil surat yang belum ada link Drive
-    const noDrive = state.filteredKeluar.filter(item => !item.driveUrl && (!item.lampiran || !item.lampiran.includes("http")));
-    if (noDrive.length > 0) {
-      idsToUse = noDrive.slice(0, 30).map(x => x.id);
-      idsToUse.forEach(id => state.selectedKeluarIds.add(id));
-      renderSuratKeluarTable();
-      updateBatchKeluarBar();
-      showToast(`Otomatis memilih ${idsToUse.length} surat keluar yang belum memiliki berkas Google Drive.`, "info");
-    } else {
-      const currentSlice = getCurrentKeluarSlice();
-      if (currentSlice.length > 0) {
-        idsToUse = currentSlice.map(x => x.id);
-        idsToUse.forEach(id => state.selectedKeluarIds.add(id));
-        renderSuratKeluarTable();
-        updateBatchKeluarBar();
-      } else {
-        showToast("Tidak ada surat keluar yang dapat dipilih!", "warning");
-        return;
-      }
+    // Mode Entri Baru Massal
+    state.batchKeluarMode = "new";
+    if (!state.batchKeluarItems) state.batchKeluarItems = [];
+  }
+
+  renderBatchKeluarModalList();
+  modal.classList.add("show");
+}
+window.openBatchUploadModalKeluar = openBatchUploadModalKeluar;
+
+function closeBatchUploadModalKeluar() {
+  const modal = document.getElementById("modalBatchUploadKeluar");
+  if (modal) modal.classList.remove("show");
+}
+window.closeBatchUploadModalKeluar = closeBatchUploadModalKeluar;
+
+/**
+ * Handle berkas-berkas yang di-drop atau dipilih di modal Batch Upload Surat Keluar
+ */
+function handleBatchKeluarFiles(fileList) {
+  if (!fileList || fileList.length === 0) return;
+
+  const files = Array.from(fileList);
+  const todayIso = new Date().toISOString().split("T")[0];
+
+  // Hitung no agenda awal berikutnya
+  let baseNoAgenda = parseInt(state.nextKeluarAgenda, 10);
+  if (isNaN(baseNoAgenda) || baseNoAgenda <= 0) {
+    calculateNextSequence();
+    baseNoAgenda = parseInt(state.nextKeluarAgenda, 10) || 712;
+  }
+
+  // Jika di antrean batch sudah ada agenda, pastikan nomor baru tidak bentrok
+  if (state.batchKeluarItems && state.batchKeluarItems.length > 0) {
+    const existingMax = Math.max(...state.batchKeluarItems.map(b => parseInt(b.noAgenda, 10) || 0));
+    if (existingMax >= baseNoAgenda) {
+      baseNoAgenda = existingMax + 1;
     }
   }
 
-  // Ambil objek item surat keluar
-  const selectedItems = idsToUse.map(id => state.suratKeluar.find(k => k.id === id)).filter(Boolean);
-  if (selectedItems.length === 0) {
-    showToast("Data surat terpilih tidak ditemukan!", "warning");
-    return;
-  }
+  let matchedExistingCount = 0;
+  let addedNewCount = 0;
 
-  // Urutkan berdasarkan nomor agenda numerik
-  selectedItems.sort((a, b) => {
-    const nA = parseInt(a.noAgenda || a.noUrut || 0, 10);
-    const nB = parseInt(b.noAgenda || b.noUrut || 0, 10);
-    if (!isNaN(nA) && !isNaN(nB)) return nA - nB;
-    return String(a.noAgenda).localeCompare(String(b.noAgenda));
+  files.forEach((file, idx) => {
+    // Abaikan duplikasi berkas identik
+    if (state.batchKeluarItems.some(b => b.file && b.file.name === file.name && b.file.size === file.size)) {
+      return;
+    }
+
+    // 1. Coba pasangkan ke item existing yang belum punya file
+    let emptyExisting = null;
+    if (state.batchKeluarItems && state.batchKeluarItems.length > 0) {
+      emptyExisting = state.batchKeluarItems.find(b => b.isExisting && !b.file && isFileMatchingAgenda(file.name, b.noAgenda));
+      if (!emptyExisting) {
+        emptyExisting = state.batchKeluarItems.find(b => b.isExisting && !b.file);
+      }
+    }
+
+    if (emptyExisting) {
+      emptyExisting.file = file;
+      emptyExisting.status = 'ready';
+      emptyExisting.isScanningPdf = (file.type === "application/pdf" || (file.name && file.name.toLowerCase().endsWith(".pdf")));
+      matchedExistingCount++;
+
+      if (emptyExisting.isScanningPdf) {
+        scanPdfForLetterData(file).then(info => {
+          emptyExisting.isScanningPdf = false;
+          if (info) {
+            if (info.noAgenda && (!emptyExisting.noAgenda || emptyExisting.noAgenda === "-")) {
+              emptyExisting.noAgenda = info.noAgenda;
+            }
+            if (info.kodeKlasifikasi && (!emptyExisting.kodeKlasifikasi || emptyExisting.kodeKlasifikasi === "421.3")) {
+              emptyExisting.kodeKlasifikasi = info.kodeKlasifikasi;
+            }
+            if (info.perihal && (!emptyExisting.perihal || emptyExisting.perihal === "-")) {
+              emptyExisting.perihal = info.perihal;
+            }
+            if (info.kepada && (!emptyExisting.kepada || emptyExisting.kepada === "-")) {
+              emptyExisting.kepada = info.kepada;
+            }
+            if (info.tglSurat) {
+              emptyExisting.tglSurat = info.tglSurat;
+            }
+          }
+          renderBatchKeluarModalList();
+        }).catch(() => {
+          emptyExisting.isScanningPdf = false;
+          renderBatchKeluarModalList();
+        });
+      }
+      return;
+    }
+
+    // 2. Tambahkan sebagai entri Surat Keluar baru
+    const parsed = parseFileNameForSuratKeluar(file.name);
+    let assignedAgenda = parsed.noAgenda;
+    if (!assignedAgenda) {
+      assignedAgenda = String(baseNoAgenda + addedNewCount);
+    }
+    const isPdf = (file.type === "application/pdf" || (file.name && file.name.toLowerCase().endsWith(".pdf")));
+
+    const newEntry = {
+      id: "BKI-" + Date.now() + "-" + idx + "-" + Math.random().toString(36).substring(2, 6),
+      isExisting: false,
+      noAgenda: assignedAgenda,
+      kodeKlasifikasi: parsed.kodeKlasifikasi || "421.3",
+      perihal: parsed.perihal || file.name.replace(/\.[^/.]+$/, ""),
+      kepada: parsed.kepada || "-",
+      tglSurat: todayIso,
+      petugas: (state.currentUser && state.currentUser.name) ? state.currentUser.name : "Admin TU",
+      file: file,
+      status: 'ready',
+      isScanningPdf: isPdf,
+      errorMsg: ''
+    };
+
+    state.batchKeluarItems.push(newEntry);
+    addedNewCount++;
+
+    if (newEntry.isScanningPdf) {
+      scanPdfForLetterData(file).then(info => {
+        newEntry.isScanningPdf = false;
+        if (info) {
+          if (info.noAgenda && !parsed.noAgenda) {
+            newEntry.noAgenda = info.noAgenda;
+          }
+          if (info.kodeKlasifikasi && parsed.kodeKlasifikasi === "421.3") {
+            newEntry.kodeKlasifikasi = info.kodeKlasifikasi;
+          }
+          if (info.perihal && (!newEntry.perihal || newEntry.perihal.toLowerCase().includes("scan") || newEntry.perihal === file.name.replace(/\.[^/.]+$/, ""))) {
+            newEntry.perihal = info.perihal;
+          }
+          if (info.kepada && newEntry.kepada === "-") {
+            newEntry.kepada = info.kepada;
+          }
+          if (info.tglSurat) {
+            newEntry.tglSurat = info.tglSurat;
+          }
+        }
+        renderBatchKeluarModalList();
+      }).catch(() => {
+        newEntry.isScanningPdf = false;
+        renderBatchKeluarModalList();
+      });
+    }
   });
-
-  state.batchKeluarItems = selectedItems.map(item => ({
-    item: item,
-    file: null,
-    status: 'idle',
-    errorMsg: ''
-  }));
-
-  const progressBox = document.getElementById("batchProgressBox");
-  if (progressBox) progressBox.style.display = "none";
 
   renderBatchKeluarModalList();
 
-  const modal = document.getElementById("modalBatchUploadKeluar");
-  if (modal) modal.classList.add("show");
+  if (addedNewCount > 0 || matchedExistingCount > 0) {
+    showToast(`✅ Berhasil menambahkan ${addedNewCount + matchedExistingCount} berkas surat keluar! Sistem membaca berkas & mendeteksi klasifikasi secara otomatis.`, "success");
+  }
 }
+window.handleBatchKeluarFiles = handleBatchKeluarFiles;
 
 /**
- * Render tabel daftar berkas di modal upload batch
+ * Render tabel daftar berkas di modal upload batch Surat Keluar
  */
 function renderBatchKeluarModalList() {
   const tbody = document.getElementById("tbodyBatchKeluarItems");
@@ -6268,12 +6538,11 @@ function renderBatchKeluarModalList() {
 
   if (!tbody) return;
 
-  const total = state.batchKeluarItems.length;
-  const matched = state.batchKeluarItems.filter(b => b.file).length;
-  const ready = state.batchKeluarItems.filter(b => b.file && b.status !== 'success').length;
+  const total = state.batchKeluarItems ? state.batchKeluarItems.length : 0;
+  const ready = state.batchKeluarItems ? state.batchKeluarItems.filter(b => b.file && b.status !== 'success').length : 0;
 
   if (summaryStats) {
-    summaryStats.textContent = `${total} surat dipilih • ${matched} berkas dipasangkan (${ready} siap upload)`;
+    summaryStats.textContent = `${total} berkas terdaftar • ${ready} siap upload`;
   }
   if (readyCountSpan) {
     readyCountSpan.textContent = ready;
@@ -6285,9 +6554,9 @@ function renderBatchKeluarModalList() {
   if (total === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" style="text-align: center; padding: 24px; color: #94a3b8;">
-          <i class="fa-solid fa-folder-open" style="font-size: 24px; margin-bottom: 6px; display: block;"></i>
-          Tidak ada surat keluar yang dipilih dalam batch ini.
+        <td colspan="9" style="text-align: center; color: #94a3b8; padding: 36px 16px;">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size: 32px; display: block; margin-bottom: 8px; color: #cbd5e1;"></i>
+          Belum ada berkas yang dipilih. Silakan tarik &amp; jatuhkan berkas di area atas atau klik tombol <strong>"Pilih Berkas"</strong>.
         </td>
       </tr>
     `;
@@ -6295,61 +6564,68 @@ function renderBatchKeluarModalList() {
   }
 
   let html = "";
-  state.batchKeluarItems.forEach((entry) => {
-    const item = entry.item;
-    const agenda = item.noAgenda || item.noUrut || "-";
-    const hasDriveExisting = Boolean(item.driveUrl || (item.lampiran && item.lampiran.includes("http")));
+  state.batchKeluarItems.forEach((entry, idx) => {
+    const kodeSelectOptions = KODE_KLASIFIKASI_KELUAR_OPTIONS.map(opt => {
+      const isSel = (entry.kodeKlasifikasi === opt.code) ? 'selected' : '';
+      return `<option value="${escapeHtml(opt.code)}" ${isSel}>${escapeHtml(opt.label)}</option>`;
+    }).join("");
 
-    let fileHtml = "";
+    let fileCol = "";
     if (entry.file) {
-      fileHtml = `
-        <div class="batch-file-matched">
+      fileCol = `
+        <div class="batch-file-matched" style="max-width: 220px;" title="${escapeHtml(entry.file.name)}">
           <i class="fa-solid fa-file-pdf text-danger"></i>
-          <span class="batch-file-name" title="${escapeHtml(entry.file.name)}">${escapeHtml(entry.file.name)}</span>
+          <span class="batch-file-name">${escapeHtml(entry.file.name)}</span>
           <span class="batch-file-size">(${formatFileSize(entry.file.size)})</span>
-          <button type="button" class="btn-remove-matched-file" onclick="removeBatchFile('${item.id}')" title="Lepas berkas"><i class="fa-solid fa-xmark"></i></button>
+          <button type="button" class="btn-remove-matched-file" onclick="previewBatchKeluarPdf('${entry.id}')" title="Cek & Intip Dokumen PDF" style="color: #2563eb; margin-left: 2px;"><i class="fa-solid fa-eye"></i></button>
+          <button type="button" class="btn-remove-matched-file" onclick="removeBatchKeluarFile('${entry.id}')" title="Lepas berkas">&times;</button>
         </div>
       `;
     } else {
-      fileHtml = `
-        <div class="batch-file-unmatched">
-          <label class="btn btn-outline btn-xs" style="cursor: pointer; margin-bottom: 0;">
-            <i class="fa-solid fa-folder-open"></i> Pasang File
-            <input type="file" class="batch-single-file-picker" data-id="${item.id}" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display: none;">
-          </label>
-          <span class="batch-no-file-text">${hasDriveExisting ? 'Sudah ada di Drive (bisa ditimpa)' : 'Belum dipasangkan'}</span>
-        </div>
-      `;
+      fileCol = `<span class="batch-no-file-text">Belum ada file</span>`;
     }
 
-    let statusHtml = "";
-    if (entry.status === 'success') {
-      statusHtml = `<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Terupload</span>`;
+    let statusCol = "";
+    if (entry.status === 'ready') {
+      statusCol = `<span class="badge" style="background:#eff6ff; color:#2563eb; font-size:11px;"><i class="fa-solid fa-check"></i> Siap</span>`;
     } else if (entry.status === 'uploading') {
-      statusHtml = `<span class="badge badge-warning"><i class="fa-solid fa-spinner fa-spin"></i> Mengunggah...</span>`;
+      statusCol = `<span class="badge" style="background:#fef3c7; color:#d97706; font-size:11px;"><i class="fa-solid fa-spinner fa-spin"></i> Upload...</span>`;
+    } else if (entry.status === 'success') {
+      statusCol = `<span class="badge" style="background:#dcfce7; color:#166534; font-size:11px;"><i class="fa-solid fa-circle-check"></i> Selesai</span>`;
     } else if (entry.status === 'error') {
-      statusHtml = `<span class="badge badge-danger" title="${escapeHtml(entry.errorMsg || 'Gagal')}"><i class="fa-solid fa-triangle-exclamation"></i> Gagal</span>`;
-    } else if (entry.file) {
-      statusHtml = `<span class="badge badge-info"><i class="fa-solid fa-circle-check"></i> Siap Upload</span>`;
+      statusCol = `<span class="badge" style="background:#fee2e2; color:#dc2626; font-size:11px;" title="${escapeHtml(entry.errorMsg || 'Gagal')}"><i class="fa-solid fa-circle-exclamation"></i> Gagal</span>`;
     } else {
-      statusHtml = `<span class="badge badge-secondary">Menunggu File</span>`;
+      statusCol = `<span class="badge" style="background:#f1f5f9; color:#64748b; font-size:11px;">Menunggu</span>`;
     }
 
     html += `
-      <tr>
+      <tr data-item-id="${entry.id}">
         <td style="text-align: center;">
-          <span class="nomor-agenda-badge"><strong>${escapeHtml(agenda)}</strong></span>
+          <input type="number" class="batch-table-input stat-mono font-bold" style="width: 65px; text-align: center;" value="${entry.noAgenda || ''}" onchange="updateBatchKeluarField('${entry.id}', 'noAgenda', this.value)" title="No. Agenda Surat Keluar">
         </td>
         <td>
-          <div style="font-weight: 700; color: #1e293b; font-size: 12.5px;">${escapeHtml(item.nomorLengkap || '-')}</div>
-          <div style="font-size: 12px; color: #475569; margin-top: 2px;">${escapeHtml(item.perihal || '-')}</div>
-          <div style="font-size: 11px; color: #64748b; margin-top: 2px;"><i class="fa-solid fa-paper-plane"></i> Kepada: ${escapeHtml(item.kepada || '-')}</div>
+          <select class="batch-table-input font-bold" onchange="updateBatchKeluarField('${entry.id}', 'kodeKlasifikasi', this.value)">
+            ${kodeSelectOptions}
+          </select>
+          ${entry.isScanningPdf ? `<div style="font-size:10px; color:#2563eb; margin-top:2px;"><i class="fa-solid fa-spinner fa-spin"></i> Memindai PDF...</div>` : ''}
         </td>
-        <td>${fileHtml}</td>
-        <td style="text-align: center;">${statusHtml}</td>
+        <td>
+          <textarea class="batch-table-input" rows="2" placeholder="Prihal / Ringkasan Surat Keluar" onchange="updateBatchKeluarField('${entry.id}', 'perihal', this.value)" style="min-height: 48px; resize: vertical;">${escapeHtml(entry.perihal || '')}</textarea>
+        </td>
+        <td>
+          <input type="text" class="batch-table-input" value="${escapeHtml(entry.kepada || '')}" placeholder="Kepada / Tujuan" onchange="updateBatchKeluarField('${entry.id}', 'kepada', this.value)">
+        </td>
+        <td>
+          <input type="date" class="batch-table-input" value="${entry.tglSurat || ''}" onchange="updateBatchKeluarField('${entry.id}', 'tglSurat', this.value)" title="Tanggal Surat">
+        </td>
+        <td>
+          <input type="text" class="batch-table-input" value="${escapeHtml(entry.petugas || '')}" placeholder="Petugas" onchange="updateBatchKeluarField('${entry.id}', 'petugas', this.value)">
+        </td>
+        <td>${fileCol}</td>
+        <td style="text-align: center;">${statusCol}</td>
         <td style="text-align: center;">
-          <button type="button" class="btn-table-action btn-danger-action" title="Hapus dari daftar batch" onclick="removeBatchItem('${item.id}')">
-            <i class="fa-solid fa-xmark"></i>
+          <button type="button" class="btn-action-icon btn-del" onclick="removeBatchKeluarItem('${entry.id}')" title="Hapus baris ini">
+            <i class="fa-solid fa-trash-can"></i>
           </button>
         </td>
       </tr>
@@ -6357,115 +6633,225 @@ function renderBatchKeluarModalList() {
   });
 
   tbody.innerHTML = html;
-
-  // Pasang listener input file manual per baris
-  tbody.querySelectorAll(".batch-single-file-picker").forEach(input => {
-    input.addEventListener("change", (e) => {
-      const targetId = e.target.dataset.id;
-      if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        const entry = state.batchKeluarItems.find(b => b.item.id === targetId);
-        if (entry) {
-          entry.file = file;
-          entry.status = 'ready';
-          renderBatchKeluarModalList();
-        }
-      }
-    });
-  });
 }
+window.renderBatchKeluarModalList = renderBatchKeluarModalList;
 
 /**
- * Tangani berkas multi-file upload & pasangkan otomatis berdasarkan No. Agenda
+ * Update field item di batch upload Surat Keluar
  */
-function handleBatchFiles(fileList) {
-  if (!fileList || fileList.length === 0) return;
-  const files = Array.from(fileList);
-  let matchedCount = 0;
-  let addedNewCount = 0;
+function updateBatchKeluarField(itemId, field, value) {
+  const item = state.batchKeluarItems.find(b => b.id === itemId);
+  if (!item) return;
+  item[field] = value;
+}
+window.updateBatchKeluarField = updateBatchKeluarField;
 
-  files.forEach(file => {
-    let matched = false;
-    // 1. Cocokkan dengan item yang sudah ada di batchKeluarItems
-    for (const entry of state.batchKeluarItems) {
-      const agenda = String(entry.item.noAgenda || entry.item.noUrut || "").trim();
-      if (agenda && isFileMatchingAgenda(file.name, agenda)) {
-        entry.file = file;
-        entry.status = 'ready';
-        matched = true;
-        matchedCount++;
-        break;
-      }
-    }
-
-    // 2. Jika belum cocok, cari di seluruh state.suratKeluar
-    if (!matched) {
-      const foundItem = state.suratKeluar.find(k => {
-        const ag = String(k.noAgenda || k.noUrut || "").trim();
-        return ag && isFileMatchingAgenda(file.name, ag);
-      });
-
-      if (foundItem) {
-        const alreadyInBatch = state.batchKeluarItems.some(b => b.item.id === foundItem.id);
-        if (!alreadyInBatch) {
-          state.batchKeluarItems.push({
-            item: foundItem,
-            file: file,
-            status: 'ready',
-            errorMsg: ''
-          });
-          state.selectedKeluarIds.add(foundItem.id);
-          matchedCount++;
-          addedNewCount++;
-          matched = true;
-        }
-      }
-    }
-  });
-
+/**
+ * Lepas file dari baris tertentu di modal batch upload Surat Keluar
+ */
+function removeBatchKeluarFile(itemId) {
+  const item = state.batchKeluarItems.find(b => b.id === itemId);
+  if (!item) return;
+  item.file = null;
+  if (item.status !== 'success') item.status = 'idle';
   renderBatchKeluarModalList();
-  renderSuratKeluarTable();
-  updateBatchKeluarBar();
-
-  if (matchedCount > 0) {
-    showToast(`✅ Berhasil mencocokkan ${matchedCount} berkas berdasarkan No. Agenda!${addedNewCount > 0 ? ` (${addedNewCount} surat otomatis ditambahkan ke batch)` : ''}`, "success");
-  } else {
-    showToast("⚠️ Tidak ada berkas yang cocok dengan nomor agenda surat yang dipilih. Pastikan nama berkas memuat nomor agenda (misal: 612.pdf atau No. 613.pdf).", "warning");
-  }
 }
+window.removeBatchKeluarFile = removeBatchKeluarFile;
 
 /**
- * Lepas berkas dari suatu baris batch
+ * Hapus seluruh baris entri di modal batch upload Surat Keluar
  */
-function removeBatchFile(itemId) {
-  const entry = state.batchKeluarItems.find(b => b.item.id === itemId);
-  if (entry) {
-    entry.file = null;
-    entry.status = 'idle';
-    renderBatchKeluarModalList();
-  }
-}
-
-/**
- * Hapus suatu surat dari daftar batch
- */
-function removeBatchItem(itemId) {
-  state.batchKeluarItems = state.batchKeluarItems.filter(b => b.item.id !== itemId);
-  state.selectedKeluarIds.delete(itemId);
+function removeBatchKeluarItem(itemId) {
+  state.batchKeluarItems = state.batchKeluarItems.filter(b => b.id !== itemId);
   renderBatchKeluarModalList();
-  renderSuratKeluarTable();
-  updateBatchKeluarBar();
 }
+window.removeBatchKeluarItem = removeBatchKeluarItem;
+const removeBatchFile = removeBatchKeluarFile;
+const removeBatchItem = removeBatchKeluarItem;
+window.removeBatchFile = removeBatchKeluarFile;
+window.removeBatchItem = removeBatchKeluarItem;
 
 /**
- * Eksekusi Upload Batch ke Google Drive & Sinkronisasi ke Spreadsheet
+ * Terapkan kode klasifikasi global ke seluruh baris surat keluar
  */
-async function executeBatchUploadKeluar() {
-  if (!state.appsScriptUrl) {
-    showToast("URL Google Apps Script belum disetel! Harap simpan URL Web App di tab Pengaturan.", "warning");
+function applyGlobalKlasifikasiToBatchKeluar() {
+  const select = document.getElementById("batchKeluarGlobalKlasifikasi");
+  if (!select || !select.value) {
+    showToast("Silakan pilih kode klasifikasi terlebih dahulu!", "warning");
+    return;
+  }
+  const val = select.value;
+  state.batchKeluarItems.forEach(b => {
+    b.kodeKlasifikasi = val;
+  });
+  renderBatchKeluarModalList();
+  showToast(`Kode Klasifikasi "${val}" diterapkan ke seluruh surat dalam daftar!`, "success");
+}
+window.applyGlobalKlasifikasiToBatchKeluar = applyGlobalKlasifikasiToBatchKeluar;
+
+/**
+ * Terapkan tanggal global ke seluruh baris surat keluar
+ */
+function applyGlobalTglToBatchKeluar() {
+  const input = document.getElementById("batchKeluarGlobalTanggal");
+  if (!input || !input.value) {
+    showToast("Silakan tentukan tanggal terlebih dahulu!", "warning");
+    return;
+  }
+  const val = input.value;
+  state.batchKeluarItems.forEach(b => {
+    b.tglSurat = val;
+  });
+  renderBatchKeluarModalList();
+  showToast(`Tanggal "${val}" diterapkan ke seluruh surat dalam daftar!`, "success");
+}
+window.applyGlobalTglToBatchKeluar = applyGlobalTglToBatchKeluar;
+
+/**
+ * Terapkan tujuan global ke seluruh baris surat keluar
+ */
+function applyGlobalKepadaToBatchKeluar() {
+  const input = document.getElementById("batchKeluarGlobalKepada");
+  const val = input ? input.value.trim() : "";
+  state.batchKeluarItems.forEach(b => {
+    b.kepada = val;
+  });
+  renderBatchKeluarModalList();
+  showToast(`Tujuan "${val || '(kosong)'}" diterapkan ke seluruh surat dalam daftar!`, "success");
+}
+window.applyGlobalKepadaToBatchKeluar = applyGlobalKepadaToBatchKeluar;
+
+/**
+ * Pindai ulang seluruh berkas PDF dalam antrean modal batch upload Surat Keluar
+ */
+async function rescanAllBatchKeluarPdf() {
+  const pdfItems = state.batchKeluarItems ? state.batchKeluarItems.filter(b => b.file && (b.file.type === "application/pdf" || b.file.name.toLowerCase().endsWith(".pdf"))) : [];
+  if (pdfItems.length === 0) {
+    showToast("Tidak ada berkas PDF dalam antrean!", "info");
     return;
   }
 
+  showToast(`🔍 Memindai ${pdfItems.length} berkas PDF Surat Keluar...`, "info");
+  let foundCount = 0;
+
+  for (const item of pdfItems) {
+    item.isScanningPdf = true;
+    renderBatchKeluarModalList();
+    const info = await scanPdfForLetterData(item.file);
+    item.isScanningPdf = false;
+    if (info) {
+      if (info.noAgenda) {
+        item.noAgenda = info.noAgenda;
+        foundCount++;
+      }
+      if (info.kodeKlasifikasi) {
+        item.kodeKlasifikasi = info.kodeKlasifikasi;
+      }
+      if (info.perihal && (!item.perihal || item.perihal.toLowerCase().includes("scan"))) {
+        item.perihal = info.perihal;
+      }
+      if (info.kepada && (!item.kepada || item.kepada === "-")) {
+        item.kepada = info.kepada;
+      }
+      if (info.tglSurat) {
+        item.tglSurat = info.tglSurat;
+      }
+    }
+  }
+
+  renderBatchKeluarModalList();
+  showToast(`✅ Pemindaian selesai! Berhasil memperbarui data dari isi dokumen PDF.`, "success");
+}
+window.rescanAllBatchKeluarPdf = rescanAllBatchKeluarPdf;
+
+/**
+ * Pratinjau Cek Dokumen PDF Tunggal untuk Surat Keluar
+ */
+function previewBatchKeluarPdf(itemId) {
+  const entry = state.batchKeluarItems ? state.batchKeluarItems.find(b => b.id === itemId) : null;
+  if (!entry || !entry.file) {
+    showToast("Berkas dokumen belum dipilih!", "warning");
+    return;
+  }
+
+  currentPreviewBatchItemId = itemId;
+  currentPreviewType = "keluar";
+  if (typeof window !== "undefined") {
+    window.currentPreviewBatchItemId = itemId;
+    window.currentPreviewType = "keluar";
+  }
+
+  const modal = document.getElementById("modalPreviewBatchPdf");
+  const titleEl = document.getElementById("previewBatchPdfTitle");
+  const headerEl = document.getElementById("previewBatchPdfHeader");
+  const fileNameEl = document.getElementById("previewBatchPdfFileName");
+  const iframe = document.getElementById("previewBatchPdfIframe");
+  const openNewTabBtn = document.getElementById("btnPreviewPdfOpenNewTab");
+
+  const masukControls = document.getElementById("previewBatchPdfMasukControls");
+  const keluarControls = document.getElementById("previewBatchPdfKeluarControls");
+
+  if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-file-pdf text-danger"></i> Cek Dokumen PDF Surat Keluar &amp; Verifikasi Agenda / Klasifikasi`;
+  if (headerEl) {
+    headerEl.style.background = "#eff6ff";
+    headerEl.style.borderBottom = "1px solid #bfdbfe";
+  }
+  if (masukControls) masukControls.style.display = "none";
+  if (keluarControls) keluarControls.style.display = "flex";
+
+  if (fileNameEl) fileNameEl.textContent = entry.file.name;
+
+  const agendaInput = document.getElementById("previewBatchKeluarAgendaInput");
+  const kodeSelect = document.getElementById("previewBatchKeluarKodeSelect");
+  const perihalInput = document.getElementById("previewBatchKeluarPerihalInput");
+  const kepadaInput = document.getElementById("previewBatchKeluarKepadaInput");
+
+  if (agendaInput) agendaInput.value = entry.noAgenda || "";
+  if (kodeSelect) kodeSelect.value = entry.kodeKlasifikasi || "421.3";
+  if (perihalInput) perihalInput.value = entry.perihal || "";
+  if (kepadaInput) kepadaInput.value = entry.kepada || "";
+
+  if (currentPreviewBlobUrl) {
+    URL.revokeObjectURL(currentPreviewBlobUrl);
+    currentPreviewBlobUrl = null;
+  }
+
+  currentPreviewBlobUrl = URL.createObjectURL(entry.file);
+  if (iframe) iframe.src = currentPreviewBlobUrl;
+  if (openNewTabBtn) openNewTabBtn.href = currentPreviewBlobUrl;
+
+  if (modal) modal.classList.add("show");
+}
+window.previewBatchKeluarPdf = previewBatchKeluarPdf;
+
+function applyPreviewBatchPdfKeluar() {
+  const targetId = currentPreviewBatchItemId || (typeof window !== "undefined" && window.currentPreviewBatchItemId);
+  if (!targetId) return;
+  const entry = state.batchKeluarItems ? state.batchKeluarItems.find(b => b.id === targetId) : null;
+
+  const agendaInput = document.getElementById("previewBatchKeluarAgendaInput");
+  const kodeSelect = document.getElementById("previewBatchKeluarKodeSelect");
+  const perihalInput = document.getElementById("previewBatchKeluarPerihalInput");
+  const kepadaInput = document.getElementById("previewBatchKeluarKepadaInput");
+
+  if (entry) {
+    if (agendaInput && agendaInput.value.trim()) entry.noAgenda = agendaInput.value.trim();
+    if (kodeSelect && kodeSelect.value) entry.kodeKlasifikasi = kodeSelect.value;
+    if (perihalInput) entry.perihal = perihalInput.value.trim();
+    if (kepadaInput) entry.kepada = kepadaInput.value.trim();
+
+    renderBatchKeluarModalList();
+    showToast(`✅ Data Surat Keluar agenda ${entry.noAgenda} berhasil diperbarui dari pratinjau!`, "success");
+  }
+
+  closePreviewBatchPdfModal();
+}
+window.applyPreviewBatchPdfKeluar = applyPreviewBatchPdfKeluar;
+
+/**
+ * Eksekusi Upload Batch Surat Keluar ke Google Drive & Simpan ke Spreadsheet
+ */
+async function executeBatchUploadKeluar() {
   const itemsToUpload = state.batchKeluarItems.filter(b => b.file && b.status !== 'success');
   if (itemsToUpload.length === 0) {
     showToast("Tidak ada berkas yang siap diunggah!", "warning");
@@ -6497,54 +6883,132 @@ async function executeBatchUploadKeluar() {
     if (progressBar) progressBar.style.width = `${percent}%`;
     if (progressPercent) progressPercent.textContent = `${percent}%`;
     if (progressStatus) progressStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengunggah berkas ${i + 1} dari ${total}...`;
-    if (progressDetail) progressDetail.textContent = `No. Agenda ${entry.item.noAgenda || '-'}: ${entry.file.name}`;
+    if (progressDetail) progressDetail.textContent = `No. Agenda ${entry.noAgenda || '-'}: ${entry.perihal || entry.file.name}`;
 
     try {
       const fileBase64 = await readFileAsBase64(entry.file);
-      const payload = {
-        action: "upload_lampiran_keluar",
-        no_agenda: entry.item.noAgenda,
-        fileName: entry.file.name,
-        fileBase64: fileBase64,
-        fileMime: entry.file.type || "application/pdf",
-        old_drive_url: entry.item.driveUrl || (entry.item.lampiran && entry.item.lampiran.startsWith("http") ? entry.item.lampiran : "")
-      };
 
-      const res = await fetch(state.appsScriptUrl, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload)
-      });
-      const resJson = await res.json();
+      if (entry.isExisting) {
+        // Upload lampiran ke surat keluar existing
+        const payload = {
+          action: "upload_lampiran_keluar",
+          no_agenda: String(entry.noAgenda).trim(),
+          fileName: entry.file.name,
+          fileBase64: fileBase64,
+          fileMime: entry.file.type || "application/pdf",
+          old_drive_url: entry.existingItem?.driveUrl || ""
+        };
 
-      if (resJson && resJson.status === "success" && resJson.drive_file_url) {
-        entry.status = 'success';
-        entry.item.driveUrl = resJson.drive_file_url;
-        entry.item.lampiran = resJson.drive_file_url;
-        entry.item.status = true;
-        successCount++;
-
-        // Sinkronisasi data di state.suratKeluar
-        const realItem = state.suratKeluar.find(k => k.id === entry.item.id || k.noAgenda === entry.item.noAgenda);
-        if (realItem) {
-          realItem.driveUrl = resJson.drive_file_url;
-          realItem.lampiran = resJson.drive_file_url;
-          realItem.status = true;
-        }
-
-        // Sinkronisasi unsynced cache jika ada
-        const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
-        const unIdx = unsyncedList.findIndex(x => x.id === entry.item.id || x.noAgenda === entry.item.noAgenda);
-        if (unIdx !== -1) {
-          unsyncedList[unIdx].driveUrl = resJson.drive_file_url;
-          unsyncedList[unIdx].lampiran = resJson.drive_file_url;
-          unsyncedList[unIdx].status = true;
-          localStorage.setItem("unsynced_surat_keluar", JSON.stringify(unsyncedList));
+        const res = await postToAppsScript(payload);
+        if (res && res.success && res.data && res.data.drive_file_url) {
+          entry.status = 'success';
+          const dUrl = res.data.drive_file_url;
+          const target = state.suratKeluar.find(k => k.id === entry.existingItem?.id || k.noAgenda === entry.noAgenda);
+          if (target) {
+            target.driveUrl = dUrl;
+            target.lampiran = dUrl;
+            target.status = true;
+          }
+          successCount++;
+        } else {
+          entry.status = 'error';
+          entry.errorMsg = res?.message || "Gagal mengunggah ke Drive";
+          failCount++;
         }
       } else {
-        entry.status = 'error';
-        entry.errorMsg = resJson?.message || "Gagal mengunggah ke Drive";
-        failCount++;
+        // Catat surat keluar baru secara massal
+        let romanMonth = "XI";
+        let tahun = "2026";
+        if (entry.tglSurat) {
+          const parts = entry.tglSurat.split("-");
+          tahun = parts[0];
+          romanMonth = ROMAN_MONTHS[parseInt(parts[1], 10) - 1] || "XI";
+        }
+        const formattedTanggal = formatDateIndo(entry.tglSurat);
+        const finalAgenda = String(entry.noAgenda).trim();
+        const finalKode = entry.kodeKlasifikasi || "421.3";
+        const fullNumber = `${finalKode}/${finalAgenda}/SMA YWKA TU/ ${romanMonth} /${tahun}`;
+
+        const payload = {
+          action: "create_surat_keluar",
+          no_agenda: finalAgenda,
+          no_urut: finalAgenda,
+          nomor_urut: finalAgenda,
+          kode_klasifikasi: finalKode,
+          bulan_romawi: romanMonth,
+          tahun: tahun,
+          tanggal_surat: formattedTanggal,
+          perihal: entry.perihal || entry.file.name.replace(/\.[^/.]+$/, ""),
+          dari: "Syarif Hasanudin, S.Pd., Gr., M.M.",
+          kepada: entry.kepada || "-",
+          petugas: entry.petugas || (state.currentUser?.name || "Admin TU"),
+          keterangan: "",
+          fileBase64: fileBase64,
+          fileName: entry.file.name,
+          fileMime: entry.file.type || "application/pdf"
+        };
+
+        let newDriveUrl = "";
+        if (state.appsScriptUrl) {
+          const res = await postToAppsScript(payload);
+          if (res && res.success) {
+            entry.status = 'success';
+            if (res.data?.drive_file_url) newDriveUrl = res.data.drive_file_url;
+
+            const newItem = {
+              id: "K-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+              noUrut: finalAgenda,
+              noAgenda: finalAgenda,
+              kodeKlasifikasi: finalKode,
+              nomorLengkap: fullNumber,
+              tanggal: formattedTanggal,
+              perihal: payload.perihal,
+              dari: payload.dari,
+              kepada: payload.kepada,
+              petugas: payload.petugas,
+              keterangan: "",
+              lampiran: newDriveUrl || "Surat Keluar",
+              driveUrl: newDriveUrl,
+              status: Boolean(newDriveUrl),
+              isUnsynced: false
+            };
+            state.suratKeluar.push(newItem);
+            state.suratKeluar.sort((a, b) => (parseInt(a.noAgenda || a.noUrut, 10) || 0) - (parseInt(b.noAgenda || b.noUrut, 10) || 0));
+            calculateNextSequence();
+            successCount++;
+          } else {
+            entry.status = 'error';
+            entry.errorMsg = res?.message || "Gagal menyimpan ke Spreadsheet";
+            failCount++;
+          }
+        } else {
+          // Mode offline lokal
+          entry.status = 'success';
+          const newItem = {
+            id: "K-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+            noUrut: finalAgenda,
+            noAgenda: finalAgenda,
+            kodeKlasifikasi: finalKode,
+            nomorLengkap: fullNumber,
+            tanggal: formattedTanggal,
+            perihal: payload.perihal,
+            dari: payload.dari,
+            kepada: payload.kepada,
+            petugas: payload.petugas,
+            keterangan: "",
+            lampiran: payload.fileName,
+            driveUrl: "",
+            status: false,
+            isUnsynced: true
+          };
+          state.suratKeluar.push(newItem);
+          state.suratKeluar.sort((a, b) => (parseInt(a.noAgenda || a.noUrut, 10) || 0) - (parseInt(b.noAgenda || b.noUrut, 10) || 0));
+          calculateNextSequence();
+          const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+          unsyncedList.push(newItem);
+          localStorage.setItem("unsynced_surat_keluar", JSON.stringify(unsyncedList));
+          successCount++;
+        }
       }
     } catch (err) {
       entry.status = 'error';
@@ -6559,7 +7023,7 @@ async function executeBatchUploadKeluar() {
   if (progressBar) progressBar.style.width = "100%";
   if (progressPercent) progressPercent.textContent = "100%";
   if (progressStatus) progressStatus.innerHTML = `<i class="fa-solid fa-circle-check text-emerald"></i> Proses upload batch selesai!`;
-  if (progressDetail) progressDetail.textContent = `${successCount} berkas berhasil diunggah${failCount > 0 ? `, ${failCount} gagal` : ''}.`;
+  if (progressDetail) progressDetail.textContent = `${successCount} berkas berhasil disimpan & diunggah${failCount > 0 ? `, ${failCount} gagal` : ''}.`;
 
   // Simpan cache lokal
   localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
@@ -6573,12 +7037,13 @@ async function executeBatchUploadKeluar() {
   if (btnClose) btnClose.disabled = false;
 
   if (successCount > 0) {
-    showToast(`✅ Berhasil mengunggah ${successCount} berkas ke Google Drive Surat Keluar & Spreadsheet diperbarui!`, "success");
+    showToast(`✅ Berhasil menyimpan & mengunggah ${successCount} berkas ke Surat Keluar!`, "success");
   }
   if (failCount > 0) {
-    showToast(`⚠️ Ada ${failCount} berkas yang gagal diunggah. Silakan periksa kembali berkas tersebut.`, "warning");
+    showToast(`⚠️ Ada ${failCount} berkas yang gagal diproses. Silakan periksa kembali baris tersebut.`, "warning");
   }
 }
+window.executeBatchUploadKeluar = executeBatchUploadKeluar;
 
 /**
  * =========================================================================
@@ -6602,37 +7067,52 @@ const PENGIRIM_MASUK_OPTIONS = [
 ];
 
 /**
- * Ekstrak Nomor Surat, Perihal, Tanggal, dan Instansi Pengirim dari teks dokumen PDF
+ * Ekstrak Nomor Surat, Perihal, Tanggal, Instansi Pengirim & Tujuan dari teks dokumen PDF
  */
 function extractLetterInfoFromPdfText(text) {
   let noSurat = "";
+  let noAgenda = "";
+  let kodeKlasifikasi = "";
   let perihal = "";
   let tglSurat = "";
   let pengirim = "";
+  let kepada = "";
 
-  if (!text) return { noSurat, perihal, tglSurat, pengirim };
+  if (!text) return { noSurat, noAgenda, kodeKlasifikasi, perihal, tglSurat, pengirim, kepada };
+
+  // Pola khusus kop Surat Keluar SMA YWKA:
+  // Contoh: 421.7/691/SMA YWKA TU/ XI /2026 atau 421.3 / 708 / SMA YWKA TU / XI / 2026
+  const kopYwkaMatch = text.match(/\b(42[1-5]\.[0-9a-zA-Z.-]+)\s*[\/:]\s*(\d+)\s*[\/:]\s*SMA\s*YWKA/i);
+  if (kopYwkaMatch) {
+    kodeKlasifikasi = kopYwkaMatch[1].trim();
+    noAgenda = kopYwkaMatch[2].trim();
+    noSurat = kopYwkaMatch[0].trim();
+  }
 
   // 1. Ekstrak Nomor Surat Asal (dari Kop/Header surat):
-  // Mencari kata "Nomor" / "No" diikuti pemisah titik dua ":"
-  // Contoh: Nomor : 421.3/085-Cadisdik.Wil.VII atau No. : 129/PK.03.03.01
-  const noMatch = text.match(/(?:nomor(?:\s*surat)?|no\.?)\s*[:=]\s*([^\r\n,;]+)/i);
-  if (noMatch) {
-    let rawNo = noMatch[1].trim();
-    // Hilangkan kata sifat / lampiran / perihal jika terbawa di baris yang sama
-    rawNo = rawNo.split(/\s+(?:lampiran|sifat|hal|perihal|tanggal|klasifikasi)\b/i)[0].trim();
-    rawNo = rawNo.replace(/^[-–—:\s]+|[-–—:\s]+$/g, "");
-    if (rawNo.length >= 3 && !/^(surat|lampiran|penting|segera|rahasia)$/i.test(rawNo)) {
-      noSurat = rawNo;
+  if (!noSurat) {
+    const noMatch = text.match(/(?:nomor(?:\s*surat)?|no\.?)\s*[:=]\s*([^\r\n,;]+)/i);
+    if (noMatch) {
+      let rawNo = noMatch[1].trim();
+      rawNo = rawNo.split(/\s+(?:lampiran|sifat|hal|perihal|tanggal|klasifikasi)\b/i)[0].trim();
+      rawNo = rawNo.replace(/^[-–—:\s]+|[-–—:\s]+$/g, "");
+      if (rawNo.length >= 3 && !/^(surat|lampiran|penting|segera|rahasia)$/i.test(rawNo)) {
+        noSurat = rawNo;
+      }
     }
   }
 
   // Jika belum dapat via "Nomor :", cari pola format surat dinas bergaris miring
-  // Contoh: 421.3/085/Cadisdik/2026 atau 129/PK.03.03.01-Cadisdikwil.VII atau 015/YWKA/II/2026
   if (!noSurat) {
     const slashPattern = text.match(/\b([0-9a-zA-Z.-]+\/[0-9a-zA-Z./-]+(?:\/[0-9a-zA-Z./-]+)*)\b/);
     if (slashPattern && slashPattern[1].length >= 5 && !slashPattern[1].includes("http")) {
       noSurat = slashPattern[1].trim();
     }
+  }
+
+  if (!noAgenda && noSurat) {
+    const agMatch = noSurat.match(/\/(\d{1,4})\//);
+    if (agMatch) noAgenda = agMatch[1];
   }
 
   // 2. Ekstrak Perihal / Hal dari badan teks
@@ -6646,7 +7126,18 @@ function extractLetterInfoFromPdfText(text) {
     }
   }
 
-  // 3. Ekstrak Tanggal Surat (format Indonesia)
+  // 3. Ekstrak Kepada / Yth
+  const ythMatch = text.match(/(?:kepada\s*yth\.?|yth\.?)\s*([^\r\n]+)/i);
+  if (ythMatch) {
+    let rawYth = ythMatch[1].trim();
+    rawYth = rawYth.split(/\s+(?:di\s+tempat|di\s+bandung|perihal|hal)\b/i)[0].trim();
+    rawYth = rawYth.replace(/^[-–—:\s]+|[-–—:\s]+$/g, "");
+    if (rawYth.length >= 3) {
+      kepada = rawYth;
+    }
+  }
+
+  // 4. Ekstrak Tanggal Surat (format Indonesia)
   const tglMatch = text.match(/(?:bandung,?\s*)?(\d{1,2})\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s+(\d{4})/i);
   if (tglMatch) {
     const day = String(tglMatch[1]).padStart(2, '0');
@@ -6659,7 +7150,7 @@ function extractLetterInfoFromPdfText(text) {
     }
   }
 
-  // 4. Deteksi Pengirim dari Kop Surat
+  // 5. Deteksi Pengirim dari Kop Surat
   const lower = text.toLowerCase();
   if (lower.includes("cabang dinas pendidikan wilayah vii") || lower.includes("cadisdik wil. vii") || lower.includes("cadisdik") || lower.includes("kcd")) {
     pengirim = "CABANG DINAS WIL.VII";
@@ -6679,7 +7170,7 @@ function extractLetterInfoFromPdfText(text) {
     pengirim = "PEMERINTAH PROVINSI JAWA BARAT";
   }
 
-  return { noSurat, perihal, tglSurat, pengirim };
+  return { noSurat, noAgenda, kodeKlasifikasi, perihal, tglSurat, pengirim, kepada };
 }
 window.extractLetterInfoFromPdfText = extractLetterInfoFromPdfText;
 
@@ -7017,6 +7508,7 @@ window.rescanAllBatchMasukPdf = rescanAllBatchMasukPdf;
 // Pratinjau Cek PDF Dokumen Tunggal
 let currentPreviewBatchItemId = null;
 let currentPreviewBlobUrl = null;
+let currentPreviewType = "masuk"; // "masuk" or "keluar"
 
 function previewBatchMasukPdf(itemId) {
   const entry = state.batchMasukItems ? state.batchMasukItems.find(b => b.id === itemId) : null;
@@ -7026,11 +7518,30 @@ function previewBatchMasukPdf(itemId) {
   }
 
   currentPreviewBatchItemId = itemId;
-  if (typeof window !== "undefined") window.currentPreviewBatchItemId = itemId;
+  currentPreviewType = "masuk";
+  if (typeof window !== "undefined") {
+    window.currentPreviewBatchItemId = itemId;
+    window.currentPreviewType = "masuk";
+  }
+
   const modal = document.getElementById("modalPreviewBatchPdf");
+  const titleEl = document.getElementById("previewBatchPdfTitle");
+  const headerEl = document.getElementById("previewBatchPdfHeader");
   const fileNameEl = document.getElementById("previewBatchPdfFileName");
   const noAgendaInput = document.getElementById("previewBatchPdfNoAgendaInput");
   const iframe = document.getElementById("previewBatchPdfIframe");
+  const openNewTabBtn = document.getElementById("btnPreviewPdfOpenNewTab");
+
+  const masukControls = document.getElementById("previewBatchPdfMasukControls");
+  const keluarControls = document.getElementById("previewBatchPdfKeluarControls");
+
+  if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-file-pdf text-danger"></i> Cek Dokumen PDF &amp; Verifikasi Nomor Surat Asal`;
+  if (headerEl) {
+    headerEl.style.background = "#f0fdf4";
+    headerEl.style.borderBottom = "1px solid #bbf7d0";
+  }
+  if (masukControls) masukControls.style.display = "flex";
+  if (keluarControls) keluarControls.style.display = "none";
 
   if (fileNameEl) fileNameEl.textContent = entry.file.name;
   if (noAgendaInput) {
@@ -7045,6 +7556,7 @@ function previewBatchMasukPdf(itemId) {
 
   currentPreviewBlobUrl = URL.createObjectURL(entry.file);
   if (iframe) iframe.src = currentPreviewBlobUrl;
+  if (openNewTabBtn) openNewTabBtn.href = currentPreviewBlobUrl;
 
   if (modal) modal.classList.add("show");
 }
@@ -8154,7 +8666,7 @@ async function handleExecuteDeleteRow() {
   let dupIndices = [];
   try {
     dupIndices = JSON.parse(targetRowIndexInput?.dataset?.duplicateRowIndices || "[]");
-  } catch (e) {}
+  } catch (e) { }
   if (!dupIndices.length && targetRowIndex) {
     dupIndices = [parseInt(targetRowIndex, 10)];
   }
@@ -8377,7 +8889,7 @@ function openEditModalKeluar(id) {
   if (curFile) {
     const hasDrive = hasDriveFileAttached(item);
     const driveHref = getDriveLinkHref(item, "keluar");
-    curFile.innerHTML = hasDrive 
+    curFile.innerHTML = hasDrive
       ? `<a href="${driveHref}" target="_blank" class="text-emerald font-bold"><i class="fa-brands fa-google-drive"></i> Berkas Drive Tersedia</a>`
       : `<span style="color: #64748b;">${escapeHtml(item.lampiran || "Belum ada berkas")}</span>`;
   }
@@ -10049,7 +10561,7 @@ function initPwaServiceWorker() {
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     deferredPwaPrompt = e;
-    
+
     // Tampilkan tombol install di sidebar & banner
     const btnSidebarPwa = document.getElementById("btnSidebarInstallPwa");
     if (btnSidebarPwa) btnSidebarPwa.style.display = "flex";

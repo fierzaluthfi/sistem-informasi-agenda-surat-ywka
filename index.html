@@ -1697,22 +1697,23 @@
   </div>
 
   <!-- ================= MODAL: UPLOAD BATCH BERKAS SURAT KELUAR ================= -->
+  <!-- ================= MODAL: UPLOAD BATCH SURAT KELUAR ================= -->
   <div class="modal-backdrop" id="modalBatchUploadKeluar">
     <div class="modal-dialog modal-xl">
-      <div class="modal-header">
-        <h3 class="modal-title">
-          <i class="fa-solid fa-layer-group text-primary"></i> Upload Batch Berkas Surat Keluar ke Google Drive
+      <div class="modal-header" style="background: #eff6ff; border-bottom: 1px solid #bfdbfe;">
+        <h3 class="modal-title" style="color: #1e40af;">
+          <i class="fa-solid fa-layer-group text-primary"></i> Upload Batch Surat Keluar &amp; Ekstrak Data Otomatis
         </h3>
         <button class="modal-close-btn" id="btnCloseBatchUploadKeluar" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
         <!-- Info Banner -->
-        <div class="batch-info-banner">
-          <div class="batch-info-icon"><i class="fa-brands fa-google-drive text-emerald"></i></div>
+        <div class="batch-info-banner" style="background: #f0f9ff; border-color: #bae6fd;">
+          <div class="batch-info-icon"><i class="fa-solid fa-wand-magic-sparkles text-primary" style="font-size: 24px;"></i></div>
           <div class="batch-info-content">
-            <h4>Upload Sekaligus & Otomatis Sesuai No. Agenda</h4>
-            <p>
-              Tarik atau pilih berkas surat (PDF / Word / Scan JPG / PNG) secara massal. Sistem akan <strong>otomatis mencocokkan nomor agenda</strong> dari nama berkas (contoh: <code>612.pdf</code>, <code>No. 613 Surat Tugas.pdf</code>, <code>Agenda 614.jpg</code>) ke baris surat yang sesuai!
+            <h4 style="color: #0369a1;">Upload Cepat &amp; Pindai Otomatis Dokumen Surat Keluar</h4>
+            <p style="color: #0284c7;">
+              Tarik atau pilih berkas surat keluar secara massal (PDF / Word / Scan). Sistem akan <strong>otomatis mendeteksi Kode Klasifikasi (12 Kategori)</strong>, mengekstrak <strong>Prihal</strong> dari nama berkas/kop, menyesuaikan <strong>Nomor Agenda Berurutan</strong>, serta menyediakan tombol <strong>"👁️ Cek PDF"</strong> untuk mengintip isi berkas langsung!
             </p>
           </div>
         </div>
@@ -1721,15 +1722,50 @@
         <div class="batch-dropzone" id="batchKeluarDropzone">
           <input type="file" id="batchKeluarMultiInput" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display: none;">
           <div class="batch-dropzone-inner">
-            <div class="batch-dropzone-icon">
+            <div class="batch-dropzone-icon" style="color: #2563eb;">
               <i class="fa-solid fa-cloud-arrow-up"></i>
             </div>
-            <h4>Tarik & Jatuhkan Semua Berkas ke Sini</h4>
+            <h4>Tarik &amp; Jatuhkan Berkas Surat Keluar ke Sini</h4>
             <p>atau klik tombol di bawah untuk memilih banyak file dari komputer Anda</p>
-            <button type="button" class="btn btn-primary" id="btnBrowseBatchFiles">
+            <button type="button" class="btn btn-primary" id="btnBrowseBatchKeluarFiles">
               <i class="fa-solid fa-folder-open"></i> Pilih Berkas (Bisa Pilih Banyak Sekaligus)
             </button>
-            <div class="batch-dropzone-subtext">Mendukung format PDF, Word (.doc, .docx), JPG, PNG. Maksimal 20 MB per file.</div>
+            <div class="batch-dropzone-subtext">Mendukung format PDF, Word (.doc, .docx), JPG, PNG. Maksimal 25 MB per file. Keterangan dan kode klasifikasi otomatis dideteksi.</div>
+          </div>
+        </div>
+
+        <!-- Global Toolbar for Rapid Editing -->
+        <div class="batch-toolbar-row" id="batchKeluarQuickToolbar">
+          <div class="batch-toolbar-group">
+            <label style="font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap;"><i class="fa-solid fa-tags text-primary"></i> Terapkan Kode Klasifikasi ke Semua:</label>
+            <select id="batchKeluarGlobalKlasifikasi" class="form-control" style="font-size: 12px; padding: 4px 8px; height: 32px; max-width: 220px;">
+              <option value="">-- Pilih Kode Klasifikasi --</option>
+              <option value="421.3">421.3 - Surat Umum</option>
+              <option value="421.6">421.6 - Surat Pelepasan / Wisuda</option>
+              <option value="421.7">421.7 - Kegiatan Siswa (Dispensasi, Lomba)</option>
+              <option value="421.71">421.71 - Kegiatan Reuni / Karya Wisata</option>
+              <option value="422.1">422.1 - Kegiatan PPDB dan MPLS</option>
+              <option value="422.3">422.3 - Pengumuman Hari Libur</option>
+              <option value="422.5">422.5 - Beasiswa / Pelajar Teladan</option>
+              <option value="423.5">423.5 - Kegiatan Kurikulum &amp; Walikelas</option>
+              <option value="423.7">423.7 - Kegiatan PAT, PAS, UTS, UJIAN</option>
+              <option value="425.11">425.11 - Sarpras &amp; Gedung Sekolah</option>
+              <option value="425.2">425.2 - Sarpras Buku / Bahan Ajar</option>
+              <option value="425.3">425.3 - Sarpras Perlengkapan Sekolah</option>
+            </select>
+            <button type="button" class="btn btn-xs btn-outline" id="btnApplyGlobalKlasifikasiKeluar" title="Terapkan kode klasifikasi ini ke seluruh daftar di bawah">Terapkan</button>
+          </div>
+
+          <div class="batch-toolbar-group">
+            <label style="font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap;"><i class="fa-regular fa-calendar text-primary"></i> Tanggal:</label>
+            <input type="date" id="batchKeluarGlobalTanggal" class="form-control" style="font-size: 12px; padding: 4px 8px; height: 32px; width: 130px;">
+            <button type="button" class="btn btn-xs btn-outline" id="btnApplyGlobalTglKeluar" title="Terapkan tanggal ini ke seluruh surat di bawah">Terapkan</button>
+          </div>
+
+          <div class="batch-toolbar-group">
+            <label style="font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap;"><i class="fa-solid fa-paper-plane text-primary"></i> Kepada / Tujuan:</label>
+            <input type="text" id="batchKeluarGlobalKepada" class="form-control" placeholder="Contoh: Orang Tua / Siswa" style="font-size: 12px; padding: 4px 8px; height: 32px; width: 140px;">
+            <button type="button" class="btn btn-xs btn-outline" id="btnApplyGlobalKepadaKeluar" title="Terapkan tujuan ini ke semua surat">Terapkan</button>
           </div>
         </div>
 
@@ -1737,32 +1773,41 @@
         <div class="batch-list-wrapper">
           <div class="batch-list-header">
             <div>
-              <strong style="color: #1e293b; font-size: 13.5px;">Daftar Surat Keluar Target Upload:</strong>
-              <span class="batch-count-summary" id="batchSummaryStats">0 surat • 0 berkas dipasangkan</span>
+              <strong style="color: #1e293b; font-size: 13.5px;">Daftar Surat Keluar yang Akan Dicatat &amp; Diunggah:</strong>
+              <span class="batch-count-summary" id="batchSummaryStats">0 berkas siap diproses</span>
             </div>
             <div class="batch-list-actions">
-              <button type="button" class="btn btn-xs btn-outline" id="btnBatchAddUnuploaded" title="Tambahkan semua surat yang belum memiliki berkas Google Drive">
-                <i class="fa-solid fa-plus"></i> Tambah Semua yg Belum Ada Berkas
+              <button type="button" class="btn btn-xs btn-outline" id="btnBatchKeluarRescanPdf" title="Pindai ulang seluruh berkas PDF untuk mengekstrak data surat">
+                <i class="fa-solid fa-wand-magic-sparkles text-primary"></i> Pindai Ulang Isi PDF
               </button>
-              <button type="button" class="btn btn-xs btn-secondary" id="btnBatchClearFiles" title="Kosongkan file yang dipasangkan">
-                <i class="fa-solid fa-rotate-left"></i> Reset File
+              <button type="button" class="btn btn-xs btn-secondary" id="btnBatchClearFiles" title="Kosongkan seluruh daftar berkas">
+                <i class="fa-solid fa-rotate-left"></i> Kosongkan Daftar
               </button>
             </div>
           </div>
 
-          <div class="batch-table-scroll">
+          <div class="batch-table-scroll" style="max-height: 330px;">
             <table class="batch-items-table">
               <thead>
                 <tr>
-                  <th style="width: 80px; text-align: center;">No. Agenda</th>
-                  <th>Nomor Lengkap & Prihal Surat</th>
-                  <th style="width: 290px;">Berkas yang Dipasangkan</th>
-                  <th style="width: 130px; text-align: center;">Status</th>
+                  <th style="width: 70px; text-align: center;">No. Agenda</th>
+                  <th style="width: 170px;">Kode Klasifikasi</th>
+                  <th style="min-width: 220px;">Prihal / Isi Ringkasan Surat</th>
+                  <th style="width: 140px;">Kepada / Tujuan</th>
+                  <th style="width: 105px;">Tgl Surat</th>
+                  <th style="width: 110px;">Petugas</th>
+                  <th style="width: 180px;">Berkas File</th>
+                  <th style="width: 95px; text-align: center;">Status</th>
                   <th style="width: 44px; text-align: center;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="tbodyBatchKeluarItems">
-                <!-- Dynamically populated -->
+                <tr>
+                  <td colspan="9" style="text-align: center; color: #94a3b8; padding: 32px 16px;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 32px; display: block; margin-bottom: 8px; color: #cbd5e1;"></i>
+                    Belum ada berkas yang dipilih. Silakan tarik &amp; jatuhkan file atau klik tombol "Pilih Berkas" di atas.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1771,11 +1816,11 @@
         <!-- Upload Progress Section -->
         <div class="batch-progress-box" id="batchProgressBox" style="display: none;">
           <div class="batch-progress-header">
-            <span id="batchProgressStatusText"><i class="fa-solid fa-spinner fa-spin"></i> Mengunggah berkas ke Google Drive...</span>
-            <span id="batchProgressPercentage" class="stat-mono">0%</span>
+            <span id="batchProgressStatusText"><i class="fa-solid fa-spinner fa-spin"></i> Mengunggah berkas ke Google Drive Surat Keluar 2026...</span>
+            <span id="batchProgressPercentage" class="stat-mono font-bold" style="color: #2563eb;">0%</span>
           </div>
           <div class="batch-progress-track">
-            <div class="batch-progress-bar" id="batchProgressBar" style="width: 0%;"></div>
+            <div class="batch-progress-bar" id="batchProgressBar" style="width: 0%; background: #2563eb;"></div>
           </div>
           <div class="batch-progress-details" id="batchProgressCurrentDetail">-</div>
         </div>
@@ -1783,7 +1828,7 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="btnCancelBatchUploadKeluar">Tutup</button>
         <button type="button" class="btn btn-primary" id="btnStartBatchUploadKeluar" disabled>
-          <i class="fa-solid fa-cloud-arrow-up"></i> Mulai Upload Batch (<span id="batchReadyCount">0</span> Berkas Siap)
+          <i class="fa-solid fa-cloud-arrow-up"></i> Mulai Simpan &amp; Upload Batch (<span id="batchReadyCount">0</span> Berkas Siap)
         </button>
       </div>
     </div>
@@ -1927,20 +1972,30 @@
     </div>
   </div>
 
-  <!-- ================= MODAL: INTIP / CEK DOKUMEN PDF SURAT MASUK ================= -->
+  <!-- ================= MODAL: INTIP / CEK DOKUMEN PDF (SURAT MASUK & KELUAR) ================= -->
   <div class="modal-backdrop" id="modalPreviewBatchPdf">
     <div class="modal-dialog modal-xl" style="max-width: 95vw; height: 90vh; display: flex; flex-direction: column;">
-      <div class="modal-header" style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0; flex: 0 0 auto;">
-        <h3 class="modal-title" style="color: #166534; font-size: 15px;">
+      <div class="modal-header" id="previewBatchPdfHeader" style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0; flex: 0 0 auto;">
+        <h3 class="modal-title" id="previewBatchPdfTitle" style="color: #166534; font-size: 15px;">
           <i class="fa-solid fa-file-pdf text-danger"></i> Cek Dokumen PDF &amp; Verifikasi Nomor Surat Asal
         </h3>
         <button class="modal-close-btn" id="btnClosePreviewBatchPdf" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body" style="flex: 1 1 auto; display: flex; flex-direction: column; padding: 12px; overflow: hidden;">
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <!-- Top bar: File Name info -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
           <div style="font-size: 13px; color: #1e293b;">
             Berkas: <strong id="previewBatchPdfFileName">-</strong>
           </div>
+          <div id="previewBatchPdfOpenNewTabBox">
+            <a id="btnPreviewPdfOpenNewTab" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline" style="font-size: 11px;">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka di Tab Baru
+            </a>
+          </div>
+        </div>
+
+        <!-- Controls for Surat Masuk -->
+        <div id="previewBatchPdfMasukControls" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 280px;">
             <label style="font-size: 12px; font-weight: 700; color: #065f46; white-space: nowrap;">No. Surat Asal / No. Agenda:</label>
             <input type="text" id="previewBatchPdfNoAgendaInput" class="form-control font-bold" style="height: 34px; font-size: 13px;" placeholder="Ketik / sesuaikan nomor surat yang tertera di dokumen">
@@ -1949,6 +2004,43 @@
             </button>
           </div>
         </div>
+
+        <!-- Controls for Surat Keluar -->
+        <div id="previewBatchPdfKeluarControls" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; display: none; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 11.5px; font-weight: 700; color: #1e40af; white-space: nowrap;">No. Agenda:</label>
+            <input type="number" id="previewBatchKeluarAgendaInput" class="form-control font-bold stat-mono" style="height: 32px; width: 75px; font-size: 12.5px; text-align: center;">
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 11.5px; font-weight: 700; color: #1e40af; white-space: nowrap;">Klasifikasi:</label>
+            <select id="previewBatchKeluarKodeSelect" class="form-control font-bold" style="height: 32px; font-size: 12px; max-width: 170px;">
+              <option value="421.3">421.3 - Umum</option>
+              <option value="421.6">421.6 - Wisuda</option>
+              <option value="421.7">421.7 - Kesiswaan</option>
+              <option value="421.71">421.71 - Reuni</option>
+              <option value="422.1">422.1 - PPDB</option>
+              <option value="422.3">422.3 - Libur</option>
+              <option value="422.5">422.5 - Beasiswa</option>
+              <option value="423.5">423.5 - Kurikulum</option>
+              <option value="423.7">423.7 - Ujian</option>
+              <option value="425.11">425.11 - Gedung</option>
+              <option value="425.2">425.2 - Buku</option>
+              <option value="425.3">425.3 - Sarpras</option>
+            </select>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px;">
+            <label style="font-size: 11.5px; font-weight: 700; color: #1e40af; white-space: nowrap;">Prihal:</label>
+            <input type="text" id="previewBatchKeluarPerihalInput" class="form-control" style="height: 32px; font-size: 12px;" placeholder="Prihal Surat">
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 11.5px; font-weight: 700; color: #1e40af; white-space: nowrap;">Kepada:</label>
+            <input type="text" id="previewBatchKeluarKepadaInput" class="form-control" style="height: 32px; width: 130px; font-size: 12px;" placeholder="Tujuan">
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="btnApplyPreviewBatchPdfKeluar" style="white-space: nowrap; height: 32px;">
+            <i class="fa-solid fa-check"></i> Terapkan ke Baris
+          </button>
+        </div>
+
         <div style="flex: 1 1 auto; position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; background: #525659;">
           <iframe id="previewBatchPdfIframe" style="width: 100%; height: 100%; border: none;"></iframe>
         </div>
@@ -2459,6 +2551,6 @@
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
     }
   </script>
-  <script src="app.js?v=3.13"></script>
+  <script src="app.js?v=3.14"></script>
 </body>
 </html>
