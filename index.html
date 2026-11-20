@@ -24,7 +24,7 @@
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=3.13">
+  <link rel="stylesheet" href="style.css?v=3.15">
 </head>
 <body>
   <!-- ================= PORTAL LOGIN RESMI SMAS YWKA ================= -->
@@ -1292,6 +1292,12 @@
         <!-- LEMBAR AGENDA SURAT & DISPOSISI RESMI (SIAP CETAK) -->
         <div id="disposisiPrintArea">
           <div class="disposisi-card">
+            <!-- STEMPEL ARSIP FISIK (Hanya muncul untuk Surat Masuk) -->
+            <div id="arsipStamp" class="arsip-stamp" style="display: none;">
+              <div class="arsip-stamp-label"><i class="fa-solid fa-box-archive"></i> ARSIP FISIK</div>
+              <div class="arsip-stamp-no">No. <span id="arsipStampNo">-</span></div>
+              <div class="arsip-stamp-tgl" id="arsipStampTgl">-</div>
+            </div>
             <div class="disposisi-header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px;">
               <img src="logo-ywka.png" alt="Logo SMAS YWKA Bandung" style="width: 58px; height: 58px; object-fit: contain;">
               <div class="disposisi-school" style="text-align: left;">
@@ -2551,6 +2557,6 @@
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
     }
   </script>
-  <script src="app.js?v=3.14"></script>
+  <script src="app.js?v=3.15"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.14";
+    const CURRENT_VERSION = "3.15";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -5577,6 +5577,22 @@ function openDirectPrint(id, type = "keluar", initialTab = "disposisi") {
   if (dispDari) dispDari.textContent = item.dari || "-";
   if (dispKepada) dispKepada.textContent = item.kepada || "-";
   if (dispPerihal) dispPerihal.textContent = item.perihal || "-";
+
+  // Stempel Arsip Fisik — hanya tampil untuk Surat Masuk
+  const arsipStamp = document.getElementById("arsipStamp");
+  const arsipStampNo = document.getElementById("arsipStampNo");
+  const arsipStampTgl = document.getElementById("arsipStampTgl");
+  if (arsipStamp) {
+    if (isMasuk) {
+      const noDisplay = item.noUrut || item.noAgenda || "-";
+      const tglDisplay = item.tglSurat || item.tglMasuk || "-";
+      if (arsipStampNo) arsipStampNo.textContent = noDisplay;
+      if (arsipStampTgl) arsipStampTgl.textContent = tglDisplay;
+      arsipStamp.style.display = "block";
+    } else {
+      arsipStamp.style.display = "none";
+    }
+  }
 
   // 2. Banner Informasi Berkas Google Drive
   const bannerDrive = document.getElementById("dispDriveBanner");
