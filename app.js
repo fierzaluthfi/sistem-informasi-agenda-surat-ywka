@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.16";
+    const CURRENT_VERSION = "3.17";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -1752,7 +1752,8 @@ async function addWatermarkToPdfFile(file, noUrut, tglSurat) {
 
     const pages = pdfDoc.getPages();
     const stampText1 = `No. ${noUrut || "-"}`;
-    const stampText2 = tglSurat || "-";
+    const formattedTgl = (tglSurat && tglSurat !== "-") ? formatDateIndo(tglSurat) : "-";
+    const stampText2 = formattedTgl;
     const stampLabel = "ARSIP FISIK";
 
     for (const page of pages) {
@@ -5709,7 +5710,7 @@ function openDirectPrint(id, type = "keluar", initialTab = "disposisi") {
   if (arsipStamp) {
     if (isMasuk) {
       const noDisplay = item.noUrut || item.noAgenda || "-";
-      const tglDisplay = item.tglSurat || item.tglMasuk || "-";
+      const tglDisplay = formatDateIndo(item.tglSurat || item.tglMasuk || "-");
       if (arsipStampNo) arsipStampNo.textContent = noDisplay;
       if (arsipStampTgl) arsipStampTgl.textContent = tglDisplay;
       arsipStamp.style.display = "block";
