@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.15";
+    const CURRENT_VERSION = "3.16";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -1719,6 +1719,128 @@ function readFileAsBase64(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Sisipkan watermark teks kecil di pojok kanan atas setiap halaman PDF (Surat Masuk).
+ * Watermark berisi: No. Urut dan Tanggal Surat.
+ * Menggunakan library pdf-lib (window.PDFLib).
+ * Jika file bukan PDF atau pdf-lib tidak tersedia, kembalikan file asli tanpa modifikasi.
+ *
+ * @param {File} file        - File PDF asli
+ * @param {string} noUrut    - Nomor urut / agenda surat masuk (misal "269")
+ * @param {string} tglSurat  - Tanggal surat (misal "19/11/2026")
+ * @returns {Promise<File>}  - File PDF baru dengan watermark (atau file asli jika bukan PDF/pdf-lib tidak ada)
+ */
+async function addWatermarkToPdfFile(file, noUrut, tglSurat) {
+  // Hanya proses PDF; format lain (JPG, PNG, Word) dikembalikan apa adanya
+  if (!file || !file.type.includes("pdf")) return file;
+
+  // Jika pdf-lib belum tersedia (belum dimuat CDN / offline), fallback ke file asli
+  if (typeof window === "undefined" || !window.PDFLib) {
+    console.warn("[Watermark] pdf-lib belum dimuat, upload tanpa watermark.");
+    return file;
+  }
+
+  try {
+    const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+
+    // Baca file sebagai ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    const pages = pdfDoc.getPages();
+    const stampText1 = `No. ${noUrut || "-"}`;
+    const stampText2 = tglSurat || "-";
+    const stampLabel = "ARSIP FISIK";
+
+    for (const page of pages) {
+      const { width, height } = page.getSize();
+
+      // ---- Parameter tampilan ----
+      const fontSize1 = 9;    // ukuran No. urut
+      const fontSize2 = 7.5;  // ukuran tanggal
+      const fontSizeLabel = 6; // ukuran label "ARSIP FISIK"
+      const pad = 6;           // padding dalam kotak
+      const boxW = 82;         // lebar kotak watermark
+      const boxH = 38;         // tinggi kotak watermark
+      const marginRight = 14;
+      const marginTop = 14;    // jarak dari atas
+
+      const boxX = width - boxW - marginRight;
+      const boxY = height - marginTop - boxH;
+
+      // Warna merah marun
+      const red = rgb(0.73, 0.11, 0.11);
+      const redLight = rgb(1, 0.96, 0.96);
+
+      // Latar merah muda pucat
+      page.drawRectangle({
+        x: boxX,
+        y: boxY,
+        width: boxW,
+        height: boxH,
+        color: redLight,
+        opacity: 0.85,
+      });
+
+      // Border merah
+      page.drawRectangle({
+        x: boxX,
+        y: boxY,
+        width: boxW,
+        height: boxH,
+        borderColor: red,
+        borderWidth: 1.2,
+        opacity: 1,
+      });
+
+      // Label kecil "ARSIP FISIK" di paling atas kotak
+      page.drawText(stampLabel, {
+        x: boxX + pad,
+        y: boxY + boxH - fontSizeLabel - pad + 1,
+        size: fontSizeLabel,
+        font,
+        color: rgb(0.73, 0.11, 0.11),
+        opacity: 0.72,
+      });
+
+      // Teks No. urut (lebih besar, tebal)
+      page.drawText(stampText1, {
+        x: boxX + pad,
+        y: boxY + boxH - fontSizeLabel - fontSize1 - pad - 2,
+        size: fontSize1,
+        font,
+        color: red,
+        opacity: 1,
+      });
+
+      // Teks tanggal
+      page.drawText(stampText2, {
+        x: boxX + pad,
+        y: boxY + pad + 1,
+        size: fontSize2,
+        font,
+        color: rgb(0.5, 0.07, 0.07),
+        opacity: 0.9,
+      });
+    }
+
+    // Simpan sebagai Uint8Array lalu bungkus ke File baru
+    const pdfBytes = await pdfDoc.save();
+    const watermarkedBlob = new Blob([pdfBytes], { type: "application/pdf" });
+    const watermarkedFile = new File([watermarkedBlob], file.name, {
+      type: "application/pdf",
+      lastModified: file.lastModified,
+    });
+
+    return watermarkedFile;
+  } catch (err) {
+    // Jika PDF terenkripsi ketat atau parsing gagal, fallback ke file asli
+    console.warn("[Watermark] Gagal menyisipkan watermark ke PDF:", err.message || err);
+    return file;
+  }
 }
 
 /**
@@ -5259,9 +5381,11 @@ async function handleCreateSuratMasuk(e) {
     let fileMime = "";
     if (state.stagedFileMasuk) {
       try {
-        fileBase64 = await readFileAsBase64(state.stagedFileMasuk);
-        fileName = state.stagedFileMasuk.name;
-        fileMime = state.stagedFileMasuk.type;
+        const formattedTglSuratForWm = formatDateIndo(tglSurat);
+        const fileToUpload = await addWatermarkToPdfFile(state.stagedFileMasuk, inNoUrut, formattedTglSuratForWm || tglSurat || "");
+        fileBase64 = await readFileAsBase64(fileToUpload);
+        fileName = fileToUpload.name;
+        fileMime = fileToUpload.type || "application/pdf";
       } catch (err) {
         console.warn("Gagal membaca file surat masuk:", err);
       }
@@ -6008,9 +6132,23 @@ async function handleExecuteUploadRowDrive(e) {
   }
 
   try {
-    const fileBase64 = await readFileAsBase64(file);
-    const fileName = file.name;
-    const fileMime = file.type || "application/pdf";
+    // Jika Surat Masuk & berkas PDF → sisipkan watermark No. Urut + Tanggal sebelum upload
+    const isMasukCheck = (targetType === "masuk");
+    let fileToUpload = file;
+    if (isMasukCheck && file.type && file.type.includes("pdf")) {
+      const targetItemForWm = state.suratMasuk.find(m =>
+        m.id === targetId ||
+        (targetUrut && m.noUrut && String(m.noUrut).trim() === String(targetUrut).trim()) ||
+        (targetAgenda && targetAgenda !== "-" && m.noAgenda && m.noAgenda === targetAgenda)
+      );
+      const wmNo = targetItemForWm?.noUrut || targetUrut || targetAgenda || "-";
+      const wmTgl = targetItemForWm?.tglSurat || "-";
+      fileToUpload = await addWatermarkToPdfFile(file, wmNo, wmTgl);
+    }
+
+    const fileBase64 = await readFileAsBase64(fileToUpload);
+    const fileName = fileToUpload.name;
+    const fileMime = fileToUpload.type || "application/pdf";
 
     if (!state.appsScriptUrl) {
       showToast("URL Google Apps Script belum disetel! Harap simpan URL Web App di tab Pengaturan.", "warning");
@@ -7841,7 +7979,9 @@ async function executeBatchUploadMasuk() {
     if (progressDetail) progressDetail.textContent = `No. ${entry.noUrut || '-'}: ${entry.perihal || entry.file.name}`;
 
     try {
-      const fileBase64 = await readFileAsBase64(entry.file);
+      // Surat Masuk: sisipkan watermark No. Urut + Tanggal ke berkas PDF sebelum upload
+      const fileForUpload = await addWatermarkToPdfFile(entry.file, entry.noUrut, entry.tglSurat || entry.tglMasuk || "");
+      const fileBase64 = await readFileAsBase64(fileForUpload);
 
       if (entry.isExisting) {
         // Upload lampiran ke surat masuk existing
@@ -9200,9 +9340,12 @@ async function handleExecuteEditSuratMasuk(e) {
   if (fileInput && fileInput.files && fileInput.files[0]) {
     try {
       const file = fileInput.files[0];
-      fileBase64 = await readFileAsBase64(file);
-      fileName = file.name;
-      fileMime = file.type || "application/pdf";
+      const wmNo = noUrut || oldNoUrut || noAgenda || "-";
+      const wmTgl = formattedTglSurat || dtTglSurat?.value || "-";
+      const fileToUpload = await addWatermarkToPdfFile(file, wmNo, wmTgl);
+      fileBase64 = await readFileAsBase64(fileToUpload);
+      fileName = fileToUpload.name;
+      fileMime = fileToUpload.type || "application/pdf";
     } catch (err) {
       console.warn("Gagal membaca file upload baru surat masuk:", err);
     }
