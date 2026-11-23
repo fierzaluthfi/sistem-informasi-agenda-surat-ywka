@@ -2827,35 +2827,135 @@ body * {
   }
 
   /* Cetak Bersih Khusus Laporan Rekapitulasi Bulanan */
-  body.printing-rekap-bulanan * {
+  body.printing-rekap-bulanan {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  body.printing-rekap-bulanan .app-layout,
+  body.printing-rekap-bulanan .top-navbar,
+  body.printing-rekap-bulanan .sidebar,
+  body.printing-rekap-bulanan .login-screen,
+  body.printing-rekap-bulanan .toast-container,
+  body.printing-rekap-bulanan .modal-backdrop:not(#modalRekapBulanan) {
+    display: none !important;
     visibility: hidden !important;
   }
 
-  body.printing-rekap-bulanan #rekapBulananPrintArea,
-  body.printing-rekap-bulanan #rekapBulananPrintArea * {
+  body.printing-rekap-bulanan #modalRekapBulanan {
+    position: static !important;
+    display: block !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
     visibility: visible !important;
+  }
+
+  body.printing-rekap-bulanan #modalRekapBulanan .modal-dialog {
+    position: static !important;
+    display: block !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  body.printing-rekap-bulanan #modalRekapBulanan .modal-body {
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  body.printing-rekap-bulanan #modalRekapBulanan .modal-header,
+  body.printing-rekap-bulanan #modalRekapBulanan .modal-body-top-bar,
+  body.printing-rekap-bulanan #modalRekapBulanan .modal-footer {
+    display: none !important;
+    visibility: hidden !important;
   }
 
   body.printing-rekap-bulanan #rekapBulananPrintArea {
     display: block !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
+    visibility: visible !important;
+  }
+
+  body.printing-rekap-bulanan #rekapBulananPrintArea * {
+    visibility: visible !important;
   }
 
   body.printing-rekap-bulanan .rekap-bulanan-card {
     border: none !important;
     box-shadow: none !important;
     margin: 0 !important;
-    padding: 10mm 14mm !important;
+    padding: 0 !important;
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: 100% !important;
     background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-kop-wrapper {
+    margin-bottom: 8px !important;
+  }
+
+  body.printing-rekap-bulanan .kop-double-divider {
+    margin: 8px 0 14px 0 !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-stats-summary-grid {
+    margin-bottom: 16px !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-stat-box {
+    padding: 8px 10px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-section-block {
+    margin-bottom: 16px !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-table {
+    font-size: 10.5px !important;
+    line-height: 1.3 !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-table th {
+    padding: 5px 6px !important;
+    font-size: 10.5px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-table td {
+    padding: 4px 5px !important;
+    font-size: 10px !important;
   }
 
   body.printing-rekap-bulanan .rekap-table thead {
@@ -2868,6 +2968,7 @@ body * {
   }
 
   body.printing-rekap-bulanan .rekap-signature-block {
+    margin-top: 20px !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
