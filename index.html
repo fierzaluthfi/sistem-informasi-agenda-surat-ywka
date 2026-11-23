@@ -24,7 +24,7 @@
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=3.21">
+  <link rel="stylesheet" href="style.css?v=3.22">
 </head>
 <body>
   <!-- ================= PORTAL LOGIN RESMI SMAS YWKA ================= -->
@@ -1431,6 +1431,15 @@
             <option value="11" selected>November 2026 (XI)</option>
             <option value="12">Desember 2026 (XII)</option>
           </select>
+
+          <label for="selUkuranKertasRekap" style="font-weight: 600; font-size: 13.5px; color: #334155; margin-left: 6px;">
+            <i class="fa-solid fa-scroll text-primary"></i> Ukuran Kertas:
+          </label>
+          <select id="selUkuranKertasRekap" class="form-control" style="width: auto; padding: 6px 12px; font-weight: 600;">
+            <option value="A4" selected>A4 (210 × 297 mm)</option>
+            <option value="F4">F4 / Folio (215 × 330 mm)</option>
+          </select>
+
           <span class="badge badge-primary" id="lblRekapTotalCountBadge" style="font-size: 12px; padding: 5px 10px;">0 Total Surat</span>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
@@ -2746,6 +2755,6 @@
   </script>
   <!-- pdf-lib: Untuk menyisipkan watermark ke berkas PDF Surat Masuk sebelum upload ke Drive -->
   <script src="pdf-lib.min.js"></script>
-  <script src="app.js?v=3.21"></script>
+  <script src="app.js?v=3.22"></script>
 </body>
 </html>

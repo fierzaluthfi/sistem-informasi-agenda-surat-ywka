@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.21";
+    const CURRENT_VERSION = "3.22";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -1435,6 +1435,12 @@ function initNavigation() {
     selBulanRekap.addEventListener("change", () => {
       const m = parseInt(selBulanRekap.value, 10);
       renderRekapBulanan(m);
+    });
+  }
+  const selKertasRekap = document.getElementById("selUkuranKertasRekap");
+  if (selKertasRekap) {
+    selKertasRekap.addEventListener("change", () => {
+      applyPrintPaperSize(selKertasRekap.value);
     });
   }
   if (btnPrintRekapDoc) {
@@ -5847,7 +5853,28 @@ function renderRekapBulanan(monthInt) {
   }
 }
 
+function applyPrintPaperSize(paperSize) {
+  let styleEl = document.getElementById("dynamicPageSizeStyle");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "dynamicPageSizeStyle";
+    document.head.appendChild(styleEl);
+  }
+  const size = (paperSize || "A4").toUpperCase().trim();
+  if (size === "F4") {
+    // Ukuran Folio / F4 Standar Indonesia: 215mm x 330mm (8.5 x 13 inci)
+    styleEl.innerHTML = `@page { size: 215mm 330mm portrait; margin: 10mm 12mm 10mm 12mm; }`;
+  } else {
+    // Ukuran A4 Standar Internasional: 210mm x 297mm
+    styleEl.innerHTML = `@page { size: A4 portrait; margin: 10mm 12mm 10mm 12mm; }`;
+  }
+}
+
 function executePrintRekapBulanan() {
+  const selPaper = document.getElementById("selUkuranKertasRekap");
+  const paperVal = selPaper ? selPaper.value : "A4";
+  applyPrintPaperSize(paperVal);
+
   document.body.classList.add("printing-rekap-bulanan");
   setTimeout(() => {
     window.print();

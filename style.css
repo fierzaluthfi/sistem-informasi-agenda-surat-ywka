@@ -2649,6 +2649,11 @@ body {
 
 /* Cetak Bersih Khusus Lembar Surat & Dokumen */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+
   /* Sembunyikan elemen navigasi dan tombol saat mencetak */
   .no-print,
   .print-modal-tabs,
@@ -2851,6 +2856,10 @@ body * {
     width: 100% !important;
     max-width: 100% !important;
     background: #ffffff !important;
+  }
+
+  body.printing-rekap-bulanan .rekap-table thead {
+    display: table-header-group !important;
   }
 
   body.printing-rekap-bulanan .rekap-table tr {
