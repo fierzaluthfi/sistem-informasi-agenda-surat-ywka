@@ -1995,40 +1995,40 @@ body {
 /* ---- STEMPEL ARSIP FISIK (pojok kanan atas lembar disposisi Surat Masuk) ---- */
 .arsip-stamp {
   position: absolute;
-  top: 18px;
-  right: 20px;
-  min-width: 110px;
-  border: 2px solid #b91c1c;
-  border-radius: 6px;
-  padding: 5px 10px 6px;
+  top: 14px;
+  right: 18px;
+  min-width: 82px;
+  border: 1.5px solid #b91c1c;
+  border-radius: 5px;
+  padding: 3px 8px 4px;
   text-align: center;
   background: #fff5f5;
   color: #b91c1c;
   font-family: 'JetBrains Mono', monospace;
-  line-height: 1.4;
+  line-height: 1.3;
   z-index: 10;
-  box-shadow: 0 1px 4px rgba(185,28,28,0.10);
+  box-shadow: 0 1px 3px rgba(185,28,28,0.10);
 }
 
 .arsip-stamp-label {
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: #b91c1c;
-  opacity: 0.75;
-  margin-bottom: 2px;
+  opacity: 0.8;
+  margin-bottom: 1px;
 }
 
 .arsip-stamp-no {
-  font-size: 15px;
+  font-size: 12.5px;
   font-weight: 900;
   color: #b91c1c;
   letter-spacing: 0.5px;
 }
 
 .arsip-stamp-tgl {
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 600;
   color: #7f1d1d;
   margin-top: 1px;
@@ -2714,11 +2714,11 @@ body {
   /* Stempel Arsip Fisik: tetap tercetak di kertas (pojok kanan atas) */
   #arsipStamp {
     position: absolute !important;
-    top: 14mm !important;
-    right: 16mm !important;
-    border: 2px solid #b91c1c !important;
-    border-radius: 5px !important;
-    padding: 4px 9px 5px !important;
+    top: 12mm !important;
+    right: 14mm !important;
+    border: 1.5px solid #b91c1c !important;
+    border-radius: 4px !important;
+    padding: 3px 7px 3px !important;
     background: #fff5f5 !important;
     color: #b91c1c !important;
     -webkit-print-color-adjust: exact !important;
