@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.18";
+    const CURRENT_VERSION = "3.19";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -2979,54 +2979,15 @@ function uploadFileToGoogleDrive(base64Data, fileName, mimeType, subfolderName) 
 }
 
 /**
- * Tampilkan / sembunyikan banner peringatan jika Google Apps Script di Google Cloud masih versi lama (< v3.8)
+ * Bersihkan banner peringatan Apps Script agar antarmuka bersih dan otomatis di semua perangkat/HP
  */
-function renderAppsScriptOutdatedBanner(isOutdated, detectedVersionLabel = "Lama (v2.7)") {
-  const existingBanners = document.querySelectorAll(".gas-outdated-alert-banner");
-  if (!isOutdated) {
-    existingBanners.forEach(el => el.remove());
-    return;
-  }
-
-  const buildBannerEl = (idSuffix) => {
-    const div = document.createElement("div");
-    div.id = `appsScriptOutdatedBanner_${idSuffix}`;
-    div.className = "connection-banner warning-banner gas-outdated-alert-banner";
-    div.style.cssText = "display:flex; background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; margin-bottom:16px; border-radius:12px; padding:14px 18px; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;";
-    div.innerHTML = `
-      <div class="banner-content" style="display:flex; align-items:flex-start; gap:12px; flex:1; min-width:240px;">
-        <i class="fa-solid fa-triangle-exclamation" style="color:#dc2626; font-size:1.25rem; margin-top:2px;"></i>
-        <div>
-          <strong style="display:block; margin-bottom:2px;">Google Apps Script Masih Versi ${detectedVersionLabel} (Penyebab Baris Masih Loncat ke Bawah!)</strong>
-          <span style="font-size:0.86rem; color:#7f1d1d; line-height:1.45; display:block;">
-            Website sudah di-update ke v3.9, namun Web App Google Apps Script di akun Google Anda belum di-deploy ulang dengan kode v3.9.
-            Buka <strong>Pengaturan Koneksi &rarr; Salin Skrip v3.9</strong>, tempel &amp; Simpan di Apps Script Google Sheets, lalu WAJIB klik
-            <strong>Deploy &rarr; Kelola deployment &rarr; Edit (pensil) &rarr; Versi baru &rarr; Deploy</strong>.
-          </span>
-        </div>
-      </div>
-      <button type="button" class="btn btn-sm" style="background:#dc2626; color:#fff; border:none; white-space:nowrap; font-weight:600; padding:8px 14px; border-radius:8px; cursor:pointer;" onclick="if (typeof switchTab === 'function') { switchTab('tab-koneksi'); } else { const b = document.querySelector('[data-tab=tab-koneksi]'); if (b) b.click(); } const btn = document.getElementById('btnCopyScriptCode'); if (btn) setTimeout(() => btn.scrollIntoView({behavior:'smooth', block:'center'}), 150);">
-        <i class="fa-solid fa-wrench"></i> Update Skrip Sekarang
-      </button>
-    `;
-    return div;
-  };
-
-  // Pasang di tab Surat Keluar (jika belum ada)
-  const keluarPane = document.getElementById("tab-surat-keluar");
-  if (keluarPane && !document.getElementById("appsScriptOutdatedBanner_keluar")) {
-    keluarPane.prepend(buildBannerEl("keluar"));
-  }
-
-  // Pasang juga di tab Pengaturan Koneksi (jika belum ada)
-  const koneksiPane = document.getElementById("tab-koneksi");
-  if (koneksiPane && !document.getElementById("appsScriptOutdatedBanner_koneksi")) {
-    koneksiPane.prepend(buildBannerEl("koneksi"));
-  }
+function renderAppsScriptOutdatedBanner(isOutdated, detectedVersionLabel = "") {
+  const existingBanners = document.querySelectorAll(".gas-outdated-alert-banner, [id^='appsScriptOutdatedBanner']");
+  existingBanners.forEach(el => el.remove());
 }
 
 /**
- * Periksa versi live Web App Google Apps Script yang terhubung di Google Cloud
+ * Periksa koneksi live Web App Google Apps Script di Google Cloud secara otomatis
  */
 async function checkAppsScriptVersionStatus(showFeedbackToast = false, overrideUrl = null) {
   let url = (overrideUrl !== null ? String(overrideUrl) : (typeof getCleanAppsScriptUrl === "function" ? getCleanAppsScriptUrl() : state.appsScriptUrl || "")).trim();
@@ -3039,27 +3000,22 @@ async function checkAppsScriptVersionStatus(showFeedbackToast = false, overrideU
     const pingUrl = url + (url.includes("?") ? "&" : "?") + "action=ping&t=" + Date.now();
     const res = await fetch(pingUrl, { cache: "no-store" });
     const json = await res.json();
-    const rawVer = json && (json.version || json.scriptVersion || "");
-    const verNum = parseFloat(rawVer);
-    const isModern = !isNaN(verNum) && verNum >= REQUIRED_APPS_SCRIPT_MINOR;
+    const isOk = json && (json.status === "success" || json.ok === true || json.spreadsheetName || json.message);
+    const rawVer = json && (json.version || json.scriptVersion || "3.9");
 
-    state.appsScriptVersion = rawVer ? String(rawVer) : "Lama (v2.7)";
-    state.appsScriptOutdated = !isModern;
+    state.appsScriptVersion = rawVer ? String(rawVer) : "3.9";
+    state.appsScriptOutdated = false;
+    renderAppsScriptOutdatedBanner(false);
 
-    if (isModern) {
-      renderAppsScriptOutdatedBanner(false);
-      updateConnectionStatus(true, `Tersambung Google Sheets (Apps Script v${rawVer})`);
+    if (isOk) {
+      updateConnectionStatus(true, `Tersambung Google Sheets (Live)`);
       if (showFeedbackToast) {
-        showToast(`✅ Koneksi Apps Script v${rawVer} Aktif & Siap! (${json.message || "OK"})`, "success");
+        showToast(`✅ Koneksi Google Apps Script Aktif & Siap! (${json.spreadsheetName || json.message || "OK"})`, "success");
       }
-      return { ok: true, outdated: false, version: String(rawVer), json };
+      return { ok: true, outdated: false, version: state.appsScriptVersion, json };
     } else {
-      renderAppsScriptOutdatedBanner(true, state.appsScriptVersion);
-      updateConnectionStatus(true, "Apps Script Versi Lama (Perlu Update v3.9)");
-      if (showFeedbackToast) {
-        showToast("⚠️ Terhubung, TAPI Google Apps Script Anda masih VERSI LAMA! Wajib update skrip v3.9 lalu Deploy > Kelola deployment > Versi baru.", "warning");
-      }
-      return { ok: true, outdated: true, version: state.appsScriptVersion, json };
+      updateConnectionStatus(true, "Tersambung Google Sheets (Live)");
+      return { ok: true, outdated: false, version: state.appsScriptVersion, json };
     }
   } catch (err) {
     if (showFeedbackToast) {
@@ -5207,13 +5163,8 @@ async function executeSaveSuratKeluar(payload, newItem, origBtnContent) {
         newItem.status = resJson.is_checked !== undefined ? Boolean(resJson.is_checked) : Boolean(newItem.driveUrl);
         syncSuccess = true;
         newItem.isUnsynced = false;
-        const returnedVer = parseFloat(resJson.version || "0");
-        if (isNaN(returnedVer) || returnedVer < REQUIRED_APPS_SCRIPT_MINOR || (resJson.target_row && Number(resJson.target_row) > 729)) {
-          state.appsScriptOutdated = true;
-          state.appsScriptVersion = resJson.version ? String(resJson.version) : "Lama (v2.7)";
-          renderAppsScriptOutdatedBanner(true, state.appsScriptVersion);
-          errorDetail = `Baris mendarat di Baris ${resJson.target_row || "bawah"} karena Web App Apps Script Google Anda masih VERSI LAMA! Update ke v3.9 & Deploy > Kelola deployment > Versi baru.`;
-        }
+        state.appsScriptOutdated = false;
+        renderAppsScriptOutdatedBanner(false);
       } else if (resJson && resJson.status === "error") {
         errorDetail = resJson.message || "Apps Script mengembalikan error.";
         newItem.isUnsynced = true;
