@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.19";
+    const CURRENT_VERSION = "3.20";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -1410,6 +1410,41 @@ function initNavigation() {
         }
       }
     });
+  }
+
+  // Laporan Rekapitulasi Bulanan Modal Listeners
+  const modalRekap = document.getElementById("modalRekapBulanan");
+  const btnOpenRekapModal = document.getElementById("btnOpenRekapBulananModal");
+  const btnCloseModalRekap = document.getElementById("btnCloseModalRekapBulanan");
+  const btnCloseRekapFooter = document.getElementById("btnCloseRekapBulananFooter");
+  const selBulanRekap = document.getElementById("selBulanRekapBulanan");
+  const btnPrintRekapDoc = document.getElementById("btnPrintRekapBulananDoc");
+  const btnPrintRekapBottom = document.getElementById("btnPrintRekapBulananBottom");
+  const btnExportRekap = document.getElementById("btnExportRekapCsv");
+
+  if (btnOpenRekapModal) {
+    btnOpenRekapModal.addEventListener("click", () => openModalRekapBulanan());
+  }
+  if (btnCloseModalRekap && modalRekap) {
+    btnCloseModalRekap.addEventListener("click", () => modalRekap.classList.remove("show"));
+  }
+  if (btnCloseRekapFooter && modalRekap) {
+    btnCloseRekapFooter.addEventListener("click", () => modalRekap.classList.remove("show"));
+  }
+  if (selBulanRekap) {
+    selBulanRekap.addEventListener("change", () => {
+      const m = parseInt(selBulanRekap.value, 10);
+      renderRekapBulanan(m);
+    });
+  }
+  if (btnPrintRekapDoc) {
+    btnPrintRekapDoc.addEventListener("click", executePrintRekapBulanan);
+  }
+  if (btnPrintRekapBottom) {
+    btnPrintRekapBottom.addEventListener("click", executePrintRekapBulanan);
+  }
+  if (btnExportRekap) {
+    btnExportRekap.addEventListener("click", () => exportRekapBulananCsv());
   }
 
   // Surat Masuk Table Checkbox Listeners
@@ -5568,11 +5603,309 @@ function renderStatistics() {
           <td>${kCount} surat</td>
           <td>${mCount} surat</td>
           <td><strong>${kCount + mCount} surat</strong></td>
+          <td style="text-align: center;">
+            <button type="button" class="btn btn-sm btn-outline-primary btn-rekap-bulan-row" data-month="${targetMonth}" title="Lihat dan cetak rekapitulasi bulan ${mName} 2026">
+              <i class="fa-solid fa-file-contract"></i> Laporan
+            </button>
+          </td>
         </tr>
       `;
     });
     tbodyRecap.innerHTML = recapHtml;
+
+    // Pasang listener untuk setiap tombol Laporan per bulan
+    tbodyRecap.querySelectorAll(".btn-rekap-bulan-row").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const m = parseInt(btn.getAttribute("data-month"), 10);
+        openModalRekapBulanan(m);
+      });
+    });
   }
+}
+
+/**
+ * ===================================================================
+ * MODUL LAPORAN REKAPITULASI BULANAN EKSEKUTIF (SEKALI KLIK)
+ * SMAS YWKA BANDUNG - TAHUN 2026
+ * ===================================================================
+ */
+const STANDARD_KLASIFIKASI_MAP = {
+  "421.3": "Surat Umum / Kedinasan Sekolah",
+  "421.6": "Surat Pelepasan / Wisuda Siswa",
+  "421.7": "Kegiatan Siswa / Kesiswaan / Ekstrakurikuler",
+  "421.71": "Kegiatan Reuni / Karya Wisata",
+  "422.1": "Kegiatan PPDB dan MPLS",
+  "422.3": "Pengumuman Hari Libur Sekolah",
+  "422.5": "Beasiswa / Siswa Berprestasi",
+  "423.5": "Kegiatan Kurikulum / Pembelajaran",
+  "423.7": "Kegiatan PAT, PAS, UTS, Ujian Sekolah",
+  "425.11": "Sarana & Prasarana, Gedung Sekolah",
+  "425.2": "Sarana & Prasarana Buku / Bahan Ajar",
+  "425.3": "Sarana & Prasarana Perlengkapan Sekolah"
+};
+
+let currentRekapMonth = 11; // Default November 2026
+
+function openModalRekapBulanan(monthNum) {
+  const modal = document.getElementById("modalRekapBulanan");
+  if (!modal) return;
+
+  if (monthNum && monthNum >= 1 && monthNum <= 12) {
+    currentRekapMonth = monthNum;
+  } else {
+    // Cari bulan aktif (berdasarkan bulan sistem atau default ke November)
+    const now = new Date();
+    currentRekapMonth = (now.getFullYear() === 2026) ? (now.getMonth() + 1) : 11;
+  }
+
+  const selBulan = document.getElementById("selBulanRekapBulanan");
+  if (selBulan) {
+    selBulan.value = String(currentRekapMonth);
+  }
+
+  renderRekapBulanan(currentRekapMonth);
+  modal.classList.add("show");
+}
+
+function renderRekapBulanan(monthInt) {
+  currentRekapMonth = monthInt;
+  const mIndex = monthInt - 1;
+  const mName = MONTH_NAMES[mIndex] || "Bulan";
+  const roman = ROMAN_MONTHS[mIndex] || "";
+
+  // Update header text
+  const lblBulan = document.getElementById("rekapJudulBulan");
+  if (lblBulan) lblBulan.textContent = `${mName.toUpperCase()} (${roman})`;
+
+  // Update tanggal cetak ke format Indonesia
+  const lblTglCetak = document.getElementById("rekapTglCetak");
+  if (lblTglCetak) {
+    const today = new Date();
+    const dStr = today.getDate();
+    const mStr = MONTH_NAMES[today.getMonth()];
+    const yStr = today.getFullYear();
+    lblTglCetak.textContent = `${dStr} ${mStr} ${yStr}`;
+  }
+
+  // Filter data sesuai bulan terpilih
+  const listKeluar = (state.suratKeluar || []).filter(s => getItemMonth(s) === monthInt);
+  const listMasuk = (state.suratMasuk || []).filter(m => getItemMonth(m) === monthInt);
+
+  const countKeluar = listKeluar.length;
+  const countMasuk = listMasuk.length;
+  const totalVolume = countKeluar + countMasuk;
+
+  // Hitung berkas Drive terlampir
+  let driveCount = 0;
+  listKeluar.forEach(s => { if (hasDriveFileAttached(s)) driveCount++; });
+  listMasuk.forEach(m => { if (hasDriveFileAttached(m)) driveCount++; });
+  const drivePct = totalVolume > 0 ? Math.round((driveCount / totalVolume) * 100) : 0;
+
+  // Render widget stats
+  const elKeluar = document.getElementById("rekapValSuratKeluar");
+  const elMasuk = document.getElementById("rekapValSuratMasuk");
+  const elTotal = document.getElementById("rekapValTotalSurat");
+  const elDrive = document.getElementById("rekapValDriveArsip");
+  const elDriveRatio = document.getElementById("rekapValDriveRatio");
+  const elBadge = document.getElementById("lblRekapTotalCountBadge");
+
+  if (elKeluar) elKeluar.textContent = countKeluar;
+  if (elMasuk) elMasuk.textContent = countMasuk;
+  if (elTotal) elTotal.textContent = totalVolume;
+  if (elDrive) elDrive.textContent = driveCount;
+  if (elDriveRatio) elDriveRatio.textContent = `${drivePct}% Berkas Terlampir`;
+  if (elBadge) elBadge.textContent = `${totalVolume} Total Surat (${mName} 2026)`;
+
+  // --- TABEL 1: KLASIFIKASI SURAT KELUAR ---
+  const tbodyKlas = document.getElementById("rekapTbodyKlasifikasi");
+  if (tbodyKlas) {
+    const mapKlas = {};
+    listKeluar.forEach(s => {
+      let k = (s.kodeKlasifikasi || "421.3").trim();
+      mapKlas[k] = (mapKlas[k] || 0) + 1;
+    });
+
+    const sortedKodes = Object.keys(mapKlas).sort((a, b) => mapKlas[b] - mapKlas[a]);
+    if (sortedKodes.length === 0) {
+      tbodyKlas.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 12px;">Tidak ada surat keluar tercatat pada bulan ${mName} 2026.</td></tr>`;
+    } else {
+      let htmlKlas = "";
+      sortedKodes.forEach((kd, idx) => {
+        const c = mapKlas[kd];
+        const pct = countKeluar > 0 ? Math.round((c / countKeluar) * 100) : 0;
+        const desc = STANDARD_KLASIFIKASI_MAP[kd] || "Klasifikasi Tambahan / Kustom";
+        htmlKlas += `
+          <tr>
+            <td style="text-align: center;">${idx + 1}</td>
+            <td style="text-align: center; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #0284c7;">${escapeHtml(kd)}</td>
+            <td><strong>${escapeHtml(desc)}</strong></td>
+            <td style="text-align: right; font-weight: 700;">${c} surat</td>
+            <td style="text-align: right; color: #64748b;">${pct}%</td>
+          </tr>
+        `;
+      });
+      tbodyKlas.innerHTML = htmlKlas;
+    }
+  }
+
+  // --- TABEL 2: ASAL INSTANSI SURAT MASUK ---
+  const tbodyPengirim = document.getElementById("rekapTbodyPengirim");
+  if (tbodyPengirim) {
+    const mapPengirim = {};
+    listMasuk.forEach(m => {
+      let p = (m.dari || "Lain-lain").trim();
+      if (p.toUpperCase().includes("CADISDIK")) p = "Cabang Dinas Pendidikan (Cadisdik Wil. VII)";
+      else if (p.toUpperCase().includes("YAYASAN")) p = "Yayasan Wanita Kereta Api (YWKA)";
+      else if (p.toUpperCase().includes("DINAS PENDIDIKAN")) p = "Dinas Pendidikan Provinsi Jawa Barat";
+      else if (p.toUpperCase().includes("UNIVERSITAS") || p.toUpperCase().includes("INSTITUT") || p.toUpperCase().includes("SEKOLAH TINGGI")) p = "Perguruan Tinggi / Universitas";
+      else if (p.toUpperCase().includes("KECAMATAN") || p.toUpperCase().includes("KELURAHAN") || p.toUpperCase().includes("POLSEK") || p.toUpperCase().includes("KORAMIL")) p = "Instansi Pemerintahan / Wilayah";
+      mapPengirim[p] = (mapPengirim[p] || 0) + 1;
+    });
+
+    const sortedPengirim = Object.keys(mapPengirim).sort((a, b) => mapPengirim[b] - mapPengirim[a]);
+    if (sortedPengirim.length === 0) {
+      tbodyPengirim.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #94a3b8; padding: 12px;">Tidak ada surat masuk tercatat pada bulan ${mName} 2026.</td></tr>`;
+    } else {
+      let htmlPengirim = "";
+      sortedPengirim.forEach((pName, idx) => {
+        const c = mapPengirim[pName];
+        const pct = countMasuk > 0 ? Math.round((c / countMasuk) * 100) : 0;
+        htmlPengirim += `
+          <tr>
+            <td style="text-align: center;">${idx + 1}</td>
+            <td><strong>${escapeHtml(pName)}</strong></td>
+            <td style="text-align: right; font-weight: 700;">${c} surat</td>
+            <td style="text-align: right; color: #64748b;">${pct}%</td>
+          </tr>
+        `;
+      });
+      tbodyPengirim.innerHTML = htmlPengirim;
+    }
+  }
+
+  // --- TABEL 3: RINCIAN ENTRI SURAT BULAN INI ---
+  const tbodyEntries = document.getElementById("rekapTbodyEntries");
+  if (tbodyEntries) {
+    const combinedEntries = [];
+    listKeluar.forEach(item => {
+      combinedEntries.push({
+        type: "keluar",
+        agenda: item.noAgenda || item.noUrut || "-",
+        tanggal: item.tanggal || "-",
+        nomorLengkap: item.nomorLengkap || "-",
+        perihal: item.perihal || "-",
+        partner: item.kepada || "-",
+        hasDrive: hasDriveFileAttached(item)
+      });
+    });
+    listMasuk.forEach(item => {
+      combinedEntries.push({
+        type: "masuk",
+        agenda: item.noAgenda || item.noUrut || "-",
+        tanggal: item.tanggal || item.tglSurat || item.tglMasuk || "-",
+        nomorLengkap: item.nomorSurat || item.nomorLengkap || "-",
+        perihal: item.perihal || "-",
+        partner: item.dari || "-",
+        hasDrive: hasDriveFileAttached(item)
+      });
+    });
+
+    // Urutkan berdasarkan no agenda numerik
+    combinedEntries.sort((a, b) => {
+      const numA = parseInt(String(a.agenda).replace(/\D/g, ""), 10) || 0;
+      const numB = parseInt(String(b.agenda).replace(/\D/g, ""), 10) || 0;
+      return numA - numB;
+    });
+
+    if (combinedEntries.length === 0) {
+      tbodyEntries.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 14px;">Belum ada entri surat untuk bulan ${mName} 2026.</td></tr>`;
+    } else {
+      let htmlEntries = "";
+      combinedEntries.forEach((entry, idx) => {
+        const typeBadge = entry.type === "keluar"
+          ? `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">KELUAR</span>`
+          : `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;">MASUK</span>`;
+        const driveBadge = entry.hasDrive
+          ? `<span style="color: #059669; font-weight: 600;"><i class="fa-solid fa-cloud-arrow-up"></i> Ada</span>`
+          : `<span style="color: #94a3b8;">-</span>`;
+
+        htmlEntries += `
+          <tr>
+            <td style="text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="text-align: center;">${typeBadge}</td>
+            <td style="text-align: center; font-weight: 700; font-family: 'JetBrains Mono', monospace;">${escapeHtml(String(entry.agenda))}</td>
+            <td style="font-size: 11px;">${escapeHtml(entry.tanggal)}</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${escapeHtml(entry.nomorLengkap)}</td>
+            <td><strong>${escapeHtml(entry.perihal)}</strong></td>
+            <td style="font-size: 11px;">${escapeHtml(entry.partner)}</td>
+            <td style="text-align: center; font-size: 10.5px;">${driveBadge}</td>
+          </tr>
+        `;
+      });
+      tbodyEntries.innerHTML = htmlEntries;
+    }
+  }
+}
+
+function executePrintRekapBulanan() {
+  document.body.classList.add("printing-rekap-bulanan");
+  setTimeout(() => {
+    window.print();
+  }, 120);
+
+  const cleanup = () => {
+    document.body.classList.remove("printing-rekap-bulanan");
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  setTimeout(cleanup, 3000);
+}
+
+function exportRekapBulananCsv(monthInt) {
+  const m = monthInt || currentRekapMonth;
+  const mName = MONTH_NAMES[m - 1] || "Bulan";
+
+  const listKeluar = (state.suratKeluar || []).filter(s => getItemMonth(s) === m);
+  const listMasuk = (state.suratMasuk || []).filter(m => getItemMonth(m) === m);
+
+  const rows = [];
+  listKeluar.forEach(s => {
+    rows.push({
+      "Tipe": "Surat Keluar",
+      "No Agenda": s.noAgenda || s.noUrut || "",
+      "Tanggal": s.tanggal || "",
+      "Nomor Surat Lengkap": s.nomorLengkap || "",
+      "Perihal": s.perihal || "",
+      "Ditujukan Kepada": s.kepada || "",
+      "Dari": s.dari || "SMA YWKA Bandung",
+      "Kode Klasifikasi": s.kodeKlasifikasi || "",
+      "Status Berkas Drive": hasDriveFileAttached(s) ? "Tersedia di Drive" : "Belum Ada"
+    });
+  });
+
+  listMasuk.forEach(item => {
+    rows.push({
+      "Tipe": "Surat Masuk",
+      "No Agenda": item.noAgenda || item.noUrut || "",
+      "Tanggal": item.tanggal || item.tglSurat || item.tglMasuk || "",
+      "Nomor Surat Asal": item.nomorSurat || item.nomorLengkap || "",
+      "Perihal": item.perihal || "",
+      "Ditujukan Kepada": item.kepada || "Kepala SMA YWKA Bandung",
+      "Dari (Pengirim)": item.dari || "",
+      "Kode Klasifikasi": item.kodeKlasifikasi || "",
+      "Status Berkas Drive": hasDriveFileAttached(item) ? "Tersedia di Drive" : "Belum Ada"
+    });
+  });
+
+  if (rows.length === 0) {
+    showToast(`Tidak ada data surat untuk bulan ${mName} 2026`, "warning");
+    return;
+  }
+
+  // Urutkan berdasarkan no agenda
+  rows.sort((a, b) => (parseInt(a["No Agenda"], 10) || 0) - (parseInt(b["No Agenda"], 10) || 0));
+
+  exportToCsv(rows, `Rekapitulasi_Surat_SMA_YWKA_${mName}_2026.csv`);
 }
 
 /**
