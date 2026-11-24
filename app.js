@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.24";
+    const CURRENT_VERSION = "3.25";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -949,15 +949,71 @@ function initAuthModule() {
     });
   }
 
-  // 4. Handle Submit Form Login
+  // --- KEAMANAN CYBER: RATE LIMITING & ANTI-BRUTE FORCE LOGIN ---
+  const MAX_LOGIN_ATTEMPTS = 5;
+  const LOCKOUT_DURATION_MS = 10 * 60 * 1000; // 10 menit kunci otomatis
+
+  function getLoginLockoutStatus() {
+    try {
+      const lockoutUntil = parseInt(localStorage.getItem("sias_lockout_until") || "0", 10);
+      const now = Date.now();
+      if (lockoutUntil && lockoutUntil > now) {
+        return { isLocked: true, remainingSec: Math.ceil((lockoutUntil - now) / 1000) };
+      }
+      if (lockoutUntil && lockoutUntil <= now) {
+        localStorage.removeItem("sias_lockout_until");
+        localStorage.removeItem("sias_login_attempts");
+      }
+    } catch (e) {}
+    return { isLocked: false, remainingSec: 0 };
+  }
+
+  function recordFailedLoginAttempt() {
+    try {
+      const attempts = parseInt(localStorage.getItem("sias_login_attempts") || "0", 10) + 1;
+      localStorage.setItem("sias_login_attempts", String(attempts));
+      if (attempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
+        localStorage.setItem("sias_lockout_until", String(lockoutUntil));
+        return { isLocked: true, attempts, remainingSec: Math.ceil(LOCKOUT_DURATION_MS / 1000) };
+      }
+      return { isLocked: false, attempts, remainingAttempts: MAX_LOGIN_ATTEMPTS - attempts };
+    } catch (e) {
+      return { isLocked: false, attempts: 1, remainingAttempts: 4 };
+    }
+  }
+
+  function clearLoginLockout() {
+    try {
+      localStorage.removeItem("sias_login_attempts");
+      localStorage.removeItem("sias_lockout_until");
+    } catch (e) {}
+  }
+
+  // 4. Handle Submit Form Login (Dengan Proteksi Anti-Brute Force)
   if (formLogin) {
     formLogin.addEventListener("submit", (e) => {
       e.preventDefault();
+
+      // Cek apakah akun sedang dalam masa penguncian keamanan
+      const lockStatus = getLoginLockoutStatus();
+      if (lockStatus.isLocked) {
+        const m = Math.floor(lockStatus.remainingSec / 60);
+        const s = lockStatus.remainingSec % 60;
+        showToast(`🔒 Akses login dikunci sementara demi keamanan (tersisa ${m}m ${s}s) karena 5x salah password.`, "error");
+        if (loginCard) {
+          loginCard.classList.add("shake");
+          setTimeout(() => loginCard.classList.remove("shake"), 500);
+        }
+        return;
+      }
+
       const enteredUser = (inputUsername?.value || "").trim();
       const enteredPass = inputPassword?.value || "";
       const validPass = getActiveAdminPassword();
 
       if (enteredUser.toLowerCase() === AUTH_CONFIG.defaultUsername && enteredPass === validPass) {
+        clearLoginLockout();
         const isRemember = checkRemember ? checkRemember.checked : true;
         if (isRemember) {
           localStorage.setItem(AUTH_CONFIG.sessionKey, enteredUser);
@@ -968,11 +1024,16 @@ function initAuthModule() {
         showToast("✅ Login Berhasil! Selamat datang, Admin Tata Usaha SMAS YWKA.", "success");
         checkAuthState();
       } else {
+        const failRes = recordFailedLoginAttempt();
         if (loginCard) {
           loginCard.classList.add("shake");
           setTimeout(() => loginCard.classList.remove("shake"), 500);
         }
-        showToast("⚠️ Username atau password salah! (Username: admin, Password: " + validPass + ")", "error");
+        if (failRes.isLocked) {
+          showToast("🔒 Terlalu banyak percobaan gagal! Form login otomatis dikunci selama 10 menit untuk mencegah serangan brute-force.", "error");
+        } else {
+          showToast(`⚠️ Username atau password salah! (Sisa percobaan aman: ${failRes.remainingAttempts}x)`, "error");
+        }
       }
     });
   }
@@ -6193,21 +6254,30 @@ function copyText(txt) {
   showToast(`Tersalin: ${txt}`, "success");
 }
 
+// Proteksi OWASP CSV / Excel Formula Injection (CWE-1236)
+function sanitizeCsvCell(val) {
+  if (val === undefined || val === null) return '""';
+  let str = String(val);
+  // Netralkan karakter pemicu formula Excel/Spreadsheet berbahaya: '=', '+', '-', '@', '\t', '\r'
+  if (/^[=\+\-@\t\r]/.test(str)) {
+    str = "'" + str; // Netralkan sebagai literal teks biasa
+  }
+  return `"${str.replace(/"/g, '""')}"`;
+}
+
 function exportToCsv(dataArray, filename) {
   if (!dataArray || !dataArray.length) {
     showToast("Tidak ada data untuk diunduh!", "warning");
     return;
   }
   const headers = Object.keys(dataArray[0]);
-  const csvRows = [headers.join(",")];
+  const csvRows = [headers.map(sanitizeCsvCell).join(",")];
   dataArray.forEach(item => {
-    const values = headers.map(header => {
-      const val = item[header] === undefined || item[header] === null ? "" : String(item[header]);
-      return `"${val.replace(/"/g, '""')}"`;
-    });
+    const values = headers.map(header => sanitizeCsvCell(item[header]));
     csvRows.push(values.join(","));
   });
-  const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  // Gunakan \uFEFF (UTF-8 BOM) dan CRLF agar Excel membaca karakter khusus Indonesia tanpa rusak
+  const blob = new Blob(["\uFEFF" + csvRows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
