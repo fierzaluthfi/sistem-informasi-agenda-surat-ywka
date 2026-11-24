@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.23";
+    const CURRENT_VERSION = "3.24";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -5789,66 +5789,83 @@ function renderRekapBulanan(monthInt) {
     }
   }
 
-  // --- TABEL 3: RINCIAN ENTRI SURAT BULAN INI ---
-  const tbodyEntries = document.getElementById("rekapTbodyEntries");
-  if (tbodyEntries) {
-    const combinedEntries = [];
-    listKeluar.forEach(item => {
-      combinedEntries.push({
-        type: "keluar",
-        agenda: item.noAgenda || item.noUrut || "-",
-        tanggal: item.tanggal || "-",
-        nomorLengkap: item.nomorLengkap || "-",
-        perihal: item.perihal || "-",
-        partner: item.kepada || "-",
-        hasDrive: hasDriveFileAttached(item)
-      });
-    });
-    listMasuk.forEach(item => {
-      combinedEntries.push({
-        type: "masuk",
-        agenda: item.noAgenda || item.noUrut || "-",
-        tanggal: item.tanggal || item.tglSurat || item.tglMasuk || "-",
-        nomorLengkap: item.nomorSurat || item.nomorLengkap || "-",
-        perihal: item.perihal || "-",
-        partner: item.dari || "-",
-        hasDrive: hasDriveFileAttached(item)
-      });
-    });
+  // --- TABEL 3: RINCIAN SURAT KELUAR BULAN INI ---
+  const tbodyKeluar = document.getElementById("rekapTbodyKeluar");
+  const titleCountKeluar = document.getElementById("rekapKeluarCountTitle");
+  if (titleCountKeluar) titleCountKeluar.textContent = `${countKeluar} Surat`;
 
-    // Urutkan berdasarkan no agenda numerik
-    combinedEntries.sort((a, b) => {
-      const numA = parseInt(String(a.agenda).replace(/\D/g, ""), 10) || 0;
-      const numB = parseInt(String(b.agenda).replace(/\D/g, ""), 10) || 0;
+  if (tbodyKeluar) {
+    const sortedKeluar = [...listKeluar].sort((a, b) => {
+      const numA = parseInt(String(a.noAgenda || a.noUrut || "").replace(/\D/g, ""), 10) || 0;
+      const numB = parseInt(String(b.noAgenda || b.noUrut || "").replace(/\D/g, ""), 10) || 0;
       return numA - numB;
     });
 
-    if (combinedEntries.length === 0) {
-      tbodyEntries.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 14px;">Belum ada entri surat untuk bulan ${mName} 2026.</td></tr>`;
+    if (sortedKeluar.length === 0) {
+      tbodyKeluar.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 12px;">Tidak ada surat keluar tercatat pada bulan ${mName} 2026.</td></tr>`;
     } else {
-      let htmlEntries = "";
-      combinedEntries.forEach((entry, idx) => {
-        const typeBadge = entry.type === "keluar"
-          ? `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">KELUAR</span>`
-          : `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;">MASUK</span>`;
-        const driveBadge = entry.hasDrive
+      let htmlKeluar = "";
+      sortedKeluar.forEach((s, idx) => {
+        const driveBadge = hasDriveFileAttached(s)
           ? `<span style="color: #059669; font-weight: 600;"><i class="fa-solid fa-cloud-arrow-up"></i> Ada</span>`
           : `<span style="color: #94a3b8;">-</span>`;
+        const kodePill = s.kodeKlasifikasi
+          ? `<span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">${escapeHtml(s.kodeKlasifikasi)}</span>`
+          : `-`;
 
-        htmlEntries += `
+        htmlKeluar += `
           <tr>
             <td style="text-align: center; color: #64748b;">${idx + 1}</td>
-            <td style="text-align: center;">${typeBadge}</td>
-            <td style="text-align: center; font-weight: 700; font-family: 'JetBrains Mono', monospace;">${escapeHtml(String(entry.agenda))}</td>
-            <td style="font-size: 11px;">${escapeHtml(entry.tanggal)}</td>
-            <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">${escapeHtml(entry.nomorLengkap)}</td>
-            <td><strong>${escapeHtml(entry.perihal)}</strong></td>
-            <td style="font-size: 11px;">${escapeHtml(entry.partner)}</td>
+            <td style="text-align: center; font-weight: 700; font-family: 'JetBrains Mono', monospace;">${escapeHtml(String(s.noAgenda || s.noUrut || "-"))}</td>
+            <td style="font-size: 10.5px;">${escapeHtml(s.tanggal || "-")}</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px;">${escapeHtml(s.nomorLengkap || "-")}</td>
+            <td><strong>${escapeHtml(s.perihal || "-")}</strong></td>
+            <td style="font-size: 10.5px;">${escapeHtml(s.kepada || "-")}</td>
+            <td style="text-align: center;">${kodePill}</td>
             <td style="text-align: center; font-size: 10.5px;">${driveBadge}</td>
           </tr>
         `;
       });
-      tbodyEntries.innerHTML = htmlEntries;
+      tbodyKeluar.innerHTML = htmlKeluar;
+    }
+  }
+
+  // --- TABEL 4: RINCIAN SURAT MASUK BULAN INI ---
+  const tbodyMasuk = document.getElementById("rekapTbodyMasuk");
+  const titleCountMasuk = document.getElementById("rekapMasukCountTitle");
+  if (titleCountMasuk) titleCountMasuk.textContent = `${countMasuk} Surat`;
+
+  if (tbodyMasuk) {
+    const sortedMasuk = [...listMasuk].sort((a, b) => {
+      const numA = parseInt(String(a.noAgenda || a.noUrut || "").replace(/\D/g, ""), 10) || 0;
+      const numB = parseInt(String(b.noAgenda || b.noUrut || "").replace(/\D/g, ""), 10) || 0;
+      return numA - numB;
+    });
+
+    if (sortedMasuk.length === 0) {
+      tbodyMasuk.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 12px;">Tidak ada surat masuk tercatat pada bulan ${mName} 2026.</td></tr>`;
+    } else {
+      let htmlMasuk = "";
+      sortedMasuk.forEach((m, idx) => {
+        const driveBadge = hasDriveFileAttached(m)
+          ? `<span style="color: #059669; font-weight: 600;"><i class="fa-solid fa-cloud-arrow-up"></i> Ada</span>`
+          : `<span style="color: #94a3b8;">-</span>`;
+        const disposisiText = m.keterangan ? escapeHtml(m.keterangan) : `<span style="color: #94a3b8;">-</span>`;
+
+        htmlMasuk += `
+          <tr>
+            <td style="text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="text-align: center; font-weight: 700; font-family: 'JetBrains Mono', monospace;">${escapeHtml(String(m.noAgenda || m.noUrut || "-"))}</td>
+            <td style="font-size: 10.5px;">${escapeHtml(m.tanggal || m.tglSurat || m.tglMasuk || "-")}</td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px;">${escapeHtml(m.nomorSurat || m.nomorLengkap || "-")}</td>
+            <td><strong>${escapeHtml(m.perihal || "-")}</strong></td>
+            <td style="font-size: 10.5px;">${escapeHtml(m.dari || "-")}</td>
+            <td style="font-size: 10.5px;">${disposisiText}</td>
+            <td style="text-align: center; font-size: 10.5px;">${driveBadge}</td>
+          </tr>
+        `;
+      });
+      tbodyMasuk.innerHTML = htmlMasuk;
     }
   }
 }

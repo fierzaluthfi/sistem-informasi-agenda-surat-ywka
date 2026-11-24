@@ -24,7 +24,7 @@
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <link rel="stylesheet" href="style.css?v=3.23">
+  <link rel="stylesheet" href="style.css?v=3.24">
 </head>
 <body>
   <!-- ================= PORTAL LOGIN RESMI SMAS YWKA ================= -->
@@ -1535,23 +1535,45 @@
               </table>
             </div>
 
-            <!-- TABEL 3: DAFTAR DETAIL SURAT BULAN INI -->
+            <!-- TABEL 3: RINCIAN SURAT KELUAR BULAN INI -->
             <div class="rekap-section-block">
-              <h3 class="rekap-section-title"><i class="fa-solid fa-table-list"></i> III. Rincian Agenda Surat Bulan Ini</h3>
+              <h3 class="rekap-section-title"><i class="fa-solid fa-paper-plane text-primary"></i> III. Rincian Agenda Surat Keluar (<span id="rekapKeluarCountTitle">0 Surat</span>)</h3>
               <table class="rekap-table rekap-table-entries">
                 <thead>
                   <tr>
-                    <th style="width: 38px; text-align: center;">No.</th>
-                    <th style="width: 75px; text-align: center;">Tipe</th>
-                    <th style="width: 80px; text-align: center;">Agenda</th>
+                    <th style="width: 35px; text-align: center;">No.</th>
+                    <th style="width: 75px; text-align: center;">No. Agenda</th>
                     <th style="width: 85px;">Tanggal</th>
-                    <th style="width: 190px;">Nomor Lengkap</th>
+                    <th style="width: 195px;">Nomor Lengkap Surat</th>
                     <th>Perihal / Ringkasan Isi</th>
-                    <th style="width: 140px;">Tujuan / Pengirim</th>
-                    <th style="width: 70px; text-align: center;">Berkas</th>
+                    <th style="width: 135px;">Ditujukan Kepada</th>
+                    <th style="width: 65px; text-align: center;">Kode</th>
+                    <th style="width: 65px; text-align: center;">Berkas</th>
                   </tr>
                 </thead>
-                <tbody id="rekapTbodyEntries">
+                <tbody id="rekapTbodyKeluar">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- TABEL 4: RINCIAN SURAT MASUK BULAN INI -->
+            <div class="rekap-section-block">
+              <h3 class="rekap-section-title"><i class="fa-solid fa-inbox text-emerald"></i> IV. Rincian Agenda Surat Masuk (<span id="rekapMasukCountTitle">0 Surat</span>)</h3>
+              <table class="rekap-table rekap-table-entries">
+                <thead>
+                  <tr>
+                    <th style="width: 35px; text-align: center;">No.</th>
+                    <th style="width: 75px; text-align: center;">No. Agenda</th>
+                    <th style="width: 85px;">Tgl. Diterima</th>
+                    <th style="width: 195px;">Nomor Surat Asal</th>
+                    <th>Perihal / Ringkasan Isi</th>
+                    <th style="width: 135px;">Instansi Pengirim</th>
+                    <th style="width: 100px;">Disposisi</th>
+                    <th style="width: 65px; text-align: center;">Berkas</th>
+                  </tr>
+                </thead>
+                <tbody id="rekapTbodyMasuk">
                   <!-- Populated via JS -->
                 </tbody>
               </table>
@@ -2755,6 +2777,6 @@
   </script>
   <!-- pdf-lib: Untuk menyisipkan watermark ke berkas PDF Surat Masuk sebelum upload ke Drive -->
   <script src="pdf-lib.min.js"></script>
-  <script src="app.js?v=3.23"></script>
+  <script src="app.js?v=3.24"></script>
 </body>
 </html>
