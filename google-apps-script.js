@@ -642,8 +642,8 @@ function autoRelocateMisplacedSuratKeluar(sheet) {
     return "Semua baris Surat Keluar sudah berada pada posisi template yang benar.";
   }
 
-  // Pengaman ketat: jangan pernah sentuh celah kosong historis jauh di tengah tahun (misal baris 437)
-  if (lastEmptyIdx < 700 || misplacedItems.length > 25) {
+  // Pengaman: pastikan celah kosong terdeteksi
+  if (lastEmptyIdx < 500 || misplacedItems.length > 100) {
     return "Tidak ada baris nyasar di blok akhir yang perlu direlokasi.";
   }
 
@@ -734,17 +734,12 @@ function autoRelocateMisplacedSuratKeluar(sheet) {
     slotIdx++;
   }
 
-  // Hapus baris nyasar di posisi bawah dari bawah ke atas (atau kosongkan jika masih di dalam template <= 750)
+  // Kosongkan baris sumber lama yang sudah dipindahkan ke celah atas agar kembali menjadi template kosong bersih
   for (let k = misplacedItems.length - 1; k >= 0; k--) {
     const srcRow = misplacedItems[k].srcRow;
-    const srcUrut = Number(misplacedItems[k].data[0]);
     try {
-      if (srcRow > 729 || (!isNaN(srcUrut) && srcUrut > 750)) {
-        sheet.deleteRow(srcRow);
-      } else {
-        sheet.getRange(srcRow, 2).setValue(false);
-        sheet.getRange(srcRow, 3, 1, 12).clearContent();
-      }
+      sheet.getRange(srcRow, 2).setValue(false);
+      sheet.getRange(srcRow, 3, 1, 12).clearContent();
     } catch (eDel) {
       sheet.getRange(srcRow, 3, 1, 12).clearContent();
     }
@@ -1321,6 +1316,18 @@ function doPost(e) {
             if (!sD && !sI) {
               targetRowIndex = j + 4;
               break;
+            }
+          }
+
+          // Fallback ekstra: jika belum ditemukan, cari slot kosong pertama di seluruh tabel (dari baris 4)
+          if (targetRowIndex < 0) {
+            for (let j = 0; j < allValues.length; j++) {
+              const sD = String(allValues[j][3] || "").trim();
+              const sI = String(allValues[j][8] || "").trim();
+              if (!sD && !sI) {
+                targetRowIndex = j + 4;
+                break;
+              }
             }
           }
         }

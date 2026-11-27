@@ -8,7 +8,7 @@
 // Pembersihan Cache Versi Baru Otomatis (Mencegah Stale Corrupted LocalStorage)
 (function () {
   try {
-    const CURRENT_VERSION = "3.25";
+    const CURRENT_VERSION = "3.26";
     const savedVersion = localStorage.getItem("sias_app_version");
     if (savedVersion !== CURRENT_VERSION) {
       localStorage.removeItem("cache_surat_masuk_2026");
@@ -3578,6 +3578,16 @@ function initEventListeners() {
     btnOpenModalBatch.addEventListener("click", () => openBatchUploadModalKeluar());
   }
 
+  const btnBatchDeleteKeluar = document.getElementById("btnBatchDeleteKeluar");
+  if (btnBatchDeleteKeluar) {
+    btnBatchDeleteKeluar.addEventListener("click", executeBatchDeleteKeluar);
+  }
+
+  const btnRapikanBarisKeluar = document.getElementById("btnRapikanBarisKeluar");
+  if (btnRapikanBarisKeluar) {
+    btnRapikanBarisKeluar.addEventListener("click", executeRapikanBarisKeluar);
+  }
+
   // Batch Edit Event Listeners
   const btnHeaderBatchEdit = document.getElementById("btnHeaderBatchEditKeluar");
   if (btnHeaderBatchEdit) {
@@ -3818,6 +3828,11 @@ function initEventListeners() {
   const btnOpenBatchUploadMasukModal = document.getElementById("btnOpenBatchUploadMasukModal");
   if (btnOpenBatchUploadMasukModal) {
     btnOpenBatchUploadMasukModal.addEventListener("click", () => openBatchUploadModalMasuk(Array.from(state.selectedMasukIds)));
+  }
+
+  const btnBatchDeleteMasuk = document.getElementById("btnBatchDeleteMasuk");
+  if (btnBatchDeleteMasuk) {
+    btnBatchDeleteMasuk.addEventListener("click", executeBatchDeleteMasuk);
   }
 
   const modalBatchMasuk = document.getElementById("modalBatchUploadMasuk");
@@ -6715,9 +6730,163 @@ function updateBatchKeluarBar() {
   if (editCount) editCount.textContent = count;
   if (editApplyCount) editApplyCount.textContent = count;
 
+  const deleteBtnCount = document.getElementById("batchDeleteKeluarBtnCount");
+  if (deleteBtnCount) deleteBtnCount.textContent = count;
+
   if (bar) {
     bar.style.display = count > 0 ? "flex" : "none";
   }
+}
+
+/**
+ * Eksekusi Hapus Terpilih untuk Surat Keluar
+ */
+async function executeBatchDeleteKeluar() {
+  const selectedCount = state.selectedKeluarIds ? state.selectedKeluarIds.size : 0;
+  if (selectedCount === 0) {
+    showToast("Pilih minimal satu surat keluar yang ingin dihapus!", "warning");
+    return;
+  }
+
+  const konfirmasi = confirm(
+    `PERINGATAN HAPUS MASSAL:\n\nApakah Anda yakin ingin menghapus ${selectedCount} surat keluar terpilih?\n\n` +
+    `• Data surat akan dihapus dari Buku Agenda dan Google Spreadsheet.\n` +
+    `• Berkas fisik di Google Drive terkait juga akan dihapus (jika ada).\n\n` +
+    `Lanjutkan penghapusan?`
+  );
+  if (!konfirmasi) return;
+
+  const btnDelete = document.getElementById("btnBatchDeleteKeluar");
+  const origBtnText = btnDelete ? btnDelete.innerHTML : "";
+  if (btnDelete) {
+    btnDelete.disabled = true;
+    btnDelete.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghapus (${selectedCount})...`;
+  }
+
+  const selectedIds = Array.from(state.selectedKeluarIds);
+  let successCount = 0;
+  let failCount = 0;
+
+  for (let i = 0; i < selectedIds.length; i++) {
+    const id = selectedIds[i];
+    const item = state.suratKeluar.find(k => k.id === id);
+    if (!item) continue;
+
+    if (btnDelete) {
+      btnDelete.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghapus ${i + 1}/${selectedIds.length}...`;
+    }
+
+    try {
+      if (state.appsScriptUrl) {
+        const payloadData = {
+          action: "delete_surat_keluar",
+          no_agenda: String(item.noAgenda || "").trim(),
+          no_urut: String(item.noUrut || item.noAgenda || "").trim(),
+          row_index: item.rowIndex ? parseInt(item.rowIndex, 10) : -1,
+          delete_all_matching: true,
+          id: id
+        };
+        await fetch(state.appsScriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payloadData)
+        });
+      }
+      successCount++;
+    } catch (err) {
+      console.warn("Gagal hapus surat keluar di Apps Script:", id, err);
+      failCount++;
+    }
+
+    // Hapus dari state lokal
+    state.suratKeluar = state.suratKeluar.filter(k => k.id !== id);
+  }
+
+  // Update localStorage cache
+  localStorage.setItem("cache_surat_keluar_2026", JSON.stringify(state.suratKeluar));
+
+  const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_keluar") || "[]");
+  const updatedUnsynced = unsyncedList.filter(k => !selectedIds.includes(k.id));
+  localStorage.setItem("unsynced_surat_keluar", JSON.stringify(updatedUnsynced));
+
+  state.selectedKeluarIds.clear();
+
+  if (btnDelete) {
+    btnDelete.disabled = false;
+    btnDelete.innerHTML = origBtnText;
+  }
+
+  filterSuratKeluarData();
+  updateDashboardUI();
+  updateBatchKeluarBar();
+  updateCheckAllKeluarState();
+
+  showToast(`✅ Berhasil menghapus ${successCount} surat keluar dari sistem & spreadsheet!`, "success");
+}
+
+/**
+ * Eksekusi Rapikan Baris Spreadsheet Surat Keluar
+ */
+async function executeRapikanBarisKeluar() {
+  const btn = document.getElementById("btnRapikanBarisKeluar");
+  const origHtml = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-primary"></i> Merapikan...`;
+  }
+
+  showToast("🔍 Memeriksa dan merapikan celah baris di Google Spreadsheet...", "info");
+
+  try {
+    if (!state.appsScriptUrl) {
+      showToast("URL Google Apps Script belum disetel di pengaturan!", "warning");
+      if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+      return;
+    }
+
+    const res = await postToAppsScript({ action: "auto_fix_keluar" });
+
+    if (res && res.status === "success") {
+      showToast(`✅ ${res.message || "Baris Spreadsheet Surat Keluar berhasil dirapikan!"}`, "success");
+      await loadAllDataFromSpreadsheet();
+    } else if (res && res.message && (res.message.includes("Aksi tidak dikenal") || res.message.includes("not recognized"))) {
+      showAppsScriptUpdateGuidance();
+    } else {
+      showToast(res?.message || "Pemeriksaan baris selesai.", "info");
+      await loadAllDataFromSpreadsheet();
+    }
+  } catch (err) {
+    console.warn("Gagal merapikan baris via Apps Script:", err);
+    showAppsScriptUpdateGuidance();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+}
+
+/**
+ * Tampilkan Panduan Update Apps Script jika Web App belum v3.9+
+ */
+function showAppsScriptUpdateGuidance() {
+  const modalTab = document.querySelector('[data-tab="tab-pengaturan"]');
+  if (modalTab) modalTab.click();
+  setTimeout(() => {
+    const area = document.getElementById("appsScriptCodeArea");
+    if (area) area.scrollIntoView({ behavior: "smooth" });
+  }, 300);
+
+  alert(
+    "PANDUAN UPDATE GOOGLE APPS SCRIPT (v3.9):\n\n" +
+    "Web App Google Apps Script di Google Drive Anda saat ini belum menjalankan fitur 'auto_fix_keluar' (masih deployment versi lama).\n\n" +
+    "Agar celah baris (767-773) otomatis dirapikan dan penempatan surat keluar selalu presisi:\n" +
+    "1. Layar telah diarahkan ke Tab 'Pengaturan'.\n" +
+    "2. Klik tombol 'Salin Skrip' pada kotak Kode Google Apps Script v3.9.\n" +
+    "3. Buka spreadsheet Google Drive > Ekstensi > Apps Script, timpa semua kodenya (Paste).\n" +
+    "4. Klik Terapkan (Deploy) > Kelola Penerapan > Edit (ikon pensil) > Versi: 'Versi baru' > Terapkan.\n\n" +
+    "Setelah memperbarui deployment, klik tombol 'Rapikan Baris' kembali untuk merapikan sheet secara instan!"
+  );
 }
 
 /**
@@ -10329,18 +10498,106 @@ function updateBatchMasukBar() {
   const countBadge = document.getElementById("batchMasukCountBadge");
   const printBtnCount = document.getElementById("batchPrintMasukBtnCount");
   const btnCount = document.getElementById("batchMasukBtnCount");
+  const deleteBtnCount = document.getElementById("batchDeleteMasukBtnCount");
   if (!bar) return;
 
   const count = state.selectedMasukIds ? state.selectedMasukIds.size : 0;
   if (countBadge) countBadge.textContent = count;
   if (printBtnCount) printBtnCount.textContent = count;
   if (btnCount) btnCount.textContent = count;
+  if (deleteBtnCount) deleteBtnCount.textContent = count;
 
   if (count > 0) {
     bar.style.display = "flex";
   } else {
     bar.style.display = "none";
   }
+}
+
+/**
+ * Eksekusi Hapus Terpilih untuk Surat Masuk
+ */
+async function executeBatchDeleteMasuk() {
+  const selectedCount = state.selectedMasukIds ? state.selectedMasukIds.size : 0;
+  if (selectedCount === 0) {
+    showToast("Pilih minimal satu surat masuk yang ingin dihapus!", "warning");
+    return;
+  }
+
+  const konfirmasi = confirm(
+    `PERINGATAN HAPUS MASSAL:\n\nApakah Anda yakin ingin menghapus ${selectedCount} surat masuk terpilih?\n\n` +
+    `• Data surat akan dihapus dari Buku Agenda dan Google Spreadsheet.\n` +
+    `• Berkas fisik di Google Drive terkait juga akan dihapus (jika ada).\n\n` +
+    `Lanjutkan penghapusan?`
+  );
+  if (!konfirmasi) return;
+
+  const btnDelete = document.getElementById("btnBatchDeleteMasuk");
+  const origBtnText = btnDelete ? btnDelete.innerHTML : "";
+  if (btnDelete) {
+    btnDelete.disabled = true;
+    btnDelete.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghapus (${selectedCount})...`;
+  }
+
+  const selectedIds = Array.from(state.selectedMasukIds);
+  let successCount = 0;
+  let failCount = 0;
+
+  for (let i = 0; i < selectedIds.length; i++) {
+    const id = selectedIds[i];
+    const item = state.suratMasuk.find(m => m.id === id);
+    if (!item) continue;
+
+    if (btnDelete) {
+      btnDelete.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menghapus ${i + 1}/${selectedIds.length}...`;
+    }
+
+    try {
+      if (state.appsScriptUrl) {
+        const payloadData = {
+          action: "delete_surat_masuk",
+          no_agenda: String(item.noAgenda || "").trim(),
+          no_urut: String(item.noUrut || "").trim(),
+          row_index: item.rowIndex ? parseInt(item.rowIndex, 10) : -1,
+          delete_all_matching: true,
+          id: id
+        };
+        await fetch(state.appsScriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payloadData)
+        });
+      }
+      successCount++;
+    } catch (err) {
+      console.warn("Gagal hapus surat masuk di Apps Script:", id, err);
+      failCount++;
+    }
+
+    // Hapus dari state lokal
+    state.suratMasuk = state.suratMasuk.filter(m => m.id !== id);
+  }
+
+  // Update localStorage cache
+  localStorage.setItem("cache_surat_masuk_2026", JSON.stringify(state.suratMasuk));
+
+  const unsyncedList = JSON.parse(localStorage.getItem("unsynced_surat_masuk") || "[]");
+  const updatedUnsynced = unsyncedList.filter(m => !selectedIds.includes(m.id));
+  localStorage.setItem("unsynced_surat_masuk", JSON.stringify(updatedUnsynced));
+
+  state.selectedMasukIds.clear();
+
+  if (btnDelete) {
+    btnDelete.disabled = false;
+    btnDelete.innerHTML = origBtnText;
+  }
+
+  filterSuratMasukData();
+  updateDashboardUI();
+  updateBatchMasukBar();
+  updateCheckAllMasukState();
+
+  showToast(`✅ Berhasil menghapus ${successCount} surat masuk dari sistem & spreadsheet!`, "success");
 }
 
 function getCurrentMasukSlice() {
